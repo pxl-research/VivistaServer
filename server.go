@@ -108,12 +108,13 @@ func registerPost(ctx *http.RequestCtx) {
 func videoPost(ctx *http.RequestCtx) {
 	if authenticateRequest(ctx) {
 		fileHeader, error := ctx.FormFile("video")
+		uuid := ctx.FormValue("uuid");
 
 		if error != nil {
 			fmt.Printf("Something went wrong while trying to save the file: %s \n", error)
 		}
 
-		http.SaveMultipartFile(fileHeader, "C:\\test\\file.mp4")
+		http.SaveMultipartFile(fileHeader, fmt.Sprintf("C:\\test\\%s.mp4", uuid))
 	} else {
 		ctx.Error("{}", http.StatusUnauthorized)
 	}
@@ -122,12 +123,13 @@ func videoPost(ctx *http.RequestCtx) {
 func jsonPost(ctx *http.RequestCtx) {
 	if authenticateRequest(ctx) {
 		fileHeader, error := ctx.FormFile("jsonFile")
+		uuid := ctx.FormValue("uuid");
 
 		if error != nil {
 			fmt.Printf("Something went wrong while trying to save the file: %s \n", error)
 		}
 
-		http.SaveMultipartFile(fileHeader, "C:\\test\\test.json")
+		http.SaveMultipartFile(fileHeader, fmt.Sprintf("C:\\test\\%s.json", uuid))
 	} else {
 		ctx.Error("{}", http.StatusUnauthorized)
 	}
