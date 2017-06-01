@@ -110,12 +110,16 @@ func indexGet(ctx *http.RequestCtx) {
 		offset = 0
 	}
 	count, err := ctx.QueryArgs().GetUint("count")
-	if (err != nil || count < 0 || count > 100) {
+	if (err != nil || count <= 0 || count > 100) {
 		count = 10
 	}
 
-	rows, err := pool.Query("select * from videos limit $1 offset $2", offset, count);
-
+	rows, err := pool.Query("select * from videos limit $1 offset $2", count, offset);
+	if err != nil {
+		logError("Something went wrong while loading the index", err)
+		ctx.Error("{}", http.StatusInternalServerError)
+		return
+	}
 	var vid video
 
 	for rows.Next() {
