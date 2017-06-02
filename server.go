@@ -4,6 +4,7 @@ import (
 	"os"
 	"fmt"
 	"time"
+	"strings"
 	"io/ioutil"
 	"golang.org/x/crypto/bcrypt"
 	"github.com/jackc/pgx"
@@ -38,7 +39,10 @@ func main() {
 	}
 
 	fmt.Println("Starting server")
-	h.ListenAndServe(":80")
+	err = h.ListenAndServeTLS(":443", "C:\\Users\\Simon\\Documents\\Git\\360Server\\valyala\\fasthttp\\ssl-cert-snakeoil.pem", "C:\\Users\\Simon\\Documents\\Git\\360Server\\valyala\\fasthttp\\ssl-cert-snakeoil.key")
+	if err != nil {
+		logError("failed to start server", err)
+	}
 }
 
 func extractSqlConfig() pgx.ConnPoolConfig {
@@ -66,6 +70,11 @@ func extractSqlConfig() pgx.ConnPoolConfig {
 }
 
 func HTTPHandler(ctx *http.RequestCtx) {
+	if !ctx.IsTLS() {
+		ctx.Error("{}", http.StatusUpgradeRequired)
+		return
+	}
+
 	fmt.Printf("%s: %s\n", timeToString(), ctx.Path())
 
 	ctx.SetContentType("application/json")
@@ -124,19 +133,25 @@ func indexGet(ctx *http.RequestCtx) {
 
 	for rows.Next() {
 		rows.Scan(&vid.uuid, &vid.userid, &vid.timestamp, &vid.downloadsize)
-		fmt.Println(vid);
 	}
 }
 
 func registerPost(ctx *http.RequestCtx) {
-	username := ctx.FormValue("username");
-	password := ctx.FormValue("password");
-	var hashedPassword, _ = bcrypt.GenerateFromPassword(password, bcryptWorkFactor)
+	username := strings.ToLower(string(ctx.FormValue("username")));
 
-	_, err := pool.Exec("insert into users values ($1, $2)", &username, &hashedPassword)
+	if !userExists(username) {
+		password := ctx.FormValue("password");
+		var hashedPassword, _ = bcrypt.GenerateFromPassword(password, bcryptWorkFactor)
 
-	if err != nil {
-		//TODO(Simon): Error handlng when user already exists.
+		_, err := pool.Exec("insert into users values ($1, $2)", &username, &hashedPassword)
+
+		if err != nil {
+			ctx.Error("{}", http.StatusInternalServerError)
+			return
+		}
+	} else {
+		ctx.Error("{}", http.StatusConflict)
+		return
 	}
 
 	fmt.Fprintf(ctx, "{}")
@@ -241,6 +256,20 @@ func getUserId(username string) int {
 	}
 
 	return id;
+}
+
+func userExists(username string) bool {
+	count := 0;
+	err := pool.QueryRow("select count(*) from users where username=$1", username).Scan(&count);
+	if err != nil {
+		logError("Couldn't verify whether key exists", err)
+		return false
+	}
+	if count <= 0 {
+		return false
+	} else {
+		return true;
+	}
 }
 
 func videoExists(uuid []byte) bool {
