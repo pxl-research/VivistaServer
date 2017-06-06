@@ -14,6 +14,7 @@ import (
 const bcryptWorkFactor = 12
 
 var pool *pgx.ConnPool
+var maxRequestBodySize = 1 * 1024 * 1024 * 1024
 
 type video struct {
 	uuid []byte
@@ -35,7 +36,7 @@ func main() {
 
 	h := &http.Server{
 		Handler: HTTPHandler,
-		MaxRequestBodySize: 1 * 1024 * 1024 * 1024,
+		MaxRequestBodySize: maxRequestBodySize,
 	}
 
 	fmt.Println("Starting server")
