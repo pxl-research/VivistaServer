@@ -39,7 +39,11 @@ func main() {
 	}
 
 	fmt.Println("Starting server")
-	err = h.ListenAndServeTLS(":443", "C:\\Users\\Simon\\Documents\\Git\\360Server\\valyala\\fasthttp\\ssl-cert-snakeoil.pem", "C:\\Users\\Simon\\Documents\\Git\\360Server\\valyala\\fasthttp\\ssl-cert-snakeoil.key")
+	if SSL {
+		err = h.ListenAndServeTLS(":443", "C:\\Users\\Simon\\Documents\\Git\\360Server\\valyala\\fasthttp\\ssl-cert-snakeoil.pem", "C:\\Users\\Simon\\Documents\\Git\\360Server\\valyala\\fasthttp\\ssl-cert-snakeoil.key")
+	} else {
+		err = h.ListenAndServe(":80")
+	}
 	if err != nil {
 		logError("failed to start server", err)
 	}
@@ -70,7 +74,7 @@ func extractSqlConfig() pgx.ConnPoolConfig {
 }
 
 func HTTPHandler(ctx *http.RequestCtx) {
-	if !ctx.IsTLS() {
+	if SSL && !ctx.IsTLS() {
 		ctx.Error("{}", http.StatusUpgradeRequired)
 		return
 	}
