@@ -6,6 +6,7 @@ import (
 	"time"
 	"bytes"
 	"strings"
+	"runtime"
 	"io/ioutil"
 	"encoding/json"
 	"github.com/jackc/pgx"
@@ -30,7 +31,8 @@ type video struct {
 }
 
 func main() {
-	var err error
+	runtime.GOMAXPROCS(runtime.NumCPU() - 1)
+	var err error;
 	dbPool, err = pgx.NewConnPool(extractSqlConfig())
 
 	if err != nil {
@@ -156,6 +158,7 @@ func indexGet(ctx *http.RequestCtx) {
 	buffer.Write([]byte("["))
 	for rows.Next() {
 		rows.Scan(&vid.Uuid, &vid.Userid, &vid.Timestamp, &vid.Downloadsize)
+
 		result, _ := json.Marshal(vid)
 		buffer.Write(result)
 		buffer.Write([]byte(","))
