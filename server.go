@@ -224,7 +224,7 @@ func videoPost(ctx *http.RequestCtx) {
 
 		if videoExists(uuid) {
 			timestamp := time.Now()
-			_, err = dbPool.Exec("update videos set timestamp = $1", &timestamp)
+			_, err = dbPool.Exec("update videos set timestamp = $1 where id = $2", &timestamp, &uuid)
 		} else{
 			userid := getUserId(string(ctx.FormValue("username")))
 			_, err = dbPool.Exec("insert into videos (id, userid) values ($1, $2)", &uuid, &userid)
@@ -255,7 +255,7 @@ func jsonPost(ctx *http.RequestCtx) {
 
 		if videoExists(uuid) {
 			timestamp := time.Now()
-			_, err = dbPool.Exec("update videos set timestamp = $1", &timestamp)
+			_, err = dbPool.Exec("update videos set timestamp = $1 where id = $2", &timestamp, &uuid)
 		} else{
 			userid := getUserId(string(ctx.FormValue("username")))
 			_, err = dbPool.Exec("insert into videos (id, userid) values ($1, $2)", &uuid, &userid)
@@ -299,7 +299,7 @@ func authenticateToken(ctx *http.RequestCtx) bool {
 	token := string(ctx.FormValue("token"))
 	validUntil := time.Time{}
 
-	err := dbPool.QueryRow("select token from sessions where token = $1", &token).Scan(&validUntil)
+	err := dbPool.QueryRow("select expiry from sessions where token = $1", &token).Scan(&validUntil)
 
 	if err != nil {
 		return false
