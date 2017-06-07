@@ -4,6 +4,7 @@ import (
 	"os"
 	"fmt"
 	"time"
+	"bytes"
 	"strings"
 	"io/ioutil"
 	"encoding/json"
@@ -22,10 +23,10 @@ var maxRequestBodySize = 1 * 1024 * 1024 * 1024
 var sessionExpiry = time.Duration(1) * time.Hour + time.Duration(0) * time.Minute
 
 type video struct {
-	uuid []byte
-	userid int
-	timestamp time.Time
-	downloadsize int
+	Uuid []byte
+	Userid int
+	Timestamp time.Time
+	Downloadsize int
 }
 
 func main() {
@@ -140,21 +141,29 @@ func indexGet(ctx *http.RequestCtx) {
 		count = 10
 	}
 
-	rows, err := dbPool.Query("select * from videos limit $1 offset $2", count, offset)
+	rows, err := dbPool.Query("select id, userid, timestamp, downloadsize from videos limit $1 offset $2", count, offset)
 	if err != nil {
 		logError("Something went wrong while loading the index", err)
 		ctx.Error("{}", http.StatusInternalServerError)
 		return
 	}
-	var vid video
 
+	defer rows.Close()
+
+	var vid video;
+	var buffer bytes.Buffer
+
+	buffer.Write([]byte("["))
 	for rows.Next() {
-		rows.Scan(&vid.uuid, &vid.userid, &vid.timestamp, &vid.downloadsize)
-		result, err := json.Marshal(vid)
-		fmt.Println(vid)
-		fmt.Println(string(result))
-		fmt.Println(err)
+		rows.Scan(&vid.Uuid, &vid.Userid, &vid.Timestamp, &vid.Downloadsize)
+		result, _ := json.Marshal(vid)
+		buffer.Write(result)
+		buffer.Write([]byte(","))
 	}
+	buffer.Truncate(buffer.Len() - 1)
+	buffer.Write([]byte("]"))
+
+	ctx.SetBody(buffer.Bytes())
 }
 
 func registerPost(ctx *http.RequestCtx) {
