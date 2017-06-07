@@ -16,7 +16,7 @@ import (
 
 const bcryptWorkFactor = 12
 
-var SSL = false;
+var SSL = false
 var dbPool *pgx.ConnPool
 var maxRequestBodySize = 1 * 1024 * 1024 * 1024
 var sessionExpiry = time.Duration(1) * time.Hour + time.Duration(0) * time.Minute
@@ -140,7 +140,7 @@ func indexGet(ctx *http.RequestCtx) {
 		count = 10
 	}
 
-	rows, err := dbPool.Query("select * from videos limit $1 offset $2", count, offset);
+	rows, err := dbPool.Query("select * from videos limit $1 offset $2", count, offset)
 	if err != nil {
 		logError("Something went wrong while loading the index", err)
 		ctx.Error("{}", http.StatusInternalServerError)
@@ -150,7 +150,7 @@ func indexGet(ctx *http.RequestCtx) {
 
 	for rows.Next() {
 		rows.Scan(&vid.uuid, &vid.userid, &vid.timestamp, &vid.downloadsize)
-		result, err := json.Marshal(vid);
+		result, err := json.Marshal(vid)
 		fmt.Println(vid)
 		fmt.Println(string(result))
 		fmt.Println(err)
@@ -158,13 +158,13 @@ func indexGet(ctx *http.RequestCtx) {
 }
 
 func registerPost(ctx *http.RequestCtx) {
-	username := strings.ToLower(string(ctx.FormValue("username")));
+	username := strings.ToLower(string(ctx.FormValue("username")))
 
 	if !userExists(username) {
-		password := ctx.FormValue("password");
+		password := ctx.FormValue("password")
 		var hashedPassword, _ = bcrypt.GenerateFromPassword(password, bcryptWorkFactor)
 
-		_, err := dbPool.Exec("insert into users values ($1, $2)", &username, &hashedPassword)
+		_, err := dbPool.Exec("insert into users (username, pass) values ($1, $2)", &username, &hashedPassword)
 
 		if err != nil {
 			ctx.Error("{}", http.StatusInternalServerError)
@@ -177,21 +177,25 @@ func registerPost(ctx *http.RequestCtx) {
 
 	token := newToken(32)
 	expiry := time.Now().Add(sessionExpiry)
+	userid := getUserId(username)
 
-	dbPool.Exec("insert into sessions values ($1, $2)", token, expiry)
+	dbPool.Exec("insert into sessions (token, expiry, userid) values ($1, $2)", token, expiry, userid)
 
 	fmt.Fprintf(ctx, token)
 }
 
 func loginPost(ctx *http.RequestCtx) {
-	success, err := authenticatePassword(ctx);
+	username := strings.ToLower(string(ctx.FormValue("username")))
+	success, err := authenticatePassword(ctx)
+
 	if err != nil {
 		ctx.Error("{}", http.StatusInternalServerError)
 	} else if success {
 		token := newToken(32)
 		expiry := time.Now().Add(sessionExpiry)
+		userid := getUserId(username)
 
-		dbPool.Exec("insert into sessions values ($1, $2)", token, expiry)
+		dbPool.Exec("insert into sessions (token, expiry, userid) values ($1, $2, $3)", token, expiry, userid)
 
 		fmt.Fprintf(ctx, token)
 	} else {
@@ -202,7 +206,7 @@ func loginPost(ctx *http.RequestCtx) {
 func videoPost(ctx *http.RequestCtx) {
 	if authenticateToken(ctx) {
 		fileHeader, err := ctx.FormFile("video")
-		uuid := ctx.FormValue("uuid");
+		uuid := ctx.FormValue("uuid")
 
 		if err != nil {
 			logError("Something went wrong while trying to save the file", err)
@@ -219,7 +223,7 @@ func videoPost(ctx *http.RequestCtx) {
 		}
 
 		if videoExists(uuid) {
-			timestamp := time.Now();
+			timestamp := time.Now()
 			_, err = dbPool.Exec("update videos set timestamp = $1", &timestamp)
 		} else{
 			userid := getUserId(string(ctx.FormValue("username")))
@@ -234,7 +238,7 @@ func videoPost(ctx *http.RequestCtx) {
 func jsonPost(ctx *http.RequestCtx) {
 	if authenticateToken(ctx) {
 		fileHeader, err := ctx.FormFile("jsonFile")
-		uuid := ctx.FormValue("uuid");
+		uuid := ctx.FormValue("uuid")
 
 		if err != nil {
 			logError("Something went wrong while trying to save the file", err)
@@ -250,7 +254,7 @@ func jsonPost(ctx *http.RequestCtx) {
 		}
 
 		if videoExists(uuid) {
-			timestamp := time.Now();
+			timestamp := time.Now()
 			_, err = dbPool.Exec("update videos set timestamp = $1", &timestamp)
 		} else{
 			userid := getUserId(string(ctx.FormValue("username")))
@@ -269,8 +273,8 @@ func jsonPost(ctx *http.RequestCtx) {
 }
 
 func authenticatePassword(ctx *http.RequestCtx) (bool, error) {
-	username := strings.ToLower(string(ctx.FormValue("username")));
-	password := ctx.FormValue("password");
+	username := strings.ToLower(string(ctx.FormValue("username")))
+	password := ctx.FormValue("password")
 
 	var storedPassword []byte
 
@@ -311,7 +315,7 @@ func authenticateToken(ctx *http.RequestCtx) bool {
 		return true
 	}
 
-	return true;
+	return true
 }
 
 func getUserId(username string) int {
@@ -322,12 +326,12 @@ func getUserId(username string) int {
 		return id
 	}
 
-	return id;
+	return id
 }
 
 func userExists(username string) bool {
-	count := 0;
-	err := dbPool.QueryRow("select count(*) from users where username=$1", username).Scan(&count);
+	count := 0
+	err := dbPool.QueryRow("select count(*) from users where username=$1", username).Scan(&count)
 	if err != nil {
 		logError("Couldn't verify whether key exists", err)
 		return false
@@ -335,13 +339,13 @@ func userExists(username string) bool {
 	if count <= 0 {
 		return false
 	} else {
-		return true;
+		return true
 	}
 }
 
 func videoExists(uuid []byte) bool {
-	count := 0;
-	err := dbPool.QueryRow("select count(*) from videos where id=$1", uuid).Scan(&count);
+	count := 0
+	err := dbPool.QueryRow("select count(*) from videos where id=$1", uuid).Scan(&count)
 	if err != nil {
 		logError("Couldn't verify whether key exists", err)
 		return false
@@ -349,7 +353,7 @@ func videoExists(uuid []byte) bool {
 	if count <= 0 {
 		return false
 	} else {
-		return true;
+		return true
 	}
 }
 
