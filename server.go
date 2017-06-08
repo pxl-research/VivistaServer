@@ -134,23 +134,36 @@ func HTTPHandler(ctx *http.RequestCtx) {
 }
 
 func indexGet(ctx *http.RequestCtx) {
-	offset, err := ctx.QueryArgs().GetUint("offset")
+	args := ctx.QueryArgs();
+	offset, err := args.GetUint("offset")
 	if (err != nil || offset < 0) {
 		offset = 0
 	}
-	count, err := ctx.QueryArgs().GetUint("count")
+
+	count, err := args.GetUint("count")
 	if (err != nil || count <= 0 || count > 100) {
 		count = 10
 	}
 
-	rows, err := dbPool.Query("select id, userid, timestamp, downloadsize from videos limit $1 offset $2", count, offset)
+	userid := pgx.NullInt32{Int32: 0, Valid: true}
+	authorstring := string(args.Peek("author"))
+	fmt.Println(authorstring)
+	userid.Int32 = int32(getUserId(authorstring))
+	if (userid.Int32 == -1) {
+		userid.Valid = false;
+	}
+
+	fmt.Println(userid)
+
+	//TODO(Simon): Add author filtering: WHERE ($1 IS NULL OR userid=$1)
+	rows, err := dbPool.Query(`SELECT id, userid, timestamp, downloadsize FROM videos
+								LIMIT $1
+								OFFSET $2`, count, offset)
 	if err != nil {
 		logError("Something went wrong while loading the index", err)
 		ctx.Error("{}", http.StatusInternalServerError)
 		return
 	}
-
-	defer rows.Close()
 
 	var vid video;
 	var buffer bytes.Buffer
@@ -334,8 +347,7 @@ func getUserId(username string) int {
 	id := 0
 	err := dbPool.QueryRow("select userid from users where username = $1", &username).Scan(&id)
 	if err != nil {
-		logError("Something went wrong while querying for a password", err)
-		return id
+		return -1
 	}
 
 	return id
