@@ -172,7 +172,7 @@ func indexGet(ctx *http.RequestCtx) {
 func registerPost(ctx *http.RequestCtx) {
 	username := strings.ToLower(string(ctx.FormValue("username")))
 
-	if !userExists(username) {
+	if len(strings.TrimSpace(username)) > 0 && !userExists(username) {
 		password := ctx.FormValue("password")
 		var hashedPassword, _ = bcrypt.GenerateFromPassword(password, bcryptWorkFactor)
 
