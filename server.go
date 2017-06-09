@@ -121,13 +121,6 @@ func HTTPHandler(ctx *http.RequestCtx) {
 				ctx.Error("{}", http.StatusNotFound)
 			}
 
-		case "/json":
-			if ctx.IsPost() {
-				jsonPost(ctx)
-			} else {
-				ctx.Error("{}", http.StatusNotFound)
-			}
-
 		default:
 			ctx.Error("{}", http.StatusNotFound)
 	}
@@ -145,20 +138,21 @@ func indexGet(ctx *http.RequestCtx) {
 		count = 10
 	}
 
-	userid := pgx.NullInt32{Int32: 0, Valid: true}
-	authorstring := string(args.Peek("author"))
-	fmt.Println(authorstring)
-	userid.Int32 = int32(getUserId(authorstring))
-	if (userid.Int32 == -1) {
-		userid.Valid = false;
+	userid := getUserId(string(args.Peek("author")))
+	var uploadDate
+	uploadDate.Time, err := args.GetUint("uploadDate")
+	uploadDate.Valid = true;
+	if (err != nil) {
+		uploadDate.Valid = false;
 	}
 
 	fmt.Println(userid)
 
-	//TODO(Simon): Add author filtering: WHERE ($1 IS NULL OR userid=$1)
 	rows, err := dbPool.Query(`SELECT id, userid, timestamp, downloadsize FROM videos
-								LIMIT $1
-								OFFSET $2`, count, offset)
+								WHERE ($1::int IS NULL OR userid=$1)
+								AND ($2::timestamp IS NULL OR  timestamp>=$2)
+								LIMIT $3
+								OFFSET $4`, &userid, &uploadDate, &count, &offset)
 	if err != nil {
 		logError("Something went wrong while loading the index", err)
 		ctx.Error("{}", http.StatusInternalServerError)
@@ -167,6 +161,7 @@ func indexGet(ctx *http.RequestCtx) {
 
 	var vid video;
 	var buffer bytes.Buffer
+	var numVideos int
 
 	buffer.Write([]byte("["))
 	for rows.Next() {
@@ -175,8 +170,11 @@ func indexGet(ctx *http.RequestCtx) {
 		result, _ := json.Marshal(vid)
 		buffer.Write(result)
 		buffer.Write([]byte(","))
+		numVideos++;
 	}
-	buffer.Truncate(buffer.Len() - 1)
+	if (numVideos > 0) {
+		buffer.Truncate(buffer.Len() - 1)
+	}
 	buffer.Write([]byte("]"))
 
 	ctx.SetBody(buffer.Bytes())
@@ -230,7 +228,8 @@ func loginPost(ctx *http.RequestCtx) {
 
 func videoPost(ctx *http.RequestCtx) {
 	if authenticateToken(ctx) {
-		fileHeader, err := ctx.FormFile("video")
+		jsonHeader, err := ctx.FormFile("jsonFile")
+		videoHeader, err := ctx.FormFile("video")
 		uuid := ctx.FormValue("uuid")
 
 		if err != nil {
@@ -239,55 +238,34 @@ func videoPost(ctx *http.RequestCtx) {
 			return
 		}
 
-		http.SaveMultipartFile(fileHeader, fmt.Sprintf("C:\\test\\%s.mp4", uuid))
+		jsonFilename := fmt.Sprintf("C:\\test\\%s.json", uuid)
+		videoFilename := fmt.Sprintf("C:\\test\\%s.mp4", uuid)
 
+		err = http.SaveMultipartFile(jsonHeader, jsonFilename)
+		if err == nil {
+			err = http.SaveMultipartFile(videoHeader, videoFilename)
+		}
 		if err != nil {
 			logError("Something went wrong while trying to save the file", err)
 			ctx.Error("{}", http.StatusInternalServerError)
 			return
 		}
 
-		if videoExists(uuid) {
+		json, _ := readStringFromFile(jsonFilename, 0)
+
+		fmt.Println(json)
+
+		userid := getUserId(string(ctx.FormValue("username")))
+
+		if videoExists(uuid) && userOwnsVideo(uuid, userid) {
 			timestamp := time.Now()
 			_, err = dbPool.Exec("update videos set timestamp = $1 where id = $2", &timestamp, &uuid)
-		} else{
-			userid := getUserId(string(ctx.FormValue("username")))
-			_, err = dbPool.Exec("insert into videos (id, userid) values ($1, $2)", &uuid, &userid)
-		}
-
-	} else {
-		ctx.Error("{}", http.StatusUnauthorized)
-	}
-}
-
-func jsonPost(ctx *http.RequestCtx) {
-	if authenticateToken(ctx) {
-		fileHeader, err := ctx.FormFile("jsonFile")
-		uuid := ctx.FormValue("uuid")
-
-		if err != nil {
-			logError("Something went wrong while trying to save the file", err)
-			ctx.Error("{}", http.StatusInternalServerError)
-			return
-		}
-
-		err = http.SaveMultipartFile(fileHeader, fmt.Sprintf("C:\\test\\%s.json", uuid))
-		if err != nil {
-			logError("Something went wrong while trying to save the file", err)
-			ctx.Error("{}", http.StatusInternalServerError)
-			return
-		}
-
-		if videoExists(uuid) {
-			timestamp := time.Now()
-			_, err = dbPool.Exec("update videos set timestamp = $1 where id = $2", &timestamp, &uuid)
-		} else{
-			userid := getUserId(string(ctx.FormValue("username")))
+		} else {
 			_, err = dbPool.Exec("insert into videos (id, userid) values ($1, $2)", &uuid, &userid)
 		}
 
 		if err != nil {
-			logError("Something went wrong while trying to save the file", err)
+			logError("Something went wrong while inserting video data in database", err)
 			ctx.Error("{}", http.StatusInternalServerError)
 			return
 		}
@@ -369,7 +347,21 @@ func userExists(username string) bool {
 
 func videoExists(uuid []byte) bool {
 	count := 0
-	err := dbPool.QueryRow("select count(*) from videos where id=$1", uuid).Scan(&count)
+	err := dbPool.QueryRow("select count(*) from videos where id=$1", &uuid).Scan(&count)
+	if err != nil {
+		logError("Couldn't verify whether key exists", err)
+		return false
+	}
+	if count <= 0 {
+		return false
+	} else {
+		return true
+	}
+}
+
+func userOwnsVideo(uuid []byte, userid int) bool {
+	count := 0
+	err := dbPool.QueryRow("select count(*) from videos where id=$1 and userid=$2", &uuid, &userid).Scan(&count)
 	if err != nil {
 		logError("Couldn't verify whether key exists", err)
 		return false
@@ -402,6 +394,7 @@ func logError(message string, err error) {
 	fmt.Printf(timeToString() + " Error: " + message + ": %s \n", err)
 }
 
+//NOTE(Simon): if length <= 0, read all
 func readStringFromFile(filename string, length int) (string, error) {
 	if (length <= 0) {
 		data, err := ioutil.ReadFile(filename)
