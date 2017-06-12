@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"strings"
 	"runtime"
+	"strconv"
 	"io/ioutil"
 	"encoding/json"
 	"github.com/jackc/pgx"
@@ -149,15 +150,13 @@ func indexGet(ctx *http.RequestCtx) {
 
 
 	var uploadDate pgx.NullTime
-	temp, err := args.GetUint("uploadDate")
+	temp, err := args.GetUint("uploaddate")
 	if (err != nil) {
 		uploadDate.Valid = false
 	} else {
 		uploadDate.Valid = true
 		uploadDate.Time = time.Now().AddDate(0, 0, -temp)
 	}
-
-	fmt.Println(userid)
 
 	rows, err := dbPool.Query(`SELECT id, userid, timestamp, downloadsize FROM videos
 								WHERE ($1::int IS NULL OR userid=$1)
@@ -171,22 +170,42 @@ func indexGet(ctx *http.RequestCtx) {
 	}
 
 	var vid video;
+	var videoBuffer bytes.Buffer
 	var buffer bytes.Buffer
 	var numVideos int
 
-	buffer.Write([]byte("["))
+	videoBuffer.Write([]byte("["))
 	for rows.Next() {
 		rows.Scan(&vid.Uuid, &vid.Userid, &vid.Timestamp, &vid.Downloadsize)
 
 		result, _ := json.Marshal(vid)
-		buffer.Write(result)
-		buffer.Write([]byte(","))
+		videoBuffer.Write(result)
+		videoBuffer.Write([]byte(","))
 		numVideos++;
 	}
 	if (numVideos > 0) {
-		buffer.Truncate(buffer.Len() - 1)
+		videoBuffer.Truncate(videoBuffer.Len() - 1)
 	}
-	buffer.Write([]byte("]"))
+	videoBuffer.Write([]byte("]"))
+
+	buffer.Write([]byte("{"))
+
+	buffer.Write([]byte("\"totalcount\":"))
+	buffer.Write([]byte(strconv.Itoa(numVideos)))
+	buffer.Write([]byte(","))
+
+	buffer.Write([]byte("\"page\":"))
+	buffer.Write([]byte(strconv.Itoa((offset / count) + 1)))
+	buffer.Write([]byte(","))
+
+	buffer.Write([]byte("\"count\":"))
+	buffer.Write([]byte(strconv.Itoa(count)))
+	buffer.Write([]byte(","))
+
+	buffer.Write([]byte("\"videos\":"))
+	buffer.Write(videoBuffer.Bytes())
+
+	buffer.Write([]byte("}"))
 
 	ctx.SetBody(buffer.Bytes())
 }
