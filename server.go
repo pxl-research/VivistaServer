@@ -138,12 +138,23 @@ func indexGet(ctx *http.RequestCtx) {
 		count = 10
 	}
 
-	userid := getUserId(string(args.Peek("author")))
-	var uploadDate
-	uploadDate.Time, err := args.GetUint("uploadDate")
-	uploadDate.Valid = true;
+	var author = string(args.Peek("author"))
+	var userid pgx.NullInt32
+	if (author != "") {
+		userid.Int32 = int32(getUserId(author))
+		userid.Valid = true;
+	} else {
+		userid.Valid = false;
+	}
+
+
+	var uploadDate pgx.NullTime
+	temp, err := args.GetUint("uploadDate")
 	if (err != nil) {
-		uploadDate.Valid = false;
+		uploadDate.Valid = false
+	} else {
+		uploadDate.Valid = true
+		uploadDate.Time = time.Now().AddDate(0, 0, -temp)
 	}
 
 	fmt.Println(userid)
@@ -307,7 +318,6 @@ func authenticateToken(ctx *http.RequestCtx) bool {
 	if err != nil {
 		return false
 	} else if validUntil.Before(time.Now()) {
-		//TODO(Simon): Remove from db
 		dbPool.Exec("delete from sessions where token = $1", &token)
 
 		return false
