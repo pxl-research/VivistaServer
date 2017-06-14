@@ -285,7 +285,7 @@ func videoPost(ctx *http.RequestCtx) {
 
 		fmt.Println(json)
 
-		userid := getUserId(string(ctx.FormValue("username")))
+		userid := getUserIdFromToken(string(ctx.FormValue("token")))
 
 		if videoExists(uuid) && userOwnsVideo(uuid, userid) {
 			timestamp := time.Now()
@@ -360,6 +360,16 @@ func getUserId(username string) int {
 	return id
 }
 
+func getUserIdFromToken(token string) int {
+	id := 0
+	err := dbPool.QueryRow("select userid from sessions where token = $1", &token).Scan(&id)
+	if err != nil {
+		return -1
+	}
+
+	return id
+}
+
 func userExists(username string) bool {
 	count := 0
 	err := dbPool.QueryRow("select count(*) from users where username=$1", username).Scan(&count)
@@ -421,6 +431,10 @@ func timeToString() string {
 
 func logError(message string, err error) {
 	fmt.Printf(timeToString() + " Error: " + message + ": %s \n", err)
+}
+
+func logDebug(message string) {
+	fmt.Printf(timeToString() + " Debug: " + message + "\n")
 }
 
 //NOTE(Simon): if length <= 0, read all
