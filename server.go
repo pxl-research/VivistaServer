@@ -25,10 +25,15 @@ var maxRequestBodySize = 1 * 1024 * 1024 * 1024
 var sessionExpiry = time.Duration(1) * time.Hour + time.Duration(0) * time.Minute
 
 type video struct {
-	Uuid []byte
-	Userid int
-	Timestamp time.Time
-	Downloadsize int
+	Uuid []byte 		`json:"uuid"`
+	Userid int 			`json:"userid"`
+	Username string 	`json:"username"`
+	Timestamp time.Time `json:"timestamp"`
+	Downloadsize int 	`json:"downloadsize"`
+
+	Title string 		`json:"title"`
+	Thumbnail string 	`json:"thumbnail"`
+	Length int 			`json:"length"`
 }
 
 func main() {
@@ -148,9 +153,8 @@ func indexGet(ctx *http.RequestCtx) {
 		userid.Valid = false;
 	}
 
-
 	var uploadDate pgx.NullTime
-	temp, err := args.GetUint("uploaddate")
+	temp, err := args.GetUint("agedays")
 	if (err != nil) {
 		uploadDate.Valid = false
 	} else {
@@ -158,11 +162,12 @@ func indexGet(ctx *http.RequestCtx) {
 		uploadDate.Time = time.Now().AddDate(0, 0, -temp)
 	}
 
-	rows, err := dbPool.Query(`SELECT id, userid, timestamp, downloadsize FROM videos
-								WHERE ($1::int IS NULL OR userid=$1)
-								AND ($2::timestamp IS NULL OR  timestamp>=$2)
-								LIMIT $3
-								OFFSET $4`, &userid, &uploadDate, &count, &offset)
+	rows, err := dbPool.Query(`select v.id, v.userid, u.username, v.timestamp, v.downloadsize from videos v
+								inner join users u on v.userid = u.userid
+								where ($1::int is NULL or v.userid=$1)
+								and ($2::timestamp is NULL or v.timestamp>=$2)
+								limit $3
+								offset $4`, &userid, &uploadDate, &count, &offset)
 	if err != nil {
 		logError("Something went wrong while loading the index", err)
 		ctx.Error("{}", http.StatusInternalServerError)
@@ -176,7 +181,8 @@ func indexGet(ctx *http.RequestCtx) {
 
 	videoBuffer.Write([]byte("["))
 	for rows.Next() {
-		rows.Scan(&vid.Uuid, &vid.Userid, &vid.Timestamp, &vid.Downloadsize)
+		//TODO(Simon): Get Author names, video title, thumbail, length
+		rows.Scan(&vid.Uuid, &vid.Userid, &vid.Username, &vid.Timestamp, &vid.Downloadsize)
 
 		result, _ := json.Marshal(vid)
 		videoBuffer.Write(result)
