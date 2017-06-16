@@ -1,20 +1,20 @@
 package main
 
 import (
-	"os"
-	"fmt"
-	"time"
-	"bytes"
-	"strings"
-	"runtime"
-	"strconv"
-	"io/ioutil"
-	"encoding/json"
-	"github.com/jackc/pgx"
 	http "./valyala/fasthttp"
-	"golang.org/x/crypto/bcrypt"
+	"bytes"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"github.com/jackc/pgx"
+	"golang.org/x/crypto/bcrypt"
+	"io/ioutil"
+	"os"
+	"runtime"
+	"strconv"
+	"strings"
+	"time"
 )
 
 const bcryptWorkFactor = 12
@@ -22,23 +22,23 @@ const bcryptWorkFactor = 12
 var SSL = false
 var dbPool *pgx.ConnPool
 var maxRequestBodySize = 1 * 1024 * 1024 * 1024
-var sessionExpiry = time.Duration(1) * time.Hour + time.Duration(0) * time.Minute
+var sessionExpiry = time.Duration(1)*time.Hour + time.Duration(0)*time.Minute
 
 type video struct {
-	Uuid []byte 		`json:"uuid"`
-	Userid int 			`json:"userid"`
-	Username string 	`json:"username"`
-	Timestamp time.Time `json:"timestamp"`
-	Downloadsize int 	`json:"downloadsize"`
+	Uuid         []byte    `json:"uuid"`
+	Userid       int       `json:"userid"`
+	Username     string    `json:"username"`
+	Timestamp    time.Time `json:"timestamp"`
+	Downloadsize int       `json:"downloadsize"`
 
-	Title string 		`json:"title"`
-	Thumbnail string 	`json:"thumbnail"`
-	Length int 			`json:"length"`
+	Title     string `json:"title"`
+	Thumbnail string `json:"thumbnail"`
+	Length    int    `json:"length"`
 }
 
 func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU() - 1)
-	var err error;
+	var err error
 	dbPool, err = pgx.NewConnPool(extractSqlConfig())
 
 	if err != nil {
@@ -49,7 +49,7 @@ func main() {
 	fmt.Println("Connected to db")
 
 	h := &http.Server{
-		Handler: HTTPHandler,
+		Handler:            HTTPHandler,
 		MaxRequestBodySize: maxRequestBodySize,
 	}
 
@@ -99,63 +99,66 @@ func HTTPHandler(ctx *http.RequestCtx) {
 	ctx.SetContentType("application/json")
 
 	switch string(ctx.Path()) {
-		case "/":
-			if ctx.IsGet() {
-				indexGet(ctx)
-			} else {
-				ctx.Error("{}", http.StatusNotFound)
-			}
-
-		case "/register":
-			if ctx.IsPost() {
-				registerPost(ctx)
-			} else {
-				ctx.Error("{}", http.StatusNotFound)
-			}
-
-		case "/login":
-			if ctx.IsPost() {
-				loginPost(ctx)
-			} else {
-				ctx.Error("{}", http.StatusNotFound)
-			}
-
-		case "/video":
-			if ctx.IsPost() {
-				videoPost(ctx)
-			} else {
-				ctx.Error("{}", http.StatusNotFound)
-			}
-
-		default:
+	case "/":
+		if ctx.IsGet() {
+			indexGet(ctx)
+		} else {
 			ctx.Error("{}", http.StatusNotFound)
+		}
+
+	case "/register":
+		if ctx.IsPost() {
+			registerPost(ctx)
+		} else {
+			ctx.Error("{}", http.StatusNotFound)
+		}
+
+	case "/login":
+		if ctx.IsPost() {
+			loginPost(ctx)
+		} else {
+			ctx.Error("{}", http.StatusNotFound)
+		}
+
+	case "/video":
+		if ctx.IsGet() {
+			videoGet(ctx)
+		}
+		if ctx.IsPost() {
+			videoPost(ctx)
+		} else {
+			ctx.Error("{}", http.StatusNotFound)
+		}
+
+	default:
+		ctx.Error("{}", http.StatusNotFound)
 	}
 }
 
 func indexGet(ctx *http.RequestCtx) {
-	args := ctx.QueryArgs();
+	args := ctx.QueryArgs()
 	offset, err := args.GetUint("offset")
-	if (err != nil || offset < 0) {
+	if err != nil || offset < 0 {
 		offset = 0
 	}
 
 	count, err := args.GetUint("count")
-	if (err != nil || count <= 0 || count > 100) {
+	if err != nil || count <= 0 || count > 100 {
 		count = 10
 	}
 
 	var author = string(args.Peek("author"))
 	var userid pgx.NullInt32
-	if (author != "") {
+	if author != "" {
 		userid.Int32 = int32(getUserId(author))
-		userid.Valid = true;
+		userid.Valid = true
 	} else {
-		userid.Valid = false;
+		userid.Valid = false
 	}
 
 	var uploadDate pgx.NullTime
 	temp, err := args.GetUint("agedays")
-	if (err != nil) {
+	if err != nil {
 		uploadDate.Valid = false
 	} else {
 		uploadDate.Valid = true
@@ -166,6 +169,7 @@ func indexGet(ctx *http.RequestCtx) {
 								inner join users u on v.userid = u.userid
 								where ($1::int is NULL or v.userid=$1)
 								and ($2::timestamp is NULL or v.timestamp>=$2)
+								order by v.timestamp desc
 								limit $3
 								offset $4`, &userid, &uploadDate, &count, &offset)
 	if err != nil {
@@ -174,22 +178,22 @@ func indexGet(ctx *http.RequestCtx) {
 		return
 	}
 
-	var vid video;
+	var vid video
 	var videoBuffer bytes.Buffer
 	var buffer bytes.Buffer
 	var numVideos int
 
 	videoBuffer.Write([]byte("["))
 	for rows.Next() {
-		//TODO(Simon): Get Author names, video title, thumbail, length
+		//TODO(Simon): Get video title, thumbail, length
 		rows.Scan(&vid.Uuid, &vid.Userid, &vid.Username, &vid.Timestamp, &vid.Downloadsize)
 
 		result, _ := json.Marshal(vid)
 		videoBuffer.Write(result)
 		videoBuffer.Write([]byte(","))
-		numVideos++;
+		numVideos++
 	}
-	if (numVideos > 0) {
+	if numVideos > 0 {
 		videoBuffer.Truncate(videoBuffer.Len() - 1)
 	}
 	videoBuffer.Write([]byte("]"))
@@ -262,10 +266,25 @@ func loginPost(ctx *http.RequestCtx) {
 	}
 }
 
+func videoGet(ctx *http.RequestCtx) {
+	/*
+		var videoid = ctx.QueryArgs().Peek("videoid")
+		var vid = new(video)
+
+		dbPool.QueryRow(`select v.id, v.userid, u.username, v.timestamp, v.downloadsize, from videos v
+							inner join users u on v.userid = u.userid`, videoid).Scan(&vid.Uuid, &vid.Userid, &vid.Username, &vid.Timestamp, &vid.Downloadsize)
+		var jsonFilename = fmt.Sprintf("C:\\test\\%s.json", vid.Uuid);
+		var videoFilename = fmt.Sprintf("C:\\test\\%s.mp4", vid.Uuid);
+
+		var json, err = ioutil.ReadFile(jsonFilename);
+	*/
+}
+
 func videoPost(ctx *http.RequestCtx) {
 	if authenticateToken(ctx) {
 		jsonHeader, err := ctx.FormFile("jsonFile")
 		videoHeader, err := ctx.FormFile("video")
+		thumbHeader, err := ctx.FormFile("thumb")
 		uuid := ctx.FormValue("uuid")
 
 		if err != nil {
@@ -276,11 +295,16 @@ func videoPost(ctx *http.RequestCtx) {
 
 		jsonFilename := fmt.Sprintf("C:\\test\\%s.json", uuid)
 		videoFilename := fmt.Sprintf("C:\\test\\%s.mp4", uuid)
+		thumbFilename := fmt.Sprintf("C:\\test\\%s.jpg", uuid)
 
 		err = http.SaveMultipartFile(jsonHeader, jsonFilename)
 		if err == nil {
 			err = http.SaveMultipartFile(videoHeader, videoFilename)
+			if err == nil {
+				err = http.SaveMultipartFile(thumbHeader, thumbFilename)
+			}
 		}
+
 		if err != nil {
 			logError("Something went wrong while trying to save the file", err)
 			ctx.Error("{}", http.StatusInternalServerError)
@@ -419,24 +443,24 @@ func userOwnsVideo(uuid []byte, userid int) bool {
 }
 
 func newToken(length int) string {
-    randomBytes := make([]byte, 32)
-    _, err := rand.Read(randomBytes)
+	randomBytes := make([]byte, 32)
+	_, err := rand.Read(randomBytes)
 
-    if err != nil {
-    	//Note(Simon): Errors here are bad enough that a panic is warranted.
-        panic(err)
-    }
+	if err != nil {
+		//Note(Simon): Errors here are bad enough that a panic is warranted.
+		panic(err)
+	}
 
-    return base64.StdEncoding.EncodeToString(randomBytes)[:length]
+	return base64.StdEncoding.EncodeToString(randomBytes)[:length]
 }
 
 func timeToString() string {
 	now := time.Now()
-	return fmt.Sprintf("%02d:%02d:%02d.%03d", now.Hour(), now.Minute(), now.Second(), now.Nanosecond() / 1000 / 1000)
+	return fmt.Sprintf("%02d:%02d:%02d.%03d", now.Hour(), now.Minute(), now.Second(), now.Nanosecond()/1000/1000)
 }
 
 func logError(message string, err error) {
-	fmt.Printf(timeToString() + " Error: " + message + ": %s \n", err)
+	fmt.Printf(timeToString()+" Error: "+message+": %s \n", err)
 }
 
 func logDebug(message string) {
@@ -445,9 +469,9 @@ func logDebug(message string) {
 
 //NOTE(Simon): if length <= 0, read all
 func readStringFromFile(filename string, length int) (string, error) {
-	if (length <= 0) {
+	if length <= 0 {
 		data, err := ioutil.ReadFile(filename)
-		if (err != nil) {
+		if err != nil {
 			return "", err
 		}
 		return string(data), nil
