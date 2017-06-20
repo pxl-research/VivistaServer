@@ -19,6 +19,8 @@ import (
 
 const bcryptWorkFactor = 12
 
+const filePath = "C:\\test\\"
+
 var SSL = false
 var dbPool *pgx.ConnPool
 var maxRequestBodySize = 1 * 1024 * 1024 * 1024
@@ -31,9 +33,9 @@ type video struct {
 	Timestamp    time.Time `json:"timestamp"`
 	Downloadsize int       `json:"downloadsize"`
 
-	Title     string `json:"title"`
-	Thumbnail string `json:"thumbnail"`
-	Length    int    `json:"length"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	Length      int    `json:"length"`
 }
 
 func main() {
@@ -97,30 +99,27 @@ func HTTPHandler(ctx *http.RequestCtx) {
 	fmt.Printf("%s: %s\n", timeToString(), ctx.Path())
 
 	ctx.SetContentType("application/json")
+	var p = string(ctx.Path())
 
-	switch string(ctx.Path()) {
-	case "/":
+	if p == "/" {
 		if ctx.IsGet() {
 			indexGet(ctx)
 		} else {
 			ctx.Error("{}", http.StatusNotFound)
 		}
-
-	case "/register":
+	} else if p == "/register" {
 		if ctx.IsPost() {
 			registerPost(ctx)
 		} else {
 			ctx.Error("{}", http.StatusNotFound)
 		}
-
-	case "/login":
+	} else if p == "/login" {
 		if ctx.IsPost() {
 			loginPost(ctx)
 		} else {
 			ctx.Error("{}", http.StatusNotFound)
 		}
-
-	case "/video":
+	} else if p == "/video" {
 		if ctx.IsGet() {
 			videoGet(ctx)
 		}
@@ -129,8 +128,13 @@ func HTTPHandler(ctx *http.RequestCtx) {
 		} else {
 			ctx.Error("{}", http.StatusNotFound)
 		}
-
-	default:
+	} else if strings.HasPrefix(p, "/thumbnail/") {
+		if ctx.IsGet() {
+			thumbnailGet(ctx)
+		} else {
+			ctx.Error("{}", http.StatusNotFound)
+		}
+	} else {
 		ctx.Error("{}", http.StatusNotFound)
 	}
 }
@@ -165,7 +169,7 @@ func indexGet(ctx *http.RequestCtx) {
 		uploadDate.Time = time.Now().AddDate(0, 0, -temp)
 	}
 
-	rows, err := dbPool.Query(`select v.id, v.userid, u.username, v.timestamp, v.downloadsize from videos v
+	rows, err := dbPool.Query(`select v.id, v.userid, u.username, v.timestamp, v.downloadsize, v.title, v.description, v.length from videos v
 								inner join users u on v.userid = u.userid
 								where ($1::int is NULL or v.userid=$1)
 								and ($2::timestamp is NULL or v.timestamp>=$2)
@@ -186,7 +190,7 @@ func indexGet(ctx *http.RequestCtx) {
 	videoBuffer.Write([]byte("["))
 	for rows.Next() {
 		//TODO(Simon): Get video title, thumbail, length
-		rows.Scan(&vid.Uuid, &vid.Userid, &vid.Username, &vid.Timestamp, &vid.Downloadsize)
+		rows.Scan(&vid.Uuid, &vid.Userid, &vid.Username, &vid.Timestamp, &vid.Downloadsize, &vid.Title, &vid.Description, &vid.Length)
 
 		result, _ := json.Marshal(vid)
 		videoBuffer.Write(result)
@@ -293,9 +297,9 @@ func videoPost(ctx *http.RequestCtx) {
 			return
 		}
 
-		jsonFilename := fmt.Sprintf("C:\\test\\%s.json", uuid)
-		videoFilename := fmt.Sprintf("C:\\test\\%s.mp4", uuid)
-		thumbFilename := fmt.Sprintf("C:\\test\\%s.jpg", uuid)
+		jsonFilename := fmt.Sprintf("%s%s.json", filePath, uuid)
+		videoFilename := fmt.Sprintf("%s%s.mp4", filePath, uuid)
+		thumbFilename := fmt.Sprintf("%s%s.jpg", filePath, uuid)
 
 		err = http.SaveMultipartFile(jsonHeader, jsonFilename)
 		if err == nil {
@@ -333,6 +337,14 @@ func videoPost(ctx *http.RequestCtx) {
 	} else {
 		ctx.Error("{}", http.StatusUnauthorized)
 	}
+}
+
+func thumbnailGet(ctx *http.RequestCtx) {
+	var url = string(ctx.Path())
+	var thumbid = url[strings.LastIndex(url, "/") + 1 : ]
+
+	var path = filePath + thumbid + ".jpg"
+	fmt.Println(path)
 }
 
 func authenticatePassword(ctx *http.RequestCtx) (bool, error) {
