@@ -189,7 +189,6 @@ func indexGet(ctx *http.RequestCtx) {
 
 	videoBuffer.Write([]byte("["))
 	for rows.Next() {
-		//TODO(Simon): Get video title, thumbail, length
 		rows.Scan(&vid.Uuid, &vid.Userid, &vid.Username, &vid.Timestamp, &vid.Downloadsize, &vid.Title, &vid.Description, &vid.Length)
 
 		result, _ := json.Marshal(vid)
@@ -317,7 +316,23 @@ func videoPost(ctx *http.RequestCtx) {
 
 		json, _ := readStringFromFile(jsonFilename, 0)
 
-		fmt.Println(json)
+		var startIndex int;
+		var inc int;
+
+		_, inc = extractJsonValue(json[startIndex:]) //uuid
+		startIndex += inc
+		_, inc = extractJsonValue(json[startIndex:]) //videoname
+		startIndex += inc
+		title, inc := extractJsonValue(json[startIndex:])
+		startIndex += inc
+		description, inc := extractJsonValue(json[startIndex:])
+		startIndex += inc
+		_, inc = extractJsonValue(json[startIndex:]) //perspective
+		startIndex += inc
+		length, inc := extractJsonValue(json[startIndex:])
+		startIndex += inc
+		floatLength, _ := strconv.ParseFloat(length, 32)
+		intLength := int(floatLength)
 
 		userid := getUserIdFromToken(string(ctx.FormValue("token")))
 
@@ -325,7 +340,7 @@ func videoPost(ctx *http.RequestCtx) {
 			timestamp := time.Now()
 			_, err = dbPool.Exec("update videos set timestamp = $1 where id = $2", &timestamp, &uuid)
 		} else {
-			_, err = dbPool.Exec("insert into videos (id, userid) values ($1, $2)", &uuid, &userid)
+			_, err = dbPool.Exec("insert into videos (id, userid, downloadsize, title, description, length) values ($1, $2, $3, $4, $5, $6)", &uuid, &userid, 0, &title, &description, &intLength)
 		}
 
 		if err != nil {
@@ -341,10 +356,12 @@ func videoPost(ctx *http.RequestCtx) {
 
 func thumbnailGet(ctx *http.RequestCtx) {
 	var url = string(ctx.Path())
-	var thumbid = url[strings.LastIndex(url, "/") + 1 : ]
+	var rawThumbid = url[strings.LastIndex(url, "/") + 1 : ]
+	var thumbid, _ = base64.StdEncoding.DecodeString(rawThumbid)
 
-	var path = filePath + thumbid + ".jpg"
-	fmt.Println(path)
+	var path = fmt.Sprintf("%s%s.jpg", filePath, thumbid)
+	fmt.Println(string(path))
+
 }
 
 func authenticatePassword(ctx *http.RequestCtx) (bool, error) {
@@ -501,4 +518,11 @@ func readStringFromFile(filename string, length int) (string, error) {
 		return "", err
 	}
 	return string(data), nil
+}
+
+func extractJsonValue(json string) (string, int) {
+	startIndex := strings.Index(json, ":")
+	endIndex := strings.Index(json, "\n")
+
+	return json[startIndex + 1:endIndex - 1], endIndex + 1
 }
