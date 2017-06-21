@@ -11,7 +11,6 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"io/ioutil"
 	"os"
-	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -25,6 +24,7 @@ var SSL = false
 var dbPool *pgx.ConnPool
 var maxRequestBodySize = 1 * 1024 * 1024 * 1024
 var sessionExpiry = time.Duration(1)*time.Hour + time.Duration(0)*time.Minute
+var handler = http.FSHandler(filePath, 1)
 
 type video struct {
 	Uuid         []byte    `json:"uuid"`
@@ -38,8 +38,9 @@ type video struct {
 	Length      int    `json:"length"`
 }
 
+
+
 func main() {
-	runtime.GOMAXPROCS(runtime.NumCPU() - 1)
 	var err error
 	dbPool, err = pgx.NewConnPool(extractSqlConfig())
 
@@ -66,29 +67,7 @@ func main() {
 	}
 }
 
-func extractSqlConfig() pgx.ConnPoolConfig {
-	var config pgx.ConnPoolConfig
 
-	config.Host = os.Getenv("360VIDEO_DB_HOST")
-	if config.Host == "" {
-		config.Host = "localhost"
-	}
-
-	config.User = os.Getenv("360VIDEO_DB_USER")
-	if config.User == "" {
-		config.User = "postgres"
-	}
-
-	config.Password = os.Getenv("360VIDEO_DB_PASSWORD")
-	if config.Password == "" {
-		config.Password = os.Getenv("USER")
-	}
-
-	config.Database = "360video"
-	config.MaxConnections = 5
-
-	return config
-}
 
 func HTTPHandler(ctx *http.RequestCtx) {
 	if SSL && !ctx.IsTLS() {
@@ -130,7 +109,7 @@ func HTTPHandler(ctx *http.RequestCtx) {
 		}
 	} else if strings.HasPrefix(p, "/thumbnail/") {
 		if ctx.IsGet() {
-			thumbnailGet(ctx)
+			handler(ctx)
 		} else {
 			ctx.Error("{}", http.StatusNotFound)
 		}
@@ -316,8 +295,8 @@ func videoPost(ctx *http.RequestCtx) {
 
 		json, _ := readStringFromFile(jsonFilename, 0)
 
-		var startIndex int;
-		var inc int;
+		var startIndex int
+		var inc int
 
 		_, inc = extractJsonValue(json[startIndex:]) //uuid
 		startIndex += inc
@@ -338,6 +317,7 @@ func videoPost(ctx *http.RequestCtx) {
 
 		if videoExists(uuid) && userOwnsVideo(uuid, userid) {
 			timestamp := time.Now()
+			//TODO(Simon): Update to match query below.
 			_, err = dbPool.Exec("update videos set timestamp = $1 where id = $2", &timestamp, &uuid)
 		} else {
 			_, err = dbPool.Exec("insert into videos (id, userid, downloadsize, title, description, length) values ($1, $2, $3, $4, $5, $6)", &uuid, &userid, 0, &title, &description, &intLength)
@@ -354,15 +334,7 @@ func videoPost(ctx *http.RequestCtx) {
 	}
 }
 
-func thumbnailGet(ctx *http.RequestCtx) {
-	var url = string(ctx.Path())
-	var rawThumbid = url[strings.LastIndex(url, "/") + 1 : ]
-	var thumbid, _ = base64.StdEncoding.DecodeString(rawThumbid)
 
-	var path = fmt.Sprintf("%s%s.jpg", filePath, thumbid)
-	fmt.Println(string(path))
-
-}
 
 func authenticatePassword(ctx *http.RequestCtx) (bool, error) {
 	username := strings.ToLower(string(ctx.FormValue("username")))
@@ -483,6 +455,8 @@ func newToken(length int) string {
 	return base64.StdEncoding.EncodeToString(randomBytes)[:length]
 }
 
+
+
 func timeToString() string {
 	now := time.Now()
 	return fmt.Sprintf("%02d:%02d:%02d.%03d", now.Hour(), now.Minute(), now.Second(), now.Nanosecond()/1000/1000)
@@ -524,5 +498,29 @@ func extractJsonValue(json string) (string, int) {
 	startIndex := strings.Index(json, ":")
 	endIndex := strings.Index(json, "\n")
 
-	return json[startIndex + 1:endIndex - 1], endIndex + 1
+	return json[startIndex+1 : endIndex-1], endIndex + 1
+}
+
+func extractSqlConfig() pgx.ConnPoolConfig {
+	var config pgx.ConnPoolConfig
+
+	config.Host = os.Getenv("360VIDEO_DB_HOST")
+	if config.Host == "" {
+		config.Host = "localhost"
+	}
+
+	config.User = os.Getenv("360VIDEO_DB_USER")
+	if config.User == "" {
+		config.User = "postgres"
+	}
+
+	config.Password = os.Getenv("360VIDEO_DB_PASSWORD")
+	if config.Password == "" {
+		config.Password = os.Getenv("USER")
+	}
+
+	config.Database = "360video"
+	config.MaxConnections = 5
+
+	return config
 }
