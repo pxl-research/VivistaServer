@@ -24,7 +24,8 @@ var SSL = false
 var dbPool *pgx.ConnPool
 var maxRequestBodySize = 1 * 1024 * 1024 * 1024
 var sessionExpiry = time.Duration(1)*time.Hour + time.Duration(0)*time.Minute
-var handler = http.FSHandler(filePath, 1)
+var thumbHandler = http.FSHandler(filePath, 1)
+var videoHandler = http.FSHandler(filePath, 1)
 
 type video struct {
 	Uuid         []byte    `json:"uuid"`
@@ -98,18 +99,17 @@ func HTTPHandler(ctx *http.RequestCtx) {
 		} else {
 			ctx.Error("{}", http.StatusNotFound)
 		}
-	} else if p == "/video" {
+	} else if strings.HasPrefix(p, "/video/") {
 		if ctx.IsGet() {
-			videoGet(ctx)
-		}
-		if ctx.IsPost() {
+			videoHandler(ctx)
+		} else if ctx.IsPost() {
 			videoPost(ctx)
 		} else {
 			ctx.Error("{}", http.StatusNotFound)
 		}
 	} else if strings.HasPrefix(p, "/thumbnail/") {
 		if ctx.IsGet() {
-			handler(ctx)
+			thumbHandler(ctx)
 		} else {
 			ctx.Error("{}", http.StatusNotFound)
 		}
@@ -249,17 +249,27 @@ func loginPost(ctx *http.RequestCtx) {
 }
 
 func videoGet(ctx *http.RequestCtx) {
-	/*
-		var videoid = ctx.QueryArgs().Peek("videoid")
-		var vid = new(video)
+	var videoid = ctx.QueryArgs().Peek("videoid")
+	var vid = new(video)
 
-		dbPool.QueryRow(`select v.id, v.userid, u.username, v.timestamp, v.downloadsize, from videos v
-							inner join users u on v.userid = u.userid`, videoid).Scan(&vid.Uuid, &vid.Userid, &vid.Username, &vid.Timestamp, &vid.Downloadsize)
-		var jsonFilename = fmt.Sprintf("C:\\test\\%s.json", vid.Uuid);
-		var videoFilename = fmt.Sprintf("C:\\test\\%s.mp4", vid.Uuid);
+	err := dbPool.QueryRow(`select v.id, v.userid, u.username, v.timestamp, v.downloadsize from videos v
+						inner join users u on v.userid = u.userid
+						where v.id = $1`, &videoid).Scan(&vid.Uuid, &vid.Userid, &vid.Username, &vid.Timestamp, &vid.Downloadsize)
+	if (err != nil) {
+		logError("SQL error: ", err)
+	}
 
-		var json, err = ioutil.ReadFile(jsonFilename);
-	*/
+	var videoPath = fmt.Sprintf("C:\\test\\%s.mp4", vid.Uuid)
+	logDebug(string(videoPath))
+
+	exists, err := pathExists(videoPath)
+	if (err != nil) {
+		logError("can't open file: ", err)
+	}
+
+	if (exists) {
+		ctx.SendFileBytes([]byte(videoPath))
+	}
 }
 
 func videoPost(ctx *http.RequestCtx) {
@@ -463,7 +473,7 @@ func timeToString() string {
 }
 
 func logError(message string, err error) {
-	fmt.Printf(timeToString()+" Error: "+message+": %s \n", err)
+	fmt.Printf(timeToString() + " Error: " + message + ": %s \n", err)
 }
 
 func logDebug(message string) {
@@ -523,4 +533,12 @@ func extractSqlConfig() pgx.ConnPoolConfig {
 	config.MaxConnections = 5
 
 	return config
+}
+
+// exists returns whether the given file or directory exists or not
+func pathExists(path string) (bool, error) {
+    _, err := os.Stat(path)
+    if err == nil { return true, nil }
+    if os.IsNotExist(err) { return false, nil }
+    return true, err
 }
