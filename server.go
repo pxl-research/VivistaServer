@@ -26,6 +26,7 @@ var maxRequestBodySize = 1 * 1024 * 1024 * 1024
 var sessionExpiry = time.Duration(1)*time.Hour + time.Duration(0)*time.Minute
 var thumbHandler = http.FSHandler(filePath, 1)
 var videoHandler = http.FSHandler(filePath, 1)
+var metaHandler = http.FSHandler(filePath, 1)
 
 type video struct {
 	Uuid         []byte    `json:"uuid"`
@@ -81,24 +82,28 @@ func HTTPHandler(ctx *http.RequestCtx) {
 	ctx.SetContentType("application/json")
 	var p = string(ctx.Path())
 
+	//NOTE(Simon): Index
 	if p == "/" {
 		if ctx.IsGet() {
 			indexGet(ctx)
 		} else {
 			ctx.Error("{}", http.StatusNotFound)
 		}
+	//NOTE(Simon): Register
 	} else if p == "/register" {
 		if ctx.IsPost() {
 			registerPost(ctx)
 		} else {
 			ctx.Error("{}", http.StatusNotFound)
 		}
+	//NOTE(Simon): Login
 	} else if p == "/login" {
 		if ctx.IsPost() {
 			loginPost(ctx)
 		} else {
 			ctx.Error("{}", http.StatusNotFound)
 		}
+	//NOTE(Simon): Video
 	} else if strings.HasPrefix(p, "/video/") {
 		if ctx.IsGet() {
 			videoHandler(ctx)
@@ -107,12 +112,23 @@ func HTTPHandler(ctx *http.RequestCtx) {
 		} else {
 			ctx.Error("{}", http.StatusNotFound)
 		}
+	//NOTE(Simon): Meta
+	} else if strings.HasPrefix(p, "/meta/") {
+		if ctx.IsGet() {
+			videoHandler(ctx)
+		} else if ctx.IsPost() {
+			videoPost(ctx)
+		} else {
+			ctx.Error("{}", http.StatusNotFound)
+		}
+	//NOTE(Simon): Thumbnail
 	} else if strings.HasPrefix(p, "/thumbnail/") {
 		if ctx.IsGet() {
 			thumbHandler(ctx)
 		} else {
 			ctx.Error("{}", http.StatusNotFound)
 		}
+	//NOTE(Simon): Other
 	} else {
 		ctx.Error("{}", http.StatusNotFound)
 	}
@@ -259,7 +275,7 @@ func videoGet(ctx *http.RequestCtx) {
 		logError("SQL error: ", err)
 	}
 
-	var videoPath = fmt.Sprintf("C:\\test\\%s.mp4", vid.Uuid)
+	var videoPath = fmt.Sprintf("%s%s\\video.mp4", filePath, vid.Uuid)
 	logDebug(string(videoPath))
 
 	exists, err := pathExists(videoPath)
@@ -285,11 +301,11 @@ func videoPost(ctx *http.RequestCtx) {
 			return
 		}
 
-		jsonFilename := fmt.Sprintf("%s%s.json", filePath, uuid)
-		videoFilename := fmt.Sprintf("%s%s.mp4", filePath, uuid)
-		thumbFilename := fmt.Sprintf("%s%s.jpg", filePath, uuid)
+		metaFilename := fmt.Sprintf("%s%s\\meta.json", filePath, uuid)
+		videoFilename := fmt.Sprintf("%s%s\\video.mp4", filePath, uuid)
+		thumbFilename := fmt.Sprintf("%s%s\\thumb.jpg", filePath, uuid)
 
-		err = http.SaveMultipartFile(jsonHeader, jsonFilename)
+		err = http.SaveMultipartFile(jsonHeader, metaFilename)
 		if err == nil {
 			err = http.SaveMultipartFile(videoHeader, videoFilename)
 			if err == nil {
@@ -303,22 +319,22 @@ func videoPost(ctx *http.RequestCtx) {
 			return
 		}
 
-		json, _ := readStringFromFile(jsonFilename, 0)
+		meta, _ := readStringFromFile(metaFilename, 0)
 
 		var startIndex int
 		var inc int
 
-		_, inc = extractJsonValue(json[startIndex:]) //uuid
+		_, inc = extractJsonValue(meta[startIndex:]) //uuid
 		startIndex += inc
-		_, inc = extractJsonValue(json[startIndex:]) //videoname
+		_, inc = extractJsonValue(meta[startIndex:]) //videoname
 		startIndex += inc
-		title, inc := extractJsonValue(json[startIndex:])
+		title, inc := extractJsonValue(meta[startIndex:])
 		startIndex += inc
-		description, inc := extractJsonValue(json[startIndex:])
+		description, inc := extractJsonValue(meta[startIndex:])
 		startIndex += inc
-		_, inc = extractJsonValue(json[startIndex:]) //perspective
+		_, inc = extractJsonValue(meta[startIndex:]) //perspective
 		startIndex += inc
-		length, inc := extractJsonValue(json[startIndex:])
+		length, inc := extractJsonValue(meta[startIndex:])
 		startIndex += inc
 		floatLength, _ := strconv.ParseFloat(length, 32)
 		intLength := int(floatLength)
@@ -330,7 +346,9 @@ func videoPost(ctx *http.RequestCtx) {
 			//TODO(Simon): Update to match query below.
 			_, err = dbPool.Exec("update videos set timestamp = $1 where id = $2", &timestamp, &uuid)
 		} else {
-			_, err = dbPool.Exec("insert into videos (id, userid, downloadsize, title, description, length) values ($1, $2, $3, $4, $5, $6)", &uuid, &userid, 0, &title, &description, &intLength)
+			_, err = dbPool.Exec("insert into videos (id, userid, downloadsize, title, description, length)" +
+									"values ($1, $2, $3, $4, $5, $6)",
+									&uuid, &userid, 0, &title, &description, &intLength)
 		}
 
 		if err != nil {
