@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"errors"
 )
 
 const bcryptWorkFactor = 12
@@ -24,9 +25,7 @@ var SSL = false
 var dbPool *pgx.ConnPool
 var maxRequestBodySize = 1 * 1024 * 1024 * 1024
 var sessionExpiry = time.Duration(1)*time.Hour + time.Duration(0)*time.Minute
-var thumbHandler = http.FSHandler(filePath, 1)
-var videoHandler = http.FSHandler(filePath, 1)
-var metaHandler = http.FSHandler(filePath, 1)
+var fileHandler = http.FSHandler(filePath, 0)
 
 type video struct {
 	Uuid         []byte    `json:"uuid"`
@@ -106,7 +105,15 @@ func HTTPHandler(ctx *http.RequestCtx) {
 	//NOTE(Simon): Video
 	} else if strings.HasPrefix(p, "/video/") {
 		if ctx.IsGet() {
-			videoHandler(ctx)
+			newUrl, err := rewriteFsUrl(ctx.RequestURI(), "main.mp4")
+
+			if err == nil {
+				request := &ctx.Request
+				request.SetRequestURIBytes(newUrl)
+				fileHandler(ctx)
+			} else {
+				ctx.Error("{}", http.StatusNotFound)
+			}
 		} else if ctx.IsPost() {
 			videoPost(ctx)
 		} else {
@@ -115,16 +122,30 @@ func HTTPHandler(ctx *http.RequestCtx) {
 	//NOTE(Simon): Meta
 	} else if strings.HasPrefix(p, "/meta/") {
 		if ctx.IsGet() {
-			videoHandler(ctx)
-		} else if ctx.IsPost() {
-			videoPost(ctx)
+			newUrl, err := rewriteFsUrl(ctx.RequestURI(), "meta.json")
+
+			if err == nil {
+				request := &ctx.Request
+				request.SetRequestURIBytes(newUrl)
+				fileHandler(ctx)
+			} else {
+				ctx.Error("{}", http.StatusNotFound)
+			}
 		} else {
 			ctx.Error("{}", http.StatusNotFound)
 		}
 	//NOTE(Simon): Thumbnail
 	} else if strings.HasPrefix(p, "/thumbnail/") {
 		if ctx.IsGet() {
-			thumbHandler(ctx)
+			newUrl, err := rewriteFsUrl(ctx.RequestURI(), "thumbnail.jpg")
+
+			if err == nil {
+				request := &ctx.Request
+				request.SetRequestURIBytes(newUrl)
+				fileHandler(ctx)
+			} else {
+				ctx.Error("{}", http.StatusNotFound)
+			}
 		} else {
 			ctx.Error("{}", http.StatusNotFound)
 		}
@@ -484,6 +505,20 @@ func newToken(length int) string {
 }
 
 
+
+func rewriteFsUrl(url []byte, filename string) ([]byte, error) {
+	parts := bytes.Split(url, []byte("/"))
+
+	if (len(parts) != 3) {
+		return url, errors.New("bad url")
+	}
+
+	newUrl := []byte("/")
+	newUrl = append(newUrl, parts[2]...)
+	newUrl = append(newUrl, []byte("/")...)
+	newUrl = append(newUrl, []byte(filename)...)
+	return newUrl, nil
+}
 
 func timeToString() string {
 	now := time.Now()
