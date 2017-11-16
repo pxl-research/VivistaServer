@@ -311,7 +311,7 @@ func videoGet(ctx *http.RequestCtx) {
 
 func videoPost(ctx *http.RequestCtx) {
 	if authenticateToken(ctx) {
-		jsonHeader, err := ctx.FormFile("jsonFile")
+		jsonHeader, err := ctx.FormFile("meta")
 		videoHeader, err := ctx.FormFile("video")
 		thumbHeader, err := ctx.FormFile("thumb")
 		uuid := ctx.FormValue("uuid")
