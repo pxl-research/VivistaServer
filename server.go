@@ -88,6 +88,8 @@ func HTTPHandler(ctx *http.RequestCtx) {
 		} else {
 			ctx.Error("{}", http.StatusNotFound)
 		}
+
+
 	//NOTE(Simon): Register
 	} else if p == "/register" {
 		if ctx.IsPost() {
@@ -95,6 +97,8 @@ func HTTPHandler(ctx *http.RequestCtx) {
 		} else {
 			ctx.Error("{}", http.StatusNotFound)
 		}
+
+
 	//NOTE(Simon): Login
 	} else if p == "/login" {
 		if ctx.IsPost() {
@@ -102,6 +106,8 @@ func HTTPHandler(ctx *http.RequestCtx) {
 		} else {
 			ctx.Error("{}", http.StatusNotFound)
 		}
+
+
 	//NOTE(Simon): Video
 	} else if strings.HasPrefix(p, "/video/") {
 		if ctx.IsGet() {
@@ -119,6 +125,8 @@ func HTTPHandler(ctx *http.RequestCtx) {
 		} else {
 			ctx.Error("{}", http.StatusNotFound)
 		}
+
+
 	//NOTE(Simon): Meta
 	} else if strings.HasPrefix(p, "/meta/") {
 		if ctx.IsGet() {
@@ -134,6 +142,28 @@ func HTTPHandler(ctx *http.RequestCtx) {
 		} else {
 			ctx.Error("{}", http.StatusNotFound)
 		}
+
+
+	//NOTE(Simon): All extras
+	} else if strings.HasPrefix(p, "/extras/") {
+		if ctx.IsGet() {
+			allExtrasGet(ctx)
+		} else if ctx.IsPost() {
+			allExtrasPost(ctx)
+		} else {
+			ctx.Error("{}", http.StatusNotFound)
+		}
+
+
+	//NOTE(Simon): One extra
+	} else if strings.HasPrefix(p, "/extra/") {
+		if ctx.IsGet() {
+
+		} else {
+			ctx.Error("{}", http.StatusNotFound)
+		}
+
+
 	//NOTE(Simon): Thumbnail
 	} else if strings.HasPrefix(p, "/thumbnail/") {
 		if ctx.IsGet() {
@@ -149,6 +179,8 @@ func HTTPHandler(ctx *http.RequestCtx) {
 		} else {
 			ctx.Error("{}", http.StatusNotFound)
 		}
+
+
 	//NOTE(Simon): Other
 	} else {
 		ctx.Error("{}", http.StatusNotFound)
@@ -203,38 +235,38 @@ func indexGet(ctx *http.RequestCtx) {
 	var buffer bytes.Buffer
 	var numVideos int
 
-	videoBuffer.Write([]byte("["))
+	videoBuffer.WriteByte('[')
 	for rows.Next() {
 		rows.Scan(&vid.Uuid, &vid.Userid, &vid.Username, &vid.Timestamp, &vid.Downloadsize, &vid.Title, &vid.Description, &vid.Length)
 
 		result, _ := json.Marshal(vid)
 		videoBuffer.Write(result)
-		videoBuffer.Write([]byte(","))
+		videoBuffer.WriteByte(',')
 		numVideos++
 	}
 	if numVideos > 0 {
 		videoBuffer.Truncate(videoBuffer.Len() - 1)
 	}
-	videoBuffer.Write([]byte("]"))
+	videoBuffer.WriteByte(']')
 
-	buffer.Write([]byte("{"))
+	buffer.WriteByte('{')
 
 	buffer.Write([]byte("\"totalcount\":"))
 	buffer.Write([]byte(strconv.Itoa(numVideos)))
-	buffer.Write([]byte(","))
+	buffer.WriteByte(',')
 
 	buffer.Write([]byte("\"page\":"))
 	buffer.Write([]byte(strconv.Itoa((offset / count) + 1)))
-	buffer.Write([]byte(","))
+	buffer.WriteByte(',')
 
 	buffer.Write([]byte("\"count\":"))
 	buffer.Write([]byte(strconv.Itoa(count)))
-	buffer.Write([]byte(","))
+	buffer.WriteByte(',')
 
 	buffer.Write([]byte("\"videos\":"))
 	buffer.Write(videoBuffer.Bytes())
 
-	buffer.Write([]byte("}"))
+	buffer.WriteByte('}')
 
 	ctx.SetBody(buffer.Bytes())
 }
@@ -383,6 +415,70 @@ func videoPost(ctx *http.RequestCtx) {
 	}
 }
 
+func allExtrasGet(ctx *http.RequestCtx) {
+	var videoid = ctx.QueryArgs().Peek("videoid")
+
+	rows, err := dbPool.Query(`select index from extra_files
+							where video_id = $1`, &videoid)
+
+	if err != nil {
+		logError("Something went wrong while loading the index", err)
+		ctx.Error("{}", http.StatusInternalServerError)
+		return
+	}
+
+	var buffer bytes.Buffer
+	buffer.WriteByte('[')
+
+	var count int
+	for rows.Next() {
+		var index = 0
+		rows.Scan(&index)
+
+		buffer.Write([]byte(strconv.Itoa(index)))
+		buffer.WriteByte(',')
+
+		count++
+	}
+
+	if count > 0 {
+		buffer.Truncate(buffer.Len() - 1)
+	}
+
+	buffer.WriteByte(']')
+
+	ctx.SetBody(buffer.Bytes())
+}
+
+func allExtrasPost(ctx *http.RequestCtx) {
+	if authenticateToken(ctx) {
+		var ids []int
+		var videoid = ctx.QueryArgs().Peek("videoid")
+		var indices = string(ctx.QueryArgs().Peek("indices"))
+		var splitIndices = strings.Split(indices, ",")
+
+		for i := 0; i < len(splitIndices); i++ {
+			var parsed, _ = strconv.ParseInt(splitIndices[i], 0, 32)
+			ids = append(ids, int(parsed))
+		}
+
+		for i := 0; i < len(ids); i++ {
+			filename := fmt.Sprintf("extra%d")
+			header, _ := ctx.FormFile(filename)
+		 	path := fmt.Sprintf("%s%s\\%s", filePath, videoid, filename)
+			err := http.SaveMultipartFile(header, path)
+			if err == nil {
+				ctx.Error("{}", http.StatusInternalServerError)
+				return;
+			}
+		}
+
+		ctx.WriteString("{}")
+
+	} else {
+		ctx.Error("{}", http.StatusUnauthorized)
+	}
+}
 
 
 func authenticatePassword(ctx *http.RequestCtx) (bool, error) {
