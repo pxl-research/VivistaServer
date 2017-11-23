@@ -76,7 +76,7 @@ func HTTPHandler(ctx *http.RequestCtx) {
 		return
 	}
 
-	fmt.Printf("%s: %s\n", timeToString(), ctx.Path())
+	fmt.Printf("%s: %s %s\n", timeToString(), ctx.Method(), ctx.Path())
 
 	ctx.SetContentType("application/json")
 	var p = string(ctx.Path())
@@ -109,7 +109,7 @@ func HTTPHandler(ctx *http.RequestCtx) {
 
 
 	//NOTE(Simon): Video
-	} else if strings.HasPrefix(p, "/video/") {
+	} else if strings.HasPrefix(p, "/video") {
 		if ctx.IsGet() {
 			newUrl, err := rewriteFsUrl(ctx.RequestURI(), "main.mp4")
 
@@ -128,7 +128,7 @@ func HTTPHandler(ctx *http.RequestCtx) {
 
 
 	//NOTE(Simon): Meta
-	} else if strings.HasPrefix(p, "/meta/") {
+	} else if strings.HasPrefix(p, "/meta") {
 		if ctx.IsGet() {
 			newUrl, err := rewriteFsUrl(ctx.RequestURI(), "meta.json")
 
@@ -145,7 +145,7 @@ func HTTPHandler(ctx *http.RequestCtx) {
 
 
 	//NOTE(Simon): All extras
-	} else if strings.HasPrefix(p, "/extras/") {
+	} else if strings.HasPrefix(p, "/extras") {
 		if ctx.IsGet() {
 			allExtrasGet(ctx)
 		} else if ctx.IsPost() {
@@ -156,7 +156,7 @@ func HTTPHandler(ctx *http.RequestCtx) {
 
 
 	//NOTE(Simon): One extra
-	} else if strings.HasPrefix(p, "/extra/") {
+	} else if strings.HasPrefix(p, "/extra") {
 		if ctx.IsGet() {
 
 		} else {
@@ -165,7 +165,7 @@ func HTTPHandler(ctx *http.RequestCtx) {
 
 
 	//NOTE(Simon): Thumbnail
-	} else if strings.HasPrefix(p, "/thumbnail/") {
+	} else if strings.HasPrefix(p, "/thumbnail") {
 		if ctx.IsGet() {
 			newUrl, err := rewriteFsUrl(ctx.RequestURI(), "thumbnail.jpg")
 
@@ -354,9 +354,12 @@ func videoPost(ctx *http.RequestCtx) {
 			return
 		}
 
-		metaFilename := fmt.Sprintf("%s%s\\meta.json", filePath, uuid)
-		videoFilename := fmt.Sprintf("%s%s\\video.mp4", filePath, uuid)
-		thumbFilename := fmt.Sprintf("%s%s\\thumb.jpg", filePath, uuid)
+		path := fmt.Sprintf("%s%s\\", filePath, uuid)
+		metaFilename := fmt.Sprintf("%s\\meta.json", path)
+		videoFilename := fmt.Sprintf("%s\\video.mp4", path)
+		thumbFilename := fmt.Sprintf("%s\\thumb.jpg", path)
+
+		os.MkdirAll(path, os.ModeDir)
 
 		err = http.SaveMultipartFile(jsonHeader, metaFilename)
 		if err == nil {
@@ -378,8 +381,6 @@ func videoPost(ctx *http.RequestCtx) {
 		var inc int
 
 		_, inc = extractJsonValue(meta[startIndex:]) //uuid
-		startIndex += inc
-		_, inc = extractJsonValue(meta[startIndex:]) //videoname
 		startIndex += inc
 		title, inc := extractJsonValue(meta[startIndex:])
 		startIndex += inc
@@ -453,8 +454,8 @@ func allExtrasGet(ctx *http.RequestCtx) {
 func allExtrasPost(ctx *http.RequestCtx) {
 	if authenticateToken(ctx) {
 		var ids []int
-		var videoid = ctx.QueryArgs().Peek("videoid")
-		var indices = string(ctx.QueryArgs().Peek("indices"))
+		var uuid = ctx.FormValue("uuid")
+		var indices = string(ctx.FormValue("indices"))
 		var splitIndices = strings.Split(indices, ",")
 
 		for i := 0; i < len(splitIndices); i++ {
@@ -462,12 +463,15 @@ func allExtrasPost(ctx *http.RequestCtx) {
 			ids = append(ids, int(parsed))
 		}
 
+		path := fmt.Sprintf("%s%s\\", filePath, uuid)
+
 		for i := 0; i < len(ids); i++ {
-			filename := fmt.Sprintf("extra%d")
+			filename := fmt.Sprintf("extra%d", i)
 			header, _ := ctx.FormFile(filename)
-		 	path := fmt.Sprintf("%s%s\\%s", filePath, videoid, filename)
-			err := http.SaveMultipartFile(header, path)
-			if err == nil {
+		 	extraPath := fmt.Sprintf("%s\\%s", path, filename)
+		 	logDebug(extraPath)
+			err := http.SaveMultipartFile(header, extraPath)
+			if err != nil {
 				ctx.Error("{}", http.StatusInternalServerError)
 				return;
 			}
