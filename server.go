@@ -75,7 +75,6 @@ func HTTPHandler(ctx *http.RequestCtx) {
 		ctx.Error("{}", http.StatusUpgradeRequired)
 		return
 	}
-
 	fmt.Printf("%s: %s %s\n", timeToString(), ctx.Method(), ctx.Path())
 
 	ctx.SetContentType("application/json")
@@ -453,6 +452,7 @@ func allExtrasGet(ctx *http.RequestCtx) {
 
 func allExtrasPost(ctx *http.RequestCtx) {
 	if authenticateToken(ctx) {
+		//TODO(Simon): User owns video?
 		var ids []int
 		var uuid = ctx.FormValue("uuid")
 		var indices = string(ctx.FormValue("indices"))
@@ -469,7 +469,7 @@ func allExtrasPost(ctx *http.RequestCtx) {
 			filename := fmt.Sprintf("extra%d", i)
 			header, _ := ctx.FormFile(filename)
 		 	extraPath := fmt.Sprintf("%s\\%s", path, filename)
-		 	logDebug(extraPath)
+
 			err := http.SaveMultipartFile(header, extraPath)
 			if err != nil {
 				ctx.Error("{}", http.StatusInternalServerError)
