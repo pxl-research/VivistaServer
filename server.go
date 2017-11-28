@@ -157,7 +157,17 @@ func HTTPHandler(ctx *http.RequestCtx) {
 	//NOTE(Simon): One extra
 	} else if strings.HasPrefix(p, "/extra") {
 		if ctx.IsGet() {
+			index := ctx.QueryArgs().Peek("index")
 
+			newUrl, err := rewriteFsUrl(ctx.RequestURI(), "extra" + string(index))
+			logDebug(string(newUrl))
+			if err == nil {
+				request := &ctx.Request
+				request.SetRequestURIBytes(newUrl)
+				fileHandler(ctx)
+			} else {
+				ctx.Error("{}", http.StatusNotFound)
+			}
 		} else {
 			ctx.Error("{}", http.StatusNotFound)
 		}
@@ -327,7 +337,7 @@ func videoGet(ctx *http.RequestCtx) {
 		logError("SQL error: ", err)
 	}
 
-	var videoPath = fmt.Sprintf("%s%s\\video.mp4", filePath, vid.Uuid)
+	var videoPath = fmt.Sprintf("%s%s\\main.mp4", filePath, vid.Uuid)
 	logDebug(string(videoPath))
 
 	exists, err := pathExists(videoPath)
@@ -355,7 +365,7 @@ func videoPost(ctx *http.RequestCtx) {
 
 		path := fmt.Sprintf("%s%s\\", filePath, uuid)
 		metaFilename := fmt.Sprintf("%s\\meta.json", path)
-		videoFilename := fmt.Sprintf("%s\\video.mp4", path)
+		videoFilename := fmt.Sprintf("%s\\main.mp4", path)
 		thumbFilename := fmt.Sprintf("%s\\thumb.jpg", path)
 
 		os.MkdirAll(path, os.ModeDir)
@@ -416,11 +426,9 @@ func videoPost(ctx *http.RequestCtx) {
 }
 
 func allExtrasGet(ctx *http.RequestCtx) {
-	var videoid = ctx.QueryArgs().Peek("videoid")
-
+	var videoid = []byte(ctx.QueryArgs().Peek("videoid"))
 	rows, err := dbPool.Query(`select index from extra_files
 							where video_id = $1`, &videoid)
-
 	if err != nil {
 		logError("Something went wrong while loading the index", err)
 		ctx.Error("{}", http.StatusInternalServerError)
