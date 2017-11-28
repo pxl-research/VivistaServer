@@ -166,7 +166,7 @@ func HTTPHandler(ctx *http.RequestCtx) {
 	//NOTE(Simon): Thumbnail
 	} else if strings.HasPrefix(p, "/thumbnail") {
 		if ctx.IsGet() {
-			newUrl, err := rewriteFsUrl(ctx.RequestURI(), "thumbnail.jpg")
+			newUrl, err := rewriteFsUrl(ctx.RequestURI(), "thumb.jpg")
 
 			if err == nil {
 				request := &ctx.Request
@@ -452,33 +452,56 @@ func allExtrasGet(ctx *http.RequestCtx) {
 
 func allExtrasPost(ctx *http.RequestCtx) {
 	if authenticateToken(ctx) {
-		//TODO(Simon): User owns video?
 		var ids []int
 		var uuid = ctx.FormValue("uuid")
 		var indices = string(ctx.FormValue("indices"))
 		var splitIndices = strings.Split(indices, ",")
 
-		for i := 0; i < len(splitIndices); i++ {
-			var parsed, _ = strconv.ParseInt(splitIndices[i], 0, 32)
-			ids = append(ids, int(parsed))
-		}
+		userid := getUserIdFromToken(string(ctx.FormValue("token")))
 
-		path := fmt.Sprintf("%s%s\\", filePath, uuid)
-
-		for i := 0; i < len(ids); i++ {
-			filename := fmt.Sprintf("extra%d", i)
-			header, _ := ctx.FormFile(filename)
-		 	extraPath := fmt.Sprintf("%s\\%s", path, filename)
-
-			err := http.SaveMultipartFile(header, extraPath)
-			if err != nil {
-				ctx.Error("{}", http.StatusInternalServerError)
-				return;
+		if videoExists(uuid) && userOwnsVideo(uuid, userid) {
+			for i := 0; i < len(splitIndices); i++ {
+				var parsed, _ = strconv.ParseInt(splitIndices[i], 0, 32)
+				ids = append(ids, int(parsed))
 			}
+
+			path := fmt.Sprintf("%s%s\\", filePath, uuid)
+
+			var buffer = bytes.NewBufferString("insert into extra_files (video_id, index) values ")
+
+			//NOTE(Simon): Fill query buffer
+			for i := 0; i < len(ids); i++ {
+				filename := fmt.Sprintf("extra%d", ids[i])
+				header, _ := ctx.FormFile(filename)
+			 	extraPath := fmt.Sprintf("%s\\%s", path, filename)
+
+			 	//TODO(Simon): Unsafe, no escaping in this query!
+			 	buffer.WriteString("('")
+			 	buffer.Write([]byte(uuid))
+			 	buffer.WriteString("',")
+			 	buffer.WriteString(strconv.Itoa(ids[i]))
+		 		buffer.WriteString("),")
+
+				err := http.SaveMultipartFile(header, extraPath)
+				if err != nil {
+					ctx.Error("{}", http.StatusInternalServerError)
+					return;
+				}
+			}
+
+			buffer.Truncate(buffer.Len() - 1);
+			logDebug(fmt.Sprintf("delete from extra_files where video_id = '%v'", string(uuid)))
+			dbPool.Exec(fmt.Sprintf("delete from extra_files where video_id = '%v'", string(uuid)))
+			_, err := dbPool.Exec(buffer.String())
+
+			if err != nil {
+				logError("Error while inserting extra_files rows", err)
+			}
+
+			ctx.WriteString("{}")
+		} else {
+			ctx.Error("{}", http.StatusUnauthorized)
 		}
-
-		ctx.WriteString("{}")
-
 	} else {
 		ctx.Error("{}", http.StatusUnauthorized)
 	}
