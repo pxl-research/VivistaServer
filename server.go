@@ -75,7 +75,7 @@ func HTTPHandler(ctx *http.RequestCtx) {
 		ctx.Error("{}", http.StatusUpgradeRequired)
 		return
 	}
-	fmt.Printf("%s: %s %s\n", timeToString(), ctx.Method(), ctx.Path())
+	fmt.Printf("%s: %s %s\n", timeToString(), ctx.Method(), ctx.RequestURI())
 
 	ctx.SetContentType("application/json")
 	var p = string(ctx.Path())
@@ -110,7 +110,7 @@ func HTTPHandler(ctx *http.RequestCtx) {
 	//NOTE(Simon): Video
 	} else if strings.HasPrefix(p, "/video") {
 		if ctx.IsGet() {
-			newUrl, err := rewriteFsUrl(ctx.RequestURI(), "main.mp4")
+			newUrl, err := rewriteFsUrl(ctx.Path(), "main.mp4")
 
 			if err == nil {
 				request := &ctx.Request
@@ -129,7 +129,7 @@ func HTTPHandler(ctx *http.RequestCtx) {
 	//NOTE(Simon): Meta
 	} else if strings.HasPrefix(p, "/meta") {
 		if ctx.IsGet() {
-			newUrl, err := rewriteFsUrl(ctx.RequestURI(), "meta.json")
+			newUrl, err := rewriteFsUrl(ctx.Path(), "meta.json")
 
 			if err == nil {
 				request := &ctx.Request
@@ -158,9 +158,8 @@ func HTTPHandler(ctx *http.RequestCtx) {
 	} else if strings.HasPrefix(p, "/extra") {
 		if ctx.IsGet() {
 			index := ctx.QueryArgs().Peek("index")
+			newUrl, err := rewriteFsUrl(ctx.Path(), "extra" + string(index))
 
-			newUrl, err := rewriteFsUrl(ctx.RequestURI(), "extra" + string(index))
-			logDebug(string(newUrl))
 			if err == nil {
 				request := &ctx.Request
 				request.SetRequestURIBytes(newUrl)
@@ -176,7 +175,7 @@ func HTTPHandler(ctx *http.RequestCtx) {
 	//NOTE(Simon): Thumbnail
 	} else if strings.HasPrefix(p, "/thumbnail") {
 		if ctx.IsGet() {
-			newUrl, err := rewriteFsUrl(ctx.RequestURI(), "thumb.jpg")
+			newUrl, err := rewriteFsUrl(ctx.Path(), "thumb.jpg")
 
 			if err == nil {
 				request := &ctx.Request
@@ -482,6 +481,9 @@ func allExtrasPost(ctx *http.RequestCtx) {
 				filename := fmt.Sprintf("extra%d", ids[i])
 				header, _ := ctx.FormFile(filename)
 			 	extraPath := fmt.Sprintf("%s\\%s", path, filename)
+		 	fmt.Printf("header: %v \n", filename)
+		 	fmt.Printf("header: %v \n", header)
+		 	fmt.Printf("header: %v \n", extraPath)
 
 			 	//TODO(Simon): Unsafe, no escaping in this query!
 			 	buffer.WriteString("('")
@@ -648,6 +650,7 @@ func rewriteFsUrl(url []byte, filename string) ([]byte, error) {
 	newUrl = append(newUrl, parts[2]...)
 	newUrl = append(newUrl, []byte("/")...)
 	newUrl = append(newUrl, []byte(filename)...)
+
 	return newUrl, nil
 }
 
