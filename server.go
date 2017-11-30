@@ -402,15 +402,17 @@ func videoPost(ctx *http.RequestCtx) {
 		intLength := int(floatLength)
 
 		userid := getUserIdFromToken(string(ctx.FormValue("token")))
+		downloadsize, _ := strconv.ParseInt(string(ctx.FormValue("downloadSize")), 10, 64)
 
 		if videoExists(uuid) && userOwnsVideo(uuid, userid) {
 			timestamp := time.Now()
 			//TODO(Simon): Update to match query below.
-			_, err = dbPool.Exec("update videos set timestamp = $1 where id = $2", &timestamp, &uuid)
+			_, err = dbPool.Exec("update videos set (downloadsize, title, description, length, timestamp) = ($1, $2, $3, $4, $5) where id = $6",
+									&downloadsize, &title, &description, &intLength, &timestamp, &uuid)
 		} else {
 			_, err = dbPool.Exec("insert into videos (id, userid, downloadsize, title, description, length)" +
 									"values ($1, $2, $3, $4, $5, $6)",
-									&uuid, &userid, 0, &title, &description, &intLength)
+									&uuid, &userid, & downloadsize, &title, &description, &intLength)
 		}
 
 		if err != nil {
@@ -481,9 +483,6 @@ func allExtrasPost(ctx *http.RequestCtx) {
 				filename := fmt.Sprintf("extra%d", ids[i])
 				header, _ := ctx.FormFile(filename)
 			 	extraPath := fmt.Sprintf("%s\\%s", path, filename)
-		 	fmt.Printf("header: %v \n", filename)
-		 	fmt.Printf("header: %v \n", header)
-		 	fmt.Printf("header: %v \n", extraPath)
 
 			 	//TODO(Simon): Unsafe, no escaping in this query!
 			 	buffer.WriteString("('")
