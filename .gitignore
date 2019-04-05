@@ -23,3 +23,9 @@ _testmain.go
 *.exe~
 *.test
 *.prof
+
+\.vs/VivistaServer/v15/
+
+VivistaServer/bin/
+
+VivistaServer/obj/
