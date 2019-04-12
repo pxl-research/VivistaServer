@@ -1,12 +1,18 @@
 ﻿using System;
+using System.Buffers.Text;
 using System.Collections.Generic;
 using System.Data;
+using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Dapper;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 
@@ -44,9 +50,15 @@ namespace VivistaServer
 		private static PathString allExtrasPath = new PathString("/extras");
 		private static PathString thumbnailPath = new PathString("/thumbnail");
 
-		private static int indexCountDefault = 10;
+		private static RNGCryptoServiceProvider rng;
 
-		//NOTE(Simon): Use GetPgsqlConfig(), it has caching.
+		private const int indexCountDefault = 10;
+		private const int bcryptWorkFactor = 12;
+		private const int sessionLength = 1 * 24 * 60;
+
+		private const string baseFilePath = @"C:\test\";
+
+		//NOTE(Simon): Use GetPgsqlConfig() instead of this directly, it sets up caching of this variable.
 		private static string connectionString;
 
 		// This method gets called by the runtime. Use this method to add services to the container.
@@ -63,12 +75,14 @@ namespace VivistaServer
 			{
 				app.UseDeveloperExceptionPage();
 			}
+			
+			rng = new RNGCryptoServiceProvider();
 
 			app.Run(async (context) =>
 			{
 				var path = context.Request.Path;
 				bool isGet = context.Request.Method == "GET";
-				bool isPost = context.Request.Method == "GET";
+				bool isPost = context.Request.Method == "POST";
 
 				context.Response.ContentType = "application/json";
 
@@ -83,7 +97,7 @@ namespace VivistaServer
 					}
 					else if (MatchPath(path, videoPath))
 					{
-						await context.Response.WriteAsync("video get");
+						await VideoGet(context, connection);
 					}
 					else if (MatchPath(path, metaPath))
 					{
@@ -103,47 +117,35 @@ namespace VivistaServer
 					}
 					else
 					{
-						context.Response.StatusCode = 404;
+						await Write404(context);
 					}
 				}
 				else if (isPost)
 				{
 					if (MatchPath(path, registerPath))
 					{
-						await context.Response.WriteAsync("register post");
+						await RegisterPost(context, connection);
 					}
 					else if (MatchPath(path, loginPath))
 					{
-						await context.Response.WriteAsync("login post");
+						await LoginPost(context, connection);
 					}
 					else if (MatchPath(path, videoPath))
 					{
-						await context.Response.WriteAsync("video post");
-					}
-					else if (MatchPath(path, metaPath))
-					{
-						await context.Response.WriteAsync("meta post");
-					}
-					else if (MatchPath(path, extraPath))
-					{
-						await context.Response.WriteAsync("extra post");
+						await VideoPost(context, connection);
 					}
 					else if (MatchPath(path, allExtrasPath))
 					{
 						await context.Response.WriteAsync("extras post");
 					}
-					else if (MatchPath(path, thumbnailPath))
-					{
-						await context.Response.WriteAsync("thumbnail post");
-					}
 					else
 					{
-						context.Response.StatusCode = 404;
+						await Write404(context);
 					}
 				}
 				else
 				{
-					context.Response.StatusCode = 404;
+					await Write404(context);
 				}
 
 				connection.Close();
@@ -153,6 +155,11 @@ namespace VivistaServer
 		private async Task IndexGet(HttpContext context, NpgsqlConnection connection)
 		{
 			var args = context.Request.Query;
+
+			string author = args["author"].ToString().ToLowerInvariant().Trim();
+			int? userid = null;
+			DateTime? uploadDate;
+
 			if (!Int32.TryParse(args["offset"].ToString(), out int offset) || offset < 0)
 			{
 				offset = 0;
@@ -163,15 +170,11 @@ namespace VivistaServer
 				count = indexCountDefault;
 			}
 
-			string author = args["author"];
-			int? userid = null;
-
 			if (!String.IsNullOrEmpty(author))
 			{
 				userid = await GetUserId(author, connection);
 			}
 
-			DateTime? uploadDate;
 			if (!Int32.TryParse(args["agedays"].ToString(), out int daysOld) || daysOld < 0)
 			{
 				uploadDate = null;
@@ -188,12 +191,12 @@ namespace VivistaServer
 				//TODO(Simon): There might be a faster way to get the count, while also executing just 1 query: add "count(*) OVER() AS total_count" to query
 				videos.totalcount = await connection.QuerySingleAsync<int>(@"select count(*) from videos v
 								inner join users u on v.userid = u.userid
-								where (@userid::int is NULL or v.userid=$1)
-								and (@uploadDate::timestamp is NULL or v.timestamp>=$2)", new { userid, uploadDate});
+								where (@userid::int is NULL or v.userid=@userid)
+								and (@uploadDate::timestamp is NULL or v.timestamp>=@uploadDate)", new { userid, uploadDate});
 				videos.videos = await connection.QueryAsync<Video>(@"select v.id, v.userid, u.username, v.timestamp, v.downloadsize, v.title, v.description, v.length from videos v
 								inner join users u on v.userid = u.userid
-								where (@userid::int is NULL or v.userid=$1)
-								and (@uploadDate::timestamp is NULL or v.timestamp>=$2)
+								where (@userid::int is NULL or v.userid=@userid)
+								and (@uploadDate::timestamp is NULL or v.timestamp>=@uploadDate)
 								order by v.timestamp desc
 								limit @count
 								offset @offset", new { userid, uploadDate, count, offset });
@@ -203,11 +206,198 @@ namespace VivistaServer
 			}
 			catch (Exception e)
 			{
-				await WriteError(context, "Something went wrong while processing this request", 500, e);
+				await WriteError(context, "Something went wrong while processing this request", StatusCodes.Status500InternalServerError, e);
 				return;
 			}
 
 			await context.Response.Body.WriteAsync(Utf8Json.JsonSerializer.SerializeUnsafe(videos));
+		}
+
+		private async Task VideoGet(HttpContext context, NpgsqlConnection connection)
+		{
+			var args = context.Request.Query;
+			var videoid = args["videoid"].ToString();
+			
+			if (String.IsNullOrEmpty(videoid))
+			{
+				await Write404(context);
+				return;
+			}
+
+			Video video;
+			try
+			{
+				//TODO(Simon): There might be a faster way to get the count, while also executing just 1 query: add "count(*) OVER() AS total_count" to query
+				video = await connection.QuerySingleAsync<Video>(@"select v.id, v.userid, u.username, v.timestamp, v.downloadsize from videos v
+													inner join users u on v.userid = u.userid
+													where v.id=@videoid::uuid", new { videoid });
+
+				if (video == null)
+				{
+					await Write404(context);
+					return;
+				}
+			}
+			catch (Exception e)
+			{
+				await WriteError(context, "Something went wrong while processing this request", StatusCodes.Status500InternalServerError, e);
+				return;
+			}
+
+			var videoPath = $"{baseFilePath}{video.id}\\main.mp4";
+
+			if (File.Exists(videoPath))
+			{
+				context.Response.ContentType = "video/mp4";
+				try
+				{
+					await context.Response.SendFileAsync(videoPath);
+				}
+				catch (Exception e)
+				{
+					await WriteError(context, "Something went wrong while sending this file", StatusCodes.Status500InternalServerError, e);
+					return;
+				}
+			}
+			else
+			{
+				await Write404(context);
+				return;
+			}
+		}
+
+		private async Task MetaGet(HttpContext context, NpgsqlConnection connection)
+		{
+			
+		}
+
+		private async Task RegisterPost(HttpContext context, NpgsqlConnection connection)
+		{
+			var form = context.Request.Form;
+
+			string username = form["username"].ToString().ToLowerInvariant().Trim();
+			string password = form["password"].ToString();
+
+			if (username.Length == 0)
+			{
+				await WriteError(context, "Username too short", StatusCodes.Status400BadRequest);
+				return;
+			}
+			if (password.Length == 0)
+			{
+				await WriteError(context, "Password too short", StatusCodes.Status400BadRequest);
+				return;
+			}
+			
+			var userExists = await UserExists(username, connection);
+			var hashedPassword = BCrypt.Net.BCrypt.HashPassword(password, bcryptWorkFactor);
+
+			if (!userExists)
+			{
+				try
+				{
+					int success = await connection.ExecuteAsync("insert into users (username, pass) values (@username, @hashedPassword)", new { username, hashedPassword });
+
+					if (success == 0)
+					{
+						await WriteError(context, "Something went wrong while registering", StatusCodes.Status500InternalServerError);
+						return;
+					}
+				}
+				catch (Exception e)
+				{
+					await WriteError(context, "Something went wrong while registering", StatusCodes.Status500InternalServerError, e);
+					return;
+				}
+			}
+			else
+			{
+				await WriteError(context, "This user already exists", StatusCodes.Status409Conflict);
+				return;
+			}
+
+			//NOTE(Simon): Create session token to immediately log user in.
+			{
+				var token = NewSessionToken(32);
+				var expiry = DateTime.UtcNow.AddMinutes(sessionLength);
+				var userid = await GetUserId(username, connection);
+
+				if (userid == -1)
+				{
+					await WriteError(context, "Something went wrong while logging in", StatusCodes.Status500InternalServerError);
+					return;
+				}
+
+				try
+				{
+					await connection.ExecuteAsync("insert into sessions (token, expiry, userid) values (@token, @expiry, @userid)", new { token, expiry, userid });
+				}
+				catch (Exception e)
+				{
+					await WriteError(context, "Something went wrong while logging in", StatusCodes.Status500InternalServerError, e);
+					return;
+				}
+				//TODO(Simon): Wrap in JSON. Look for other occurences in file
+				await context.Response.WriteAsync(token);
+			}
+		}
+
+		private async Task LoginPost(HttpContext context, NpgsqlConnection connection)
+		{
+			var form = context.Request.Form;
+
+			string username = form["username"].ToString().ToLowerInvariant().Trim();
+			string password = form["password"];
+			bool success = await AuthenticateUser(username, password, connection);
+
+			if (success) 
+			{
+				string token = NewSessionToken(32);
+				var expiry = DateTime.UtcNow.AddMinutes(sessionLength);
+				var userid = await GetUserId(username, connection);
+
+				await connection.ExecuteAsync("insert into sessions (token, expiry, userid) values (@token, @expiry, @userId)", new { token, expiry, userid });
+
+				//TODO(Simon): Wrap in JSON. Look for other occurences in file
+				await context.Response.WriteAsync(token);
+			}
+			else
+			{
+				await WriteError(context, "{}", StatusCodes.Status401Unauthorized);
+			}
+		}
+
+		private async Task VideoPost(HttpContext context, NpgsqlConnection connection)
+		{
+			var form = context.Request.Form;
+			string token = form["token"];
+
+			if (await AuthenticateToken(token, connection))
+			{
+				var guid = new Guid(form["uuid"]);
+				string basePath = Path.Combine(baseFilePath, guid.ToString());
+
+				Directory.CreateDirectory(basePath);
+
+				try
+				{
+					var file = form.Files["video"];
+					using (var stream = new FileStream(Path.Combine(basePath, "main.mp4"), FileMode.OpenOrCreate))
+					{
+						await file.CopyToAsync(stream);
+					}
+				}
+				catch (Exception e)
+				{
+					await WriteError(context, "Something went wrong while uploading this file", StatusCodes.Status500InternalServerError, e);
+					return;
+				}
+			}
+			else
+			{
+				await WriteError(context, "{}", StatusCodes.Status401Unauthorized);
+				return;
+			}
 		}
 
 		private static string GetPgsqlConfig()
@@ -245,10 +435,79 @@ namespace VivistaServer
 			return fullPath.StartsWithSegments(startSegment, StringComparison.OrdinalIgnoreCase);
 		}
 
-		private static async Task<int?> GetUserId(string username, IDbConnection connection)
+		private static string NewSessionToken(int numBytes)
 		{
-			int? id = await connection.QueryFirstOrDefaultAsync<int?>("select userid from users where username = @username", new { username });
-			return id == 0 ? null : id;
+			var bytes = new byte[numBytes];
+			rng.GetBytes(bytes);
+			return Convert.ToBase64String(bytes).Substring(0, 32);
+		}
+
+		private static async Task<int?> GetUserId(string username, NpgsqlConnection connection)
+		{
+			int? id;
+			try
+			{
+				id = await connection.QueryFirstOrDefaultAsync<int?>("select userid from users where username = @username", new { username });
+			}
+			catch
+			{
+				id = null;
+			}
+			return id ?? -1;
+		}
+
+		private static async Task<bool> UserExists(string username, NpgsqlConnection connection)
+		{
+			try
+			{
+				int count = await connection.QuerySingleAsync<int>("select count(*) from users where username=@username", new { username });
+				return count > 0;
+			}
+			catch
+			{
+				return false;
+			}
+		}
+
+		private static async Task<bool> AuthenticateUser(string username, string password, NpgsqlConnection connection)
+		{
+			string storedPassword;
+			try
+			{
+				storedPassword = await connection.QuerySingleAsync<string>("select pass from users where username = @username", new { username });
+			}
+			catch
+			{
+				return false;
+			}
+
+			return BCrypt.Net.BCrypt.Verify(password, storedPassword);
+		}
+
+		private static async Task<bool> AuthenticateToken(string token, NpgsqlConnection connection)
+		{
+			DateTime validUntil;
+
+			try
+			{
+				validUntil = await connection.QuerySingleAsync<DateTime>("select expiry from sessions where token = @token", new { token });
+			}
+			catch
+			{
+				return false;
+			}
+
+			if (DateTime.UtcNow > validUntil)
+			{
+				await connection.ExecuteAsync("delete from sessions where token = @token", new { token });
+				return false;
+			}
+			else
+			{
+				var newExpiry = DateTime.UtcNow.AddMinutes(sessionLength);
+				await connection.ExecuteAsync("update sessions set expiry = @newExpiry where token = @token", new { newExpiry, token });
+				return true;
+			}
 		}
 
 		private static async Task WriteError(HttpContext context, string error, int errorCode, Exception e = null)
@@ -258,9 +517,22 @@ namespace VivistaServer
 			#if DEBUG
 			if (e != null)
 			{
+				await context.Response.WriteAsync(Environment.NewLine);
 				await context.Response.WriteAsync(e.ToString());
 			}
 			#endif
+		}
+
+		private static async Task Write404(HttpContext context, string message = "File Not Found")
+		{
+			await WriteError(context, message, StatusCodes.Status404NotFound);
+		}
+
+		public class MoveableFormFile : Microsoft.AspNetCore.Http.Internal.FormFile
+		{
+			public MoveableFormFile(Stream baseStream, long baseStreamOffset, long length, string name, string fileName) : base(baseStream, baseStreamOffset, length, name, fileName)
+			{
+			}
 		}
 	}
 }

@@ -16,6 +16,7 @@ namespace VivistaServer
 							.UseStartup<Startup>()
 							.UseKestrel(options =>
 							{
+								options.Limits.MaxRequestBodySize = null;
 							});
 		}
 	}

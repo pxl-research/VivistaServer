@@ -80,7 +80,6 @@ func HTTPHandler(ctx *http.RequestCtx) {
 	ctx.SetContentType("application/json")
 	var p = string(ctx.Path())
 
-	//NOTE(Simon): Index
 	if p == "/" {
 		if ctx.IsGet() {
 			indexGet(ctx)
@@ -89,7 +88,6 @@ func HTTPHandler(ctx *http.RequestCtx) {
 		}
 
 
-	//NOTE(Simon): Register
 	} else if p == "/register" {
 		if ctx.IsPost() {
 			registerPost(ctx)
@@ -98,7 +96,6 @@ func HTTPHandler(ctx *http.RequestCtx) {
 		}
 
 
-	//NOTE(Simon): Login
 	} else if p == "/login" {
 		if ctx.IsPost() {
 			loginPost(ctx)
@@ -107,7 +104,6 @@ func HTTPHandler(ctx *http.RequestCtx) {
 		}
 
 
-	//NOTE(Simon): Video
 	} else if strings.HasPrefix(p, "/video") {
 		if ctx.IsGet() {
 			newUrl, err := rewriteFsUrl(ctx.Path(), "main.mp4")
@@ -126,7 +122,6 @@ func HTTPHandler(ctx *http.RequestCtx) {
 		}
 
 
-	//NOTE(Simon): Meta
 	} else if strings.HasPrefix(p, "/meta") {
 		if ctx.IsGet() {
 			newUrl, err := rewriteFsUrl(ctx.Path(), "meta.json")
@@ -143,7 +138,6 @@ func HTTPHandler(ctx *http.RequestCtx) {
 		}
 
 
-	//NOTE(Simon): All extras
 	} else if strings.HasPrefix(p, "/extras") {
 		if ctx.IsGet() {
 			allExtrasGet(ctx)
@@ -154,7 +148,6 @@ func HTTPHandler(ctx *http.RequestCtx) {
 		}
 
 
-	//NOTE(Simon): One extra
 	} else if strings.HasPrefix(p, "/extra") {
 		if ctx.IsGet() {
 			index := ctx.QueryArgs().Peek("index")
@@ -172,7 +165,6 @@ func HTTPHandler(ctx *http.RequestCtx) {
 		}
 
 
-	//NOTE(Simon): Thumbnail
 	} else if strings.HasPrefix(p, "/thumbnail") {
 		if ctx.IsGet() {
 			newUrl, err := rewriteFsUrl(ctx.Path(), "thumb.jpg")
@@ -189,7 +181,6 @@ func HTTPHandler(ctx *http.RequestCtx) {
 		}
 
 
-	//NOTE(Simon): Other
 	} else {
 		ctx.Error("{}", http.StatusNotFound)
 	}
