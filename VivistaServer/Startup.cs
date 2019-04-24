@@ -56,9 +56,14 @@ namespace VivistaServer
 		private const int bcryptWorkFactor = 12;
 		private const int sessionLength = 1 * 24 * 60;
 
+		private const int fileBufferSize = 16 * kb;
+		private const int kb = 1024;
+		private const int mb = 1024 * kb;
+		private const int gb = 1024 * mb;
+
 		private const string baseFilePath = @"C:\test\";
 
-		//NOTE(Simon): Use GetPgsqlConfig() instead of this directly, it sets up caching of this variable.
+		//NOTE(Simon): Use GetPgsqlConfig() instead of this directly, it handles caching of this variable.
 		private static string connectionString;
 
 		// This method gets called by the runtime. Use this method to add services to the container.
@@ -80,6 +85,23 @@ namespace VivistaServer
 
 			app.Run(async (context) =>
 			{
+				#if DEBUG
+				Console.WriteLine("Request data:");
+				Console.WriteLine("\tPath: " + context.Request.Path);
+				Console.WriteLine("\tMethod: " + context.Request.Method);
+				Console.WriteLine("\tQuery: ");
+				foreach (var kvp in context.Request.Query)
+				{
+					Console.WriteLine($"\t\t{kvp.Key}: {kvp.Value.ToString()}");
+				}
+				Console.WriteLine("\tHeaders: ");
+				foreach (var kvp in context.Request.Headers)
+				{
+					Console.WriteLine($"\t\t{kvp.Key}: {kvp.Value.ToString()}");
+				}
+				Console.WriteLine("\tBody: " + new StreamReader(context.Request.Body).ReadToEnd());
+				#endif
+
 				var path = context.Request.Path;
 				bool isGet = context.Request.Method == "GET";
 				bool isPost = context.Request.Method == "POST";
@@ -101,19 +123,19 @@ namespace VivistaServer
 					}
 					else if (MatchPath(path, metaPath))
 					{
-						await context.Response.WriteAsync("meta get");
+						await MetaGet(context);
 					}
 					else if (MatchPath(path, extraPath))
 					{
-						await context.Response.WriteAsync("extra get");
+						await ExtraGet(context);
 					}
 					else if (MatchPath(path, allExtrasPath))
 					{
-						await context.Response.WriteAsync("extras get");
+						await ExtrasGet(context, connection);
 					}
 					else if (MatchPath(path, thumbnailPath))
 					{
-						await context.Response.WriteAsync("thumbnail get");
+						await ThumbnailGet(context);
 					}
 					else
 					{
@@ -203,14 +225,13 @@ namespace VivistaServer
 
 				videos.count = videos.videos.Count();
 				videos.page = videos.totalcount > 0 ? offset / videos.totalcount + 1 : 1;
+				await context.Response.Body.WriteAsync(Utf8Json.JsonSerializer.SerializeUnsafe(videos));
 			}
 			catch (Exception e)
 			{
 				await WriteError(context, "Something went wrong while processing this request", StatusCodes.Status500InternalServerError, e);
 				return;
 			}
-
-			await context.Response.Body.WriteAsync(Utf8Json.JsonSerializer.SerializeUnsafe(videos));
 		}
 
 		private async Task VideoGet(HttpContext context, NpgsqlConnection connection)
@@ -227,7 +248,6 @@ namespace VivistaServer
 			Video video;
 			try
 			{
-				//TODO(Simon): There might be a faster way to get the count, while also executing just 1 query: add "count(*) OVER() AS total_count" to query
 				video = await connection.QuerySingleAsync<Video>(@"select v.id, v.userid, u.username, v.timestamp, v.downloadsize from videos v
 													inner join users u on v.userid = u.userid
 													where v.id=@videoid::uuid", new { videoid });
@@ -266,9 +286,102 @@ namespace VivistaServer
 			}
 		}
 
-		private async Task MetaGet(HttpContext context, NpgsqlConnection connection)
+		//TODO(Simon): Switch to query string, instead of path for id
+		private async Task MetaGet(HttpContext context)
 		{
-			
+			string path = context.Request.Path.Value;
+			var id = path.Substring(path.LastIndexOf('/') + 1);
+			if (id[id.Length - 1] == '/')
+			{
+				id = id.Substring(0, id.Length - 1);
+			}
+
+			if (Guid.TryParse(id, out var _))
+			{
+				string filename = Path.Combine(baseFilePath, id, "meta.json");
+				await WriteFile(context, filename, "application/json", "meta.json");
+				return;
+			}
+			else
+			{
+				await Write404(context);
+				return;
+			}
+		}
+
+		//TODO(Simon): Switch to query string, instead of path for id
+		private async Task ThumbnailGet(HttpContext context)
+		{
+			string path = context.Request.Path.Value;
+			var id = path.Substring(path.LastIndexOf('/') + 1);
+			if (id[id.Length - 1] == '/')
+			{
+				id = id.Substring(0, id.Length - 1);
+			}
+
+			if (Guid.TryParse(id, out var _))
+			{
+				string filename = Path.Combine(baseFilePath, id, "thumb.jpg");
+				await WriteFile(context, filename, "image/jpg", "thumb.jpg");
+				return;
+			}
+			else
+			{
+				await Write404(context);
+				return;
+			}
+		}
+
+		private async Task ExtraGet(HttpContext context)
+		{
+			var args = context.Request.Query;
+			string videoId = args["videoid"];
+			string extraId = args["extraid"];
+
+			if (String.IsNullOrEmpty(videoId) || String.IsNullOrEmpty(extraId))
+			{
+				await Write404(context);
+				return;
+			}
+
+			if (Guid.TryParse(videoId, out var _) && Guid.TryParse(extraId, out var _))
+			{
+				
+				string filename = Path.Combine(baseFilePath, videoId, "extra", extraId);
+				await WriteFile(context, filename, "application/octet-stream", "");
+				return;
+			}
+			else
+			{
+				await Write404(context);
+				return;
+			}
+		}
+
+		private async Task ExtrasGet(HttpContext context, NpgsqlConnection connection)
+		{
+			var args = context.Request.Query;
+			string idstring = args["videoid"];
+
+			if (String.IsNullOrEmpty(idstring))
+			{
+				await Write404(context);
+				return;
+			}
+
+			if (Guid.TryParse(idstring, out var videoId))
+			{
+				try
+				{
+					var ids = await connection.QueryAsync<string>(@"select id from extra_files where video_id = @videoId", new { videoId });
+					await context.Response.Body.WriteAsync(Utf8Json.JsonSerializer.SerializeUnsafe(ids));
+				}
+				catch (Exception e)
+				{
+					await WriteError(context, "Something went wrong while processing this request", StatusCodes.Status500InternalServerError, e);
+					return;
+				}
+			}
 		}
 
 		private async Task RegisterPost(HttpContext context, NpgsqlConnection connection)
@@ -510,6 +623,38 @@ namespace VivistaServer
 			}
 		}
 
+		private static async Task WriteFile(HttpContext context, string filename, string contentType, string responseFileName)
+		{
+			//TODO(Simon): Pooling of buffers?
+			byte[] buffer = new byte[fileBufferSize];
+
+			try
+			{
+				context.Response.ContentType = contentType;
+				context.Response.Headers["Content-Disposition"] = "attachment; filename=" + responseFileName;
+				context.Response.ContentLength = new FileInfo(filename).Length;
+
+				using (var stream = File.OpenRead(filename))
+				{
+					int read;
+					while ((read = await stream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+					{
+						await context.Response.Body.WriteAsync(buffer, 0, read);
+					}
+				}
+			}
+			catch (FileNotFoundException)
+			{
+				await Write404(context);
+				return;
+			}
+			catch (Exception e)
+			{
+				await WriteError(context, "Something went wrong while reading this file", 500, e);
+				return;
+			}
+		}
+
 		private static async Task WriteError(HttpContext context, string error, int errorCode, Exception e = null)
 		{
 			context.Response.StatusCode = errorCode;
@@ -526,13 +671,6 @@ namespace VivistaServer
 		private static async Task Write404(HttpContext context, string message = "File Not Found")
 		{
 			await WriteError(context, message, StatusCodes.Status404NotFound);
-		}
-
-		public class MoveableFormFile : Microsoft.AspNetCore.Http.Internal.FormFile
-		{
-			public MoveableFormFile(Stream baseStream, long baseStreamOffset, long length, string name, string fileName) : base(baseStream, baseStreamOffset, length, name, fileName)
-			{
-			}
 		}
 	}
 }
