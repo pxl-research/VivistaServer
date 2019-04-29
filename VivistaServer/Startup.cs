@@ -80,12 +80,12 @@ namespace VivistaServer
 			{
 				app.UseDeveloperExceptionPage();
 			}
-			
+
 			rng = new RNGCryptoServiceProvider();
 
 			app.Run(async (context) =>
 			{
-				#if DEBUG
+#if DEBUG
 				Console.WriteLine("Request data:");
 				Console.WriteLine("\tPath: " + context.Request.Path);
 				Console.WriteLine("\tMethod: " + context.Request.Method);
@@ -99,8 +99,11 @@ namespace VivistaServer
 				{
 					Console.WriteLine($"\t\t{kvp.Key}: {kvp.Value.ToString()}");
 				}
-				Console.WriteLine("\tBody: " + new StreamReader(context.Request.Body).ReadToEnd());
-				#endif
+				if (!context.Request.HasFormContentType)
+				{
+					Console.WriteLine("\tBody: " + new StreamReader(context.Request.Body).ReadToEnd());
+				}
+#endif
 
 				var path = context.Request.Path;
 				bool isGet = context.Request.Method == "GET";
@@ -158,7 +161,7 @@ namespace VivistaServer
 					}
 					else if (MatchPath(path, allExtrasPath))
 					{
-						await context.Response.WriteAsync("extras post");
+						await ExtrasPost(context, connection);
 					}
 					else
 					{
@@ -173,6 +176,8 @@ namespace VivistaServer
 				connection.Close();
 			});
 		}
+
+
 
 		private async Task IndexGet(HttpContext context, NpgsqlConnection connection)
 		{
@@ -214,7 +219,7 @@ namespace VivistaServer
 				videos.totalcount = await connection.QuerySingleAsync<int>(@"select count(*) from videos v
 								inner join users u on v.userid = u.userid
 								where (@userid::int is NULL or v.userid=@userid)
-								and (@uploadDate::timestamp is NULL or v.timestamp>=@uploadDate)", new { userid, uploadDate});
+								and (@uploadDate::timestamp is NULL or v.timestamp>=@uploadDate)", new { userid, uploadDate });
 				videos.videos = await connection.QueryAsync<Video>(@"select v.id, v.userid, u.username, v.timestamp, v.downloadsize, v.title, v.description, v.length from videos v
 								inner join users u on v.userid = u.userid
 								where (@userid::int is NULL or v.userid=@userid)
@@ -238,7 +243,7 @@ namespace VivistaServer
 		{
 			var args = context.Request.Query;
 			var videoid = args["videoid"].ToString();
-			
+
 			if (String.IsNullOrEmpty(videoid))
 			{
 				await Write404(context);
@@ -346,7 +351,7 @@ namespace VivistaServer
 
 			if (Guid.TryParse(videoId, out var _) && Guid.TryParse(extraId, out var _))
 			{
-				
+
 				string filename = Path.Combine(baseFilePath, videoId, "extra", extraId);
 				await WriteFile(context, filename, "application/octet-stream", "");
 				return;
@@ -401,7 +406,7 @@ namespace VivistaServer
 				await WriteError(context, "Password too short", StatusCodes.Status400BadRequest);
 				return;
 			}
-			
+
 			var userExists = await UserExists(username, connection);
 			var hashedPassword = BCrypt.Net.BCrypt.HashPassword(password, bcryptWorkFactor);
 
@@ -457,13 +462,13 @@ namespace VivistaServer
 
 		private async Task LoginPost(HttpContext context, NpgsqlConnection connection)
 		{
-			var form = context.Request.Form;
+			var args = context.Request.Query;
 
-			string username = form["username"].ToString().ToLowerInvariant().Trim();
-			string password = form["password"];
+			string username = args["username"].ToString().ToLowerInvariant().Trim();
+			string password = args["password"];
 			bool success = await AuthenticateUser(username, password, connection);
 
-			if (success) 
+			if (success)
 			{
 				string token = NewSessionToken(32);
 				var expiry = DateTime.UtcNow.AddMinutes(sessionLength);
@@ -494,14 +499,27 @@ namespace VivistaServer
 
 				try
 				{
-					var file = form.Files["video"];
-					using (var stream = new FileStream(Path.Combine(basePath, "main.mp4"), FileMode.OpenOrCreate))
+					var video = form.Files["video"];
+					var meta = form.Files["meta"];
+					var thumb = form.Files["thumb"];
+					using (var videoStream = new FileStream(Path.Combine(basePath, "main.mp4"), FileMode.OpenOrCreate))
+					using (var metaStream = new FileStream(Path.Combine(basePath, "meta.json"), FileMode.OpenOrCreate))
+					using (var thumbStream = new FileStream(Path.Combine(basePath, "thumb.jpg"), FileMode.OpenOrCreate))
 					{
-						await file.CopyToAsync(stream);
+						var videoCopyOp = video.CopyToAsync(videoStream);
+						var metaCopyOp = meta.CopyToAsync(metaStream);
+						var thumbCopyOp = thumb.CopyToAsync(thumbStream);
+						await Task.WhenAll(videoCopyOp, metaCopyOp, thumbCopyOp);
 					}
+
+					await context.Response.WriteAsync("{}");
+					return;
 				}
 				catch (Exception e)
 				{
+					//NOTE(Simon): If upload fails, just delete everything so we can start fresh next time.
+					//TODO(Simon): Look into supporting partial uploads
+					Directory.Delete(basePath, true);
 					await WriteError(context, "Something went wrong while uploading this file", StatusCodes.Status500InternalServerError, e);
 					return;
 				}
@@ -512,6 +530,37 @@ namespace VivistaServer
 				return;
 			}
 		}
+
+		private async Task ExtrasPost(HttpContext context, NpgsqlConnection connection)
+		{
+			var form = context.Request.Form;
+			string token = form["token"];
+			string guid = form["guid"];
+
+			if (await AuthenticateToken(token, connection))
+			{
+				string basePath = Path.Combine(baseFilePath, guid, "extra");
+				Directory.CreateDirectory(basePath);
+
+				foreach (var file in form.Files)
+				{
+					using (var stream = new FileStream(Path.Combine(basePath, file.Name), FileMode.OpenOrCreate))
+					{
+						await file.CopyToAsync(stream);
+					}
+				}
+
+				await context.Response.WriteAsync("{}");
+				return;
+			}
+			else
+			{
+				await WriteError(context, "{}", StatusCodes.Status401Unauthorized);
+				return;
+			}
+		}
+
+
 
 		private static string GetPgsqlConfig()
 		{
@@ -622,6 +671,8 @@ namespace VivistaServer
 				return true;
 			}
 		}
+
+
 
 		private static async Task WriteFile(HttpContext context, string filename, string contentType, string responseFileName)
 		{

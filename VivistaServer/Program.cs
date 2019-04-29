@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace VivistaServer
 {
@@ -17,6 +18,10 @@ namespace VivistaServer
 							.UseKestrel(options =>
 							{
 								options.Limits.MaxRequestBodySize = null;
+							})
+							.ConfigureLogging(options => {
+								options.SetMinimumLevel(LogLevel.None);
+								options.ClearProviders();
 							});
 		}
 	}
