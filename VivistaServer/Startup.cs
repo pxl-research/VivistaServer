@@ -41,14 +41,22 @@ namespace VivistaServer
 			public IEnumerable<Video> videos;
 		}
 
-		private static PathString indexPath = new PathString("/");
-		private static PathString registerPath = new PathString("/register");
-		private static PathString loginPath = new PathString("/login");
-		private static PathString videoPath = new PathString("/video");
-		private static PathString metaPath = new PathString("/meta");
-		private static PathString extraPath = new PathString("/extra");
-		private static PathString allExtrasPath = new PathString("/extras");
-		private static PathString thumbnailPath = new PathString("/thumbnail");
+		public class Meta
+		{
+			public Guid guid;
+			public string title;
+			public string description;
+			public int length;
+		}
+
+		private static readonly PathString indexURL     = new PathString("/");
+		private static readonly PathString registerURL  = new PathString("/register");
+		private static readonly PathString loginURL	    = new PathString("/login");
+		private static readonly PathString videoURL	    = new PathString("/video");
+		private static readonly PathString metaURL      = new PathString("/meta");
+		private static readonly PathString extraURL	    = new PathString("/extra");
+		private static readonly PathString allExtrasURL = new PathString("/extras");
+		private static readonly PathString thumbnailURL = new PathString("/thumbnail");
 
 		private static RNGCryptoServiceProvider rng;
 
@@ -82,6 +90,7 @@ namespace VivistaServer
 			}
 
 			rng = new RNGCryptoServiceProvider();
+			Task.Run(PeriodicFunction);
 
 			app.Run(async (context) =>
 			{
@@ -116,27 +125,27 @@ namespace VivistaServer
 
 				if (isGet)
 				{
-					if (MatchPath(path, indexPath))
+					if (MatchPath(path, indexURL))
 					{
-						await IndexGet(context, connection);
+						await IndexGet(context, connection).ConfigureAwait(false);
 					}
-					else if (MatchPath(path, videoPath))
+					else if (MatchPath(path, videoURL))
 					{
 						await VideoGet(context, connection);
 					}
-					else if (MatchPath(path, metaPath))
+					else if (MatchPath(path, metaURL))
 					{
 						await MetaGet(context);
 					}
-					else if (MatchPath(path, extraPath))
+					else if (MatchPath(path, extraURL))
 					{
 						await ExtraGet(context);
 					}
-					else if (MatchPath(path, allExtrasPath))
+					else if (MatchPath(path, allExtrasURL))
 					{
 						await ExtrasGet(context, connection);
 					}
-					else if (MatchPath(path, thumbnailPath))
+					else if (MatchPath(path, thumbnailURL))
 					{
 						await ThumbnailGet(context);
 					}
@@ -147,19 +156,19 @@ namespace VivistaServer
 				}
 				else if (isPost)
 				{
-					if (MatchPath(path, registerPath))
+					if (MatchPath(path, registerURL))
 					{
 						await RegisterPost(context, connection);
 					}
-					else if (MatchPath(path, loginPath))
+					else if (MatchPath(path, loginURL))
 					{
 						await LoginPost(context, connection);
 					}
-					else if (MatchPath(path, videoPath))
+					else if (MatchPath(path, videoURL))
 					{
-						await VideoPost(context, connection);
+						await VideoPost(context, connection).ConfigureAwait(false);
 					}
-					else if (MatchPath(path, allExtrasPath))
+					else if (MatchPath(path, allExtrasURL))
 					{
 						await ExtrasPost(context, connection);
 					}
@@ -178,6 +187,14 @@ namespace VivistaServer
 		}
 
 
+		private async Task PeriodicFunction()
+		{
+			while (true)
+			{
+				Console.WriteLine("periodic");
+				await Task.Delay(5000);
+			}
+		}
 
 		private async Task IndexGet(HttpContext context, NpgsqlConnection connection)
 		{
@@ -337,7 +354,7 @@ namespace VivistaServer
 			}
 		}
 
-		private async Task ExtraGet(HttpContext context)
+		private static async Task ExtraGet(HttpContext context)
 		{
 			var args = context.Request.Query;
 			string videoId = args["videoid"];
@@ -494,22 +511,45 @@ namespace VivistaServer
 			{
 				var guid = new Guid(form["uuid"]);
 				string basePath = Path.Combine(baseFilePath, guid.ToString());
-
-				Directory.CreateDirectory(basePath);
+				string videoPath = Path.Combine(basePath, "main.mp4");
+				string metaPath = Path.Combine(basePath, "meta.json");
+				string thumbPath = Path.Combine(basePath, "thumb.jpg");
 
 				try
 				{
-					var video = form.Files["video"];
-					var meta = form.Files["meta"];
-					var thumb = form.Files["thumb"];
-					using (var videoStream = new FileStream(Path.Combine(basePath, "main.mp4"), FileMode.OpenOrCreate))
-					using (var metaStream = new FileStream(Path.Combine(basePath, "meta.json"), FileMode.OpenOrCreate))
-					using (var thumbStream = new FileStream(Path.Combine(basePath, "thumb.jpg"), FileMode.OpenOrCreate))
+					Directory.CreateDirectory(basePath);
+					using (var videoStream = new FileStream(videoPath, FileMode.OpenOrCreate))
+					using (var metaStream = new FileStream(metaPath, FileMode.OpenOrCreate))
+					using (var thumbStream = new FileStream(thumbPath, FileMode.OpenOrCreate))
 					{
-						var videoCopyOp = video.CopyToAsync(videoStream);
-						var metaCopyOp = meta.CopyToAsync(metaStream);
-						var thumbCopyOp = thumb.CopyToAsync(thumbStream);
+						var videoCopyOp = form.Files["video"].CopyToAsync(videoStream);
+						var metaCopyOp = form.Files["meta"].CopyToAsync(metaStream);
+						var thumbCopyOp = form.Files["thumb"].CopyToAsync(thumbStream);
 						await Task.WhenAll(videoCopyOp, metaCopyOp, thumbCopyOp);
+					}
+
+					//TODO(Simon): Move all the file-reading and database code somewhere else. So that users don't have to reupload if database insert fails
+					var metaTask = Task.Run(() => ReadMetaFile(metaPath));
+					var downloadSizeTask = Task.Run(() => GetDirectorySize(new DirectoryInfo(basePath)));
+					var userIdTask = GetUserIdFromToken(token, connection);
+					Task.WaitAll(metaTask, downloadSizeTask, userIdTask);
+
+					var meta = metaTask.Result;
+					int userId = userIdTask.Result ?? -1;
+
+					if (await UserOwnsVideo(guid, userId, connection))
+					{
+						var timestamp = DateTime.UtcNow;
+						await connection.ExecuteAsync(@"update videos set (downloadsize, title, description, length, timestamp)
+												= (@downloadSize, @title, @description, @length, @timestamp)
+												where id = @guid",
+													new { guid, downloadsize = downloadSizeTask.Result, meta.title, meta.description, meta.length, timestamp });
+					}
+					else
+					{
+						await connection.ExecuteAsync(@"insert into videos (id, userid, downloadsize, title, description, length)
+												values (@guid, @userid, @downloadSize, @title, @description, @length)",
+													new { guid, userid = userId, downloadsize = downloadSizeTask.Result, meta.title, meta.description, meta.length });
 					}
 
 					await context.Response.WriteAsync("{}");
@@ -540,18 +580,29 @@ namespace VivistaServer
 			if (await AuthenticateToken(token, connection))
 			{
 				string basePath = Path.Combine(baseFilePath, guid, "extra");
-				Directory.CreateDirectory(basePath);
-
-				foreach (var file in form.Files)
+				try
 				{
-					using (var stream = new FileStream(Path.Combine(basePath, file.Name), FileMode.OpenOrCreate))
-					{
-						await file.CopyToAsync(stream);
-					}
-				}
+					Directory.CreateDirectory(basePath);
 
-				await context.Response.WriteAsync("{}");
-				return;
+					foreach (var file in form.Files)
+					{
+						using (var stream = new FileStream(Path.Combine(basePath, file.Name), FileMode.OpenOrCreate))
+						{
+							await file.CopyToAsync(stream);
+						}
+					}
+
+					await context.Response.WriteAsync("{}");
+					return;
+				}
+				catch (Exception e)
+				{
+					//NOTE(Simon): If upload fails, just delete everything so we can start fresh next time.
+					//TODO(Simon): Look into supporting partial uploads
+					Directory.Delete(basePath, true);
+					await WriteError(context, "Something went wrong while uploading this file", StatusCodes.Status500InternalServerError, e);
+					return;
+				}
 			}
 			else
 			{
@@ -618,6 +669,21 @@ namespace VivistaServer
 			return id ?? -1;
 		}
 
+		private static async Task<int?> GetUserIdFromToken(string token, NpgsqlConnection connection) 
+		{
+			int? id;
+			try
+			{
+				id = await connection.QueryFirstOrDefaultAsync<int?>("select userid from sessions where token = @token", new { token });
+			}
+			catch
+			{
+				id = null;
+			}
+
+			return id ?? -1;
+		}
+
 		private static async Task<bool> UserExists(string username, NpgsqlConnection connection)
 		{
 			try
@@ -672,6 +738,86 @@ namespace VivistaServer
 			}
 		}
 
+		private async Task<bool> UserOwnsVideo(Guid guid, int userId, NpgsqlConnection connection)
+		{
+			int count = 0;
+			try
+			{
+				count = await connection.QuerySingleAsync<int>("select count(*) from videos where id=@guid and userid=@userid", new { guid, userId });
+			}
+			catch
+			{
+				return false;
+			}
+
+			return count > 0;
+		}
+
+		private static async Task<bool> VideoExists(Guid guid, NpgsqlConnection connection)
+		{
+			int count = 0;
+			try
+			{
+				count = await connection.QuerySingleAsync<int>("select count(*) from videos where id=$1", new { guid });
+			}
+			catch
+			{
+				return false;
+			}
+			
+			return count > 0;
+		}
+
+		private static Meta ReadMetaFile(string path)
+		{
+			var raw = File.ReadAllText(path).AsSpan();
+			var meta = new Meta();
+
+			try
+			{
+				_ = GetNextMetaValue(ref raw);
+				meta.guid = Guid.Parse(GetNextMetaValue(ref raw));
+				meta.title = GetNextMetaValue(ref raw).ToString();
+				meta.description = GetNextMetaValue(ref raw).ToString();
+				meta.length = (int)float.Parse(GetNextMetaValue(ref raw));
+
+				return meta;
+			}
+			catch
+			{
+				return null;
+			}
+		}
+
+		static ReadOnlySpan<char> GetNextMetaValue(ref ReadOnlySpan<char> text)
+		{
+			var start = text.IndexOf(':') + 1;
+			var end = text.IndexOf('\n');
+			var length = end - start - 1;
+
+			var line = text.Slice(start, length);
+			text = text.Slice(end + 1);
+
+			return line;
+		}
+
+		private static long GetDirectorySize(DirectoryInfo d)
+		{
+			long size = 0;
+
+			var files = d.GetFiles("*.*", SearchOption.AllDirectories);
+			foreach (var file in files)
+			{
+				size += file.Length;
+			}
+
+			var subDirs = d.GetDirectories();
+			foreach (var dir in subDirs)
+			{
+				size += GetDirectorySize(dir);
+			}
+			return size;
+		}
 
 
 		private static async Task WriteFile(HttpContext context, string filename, string contentType, string responseFileName)
@@ -715,6 +861,7 @@ namespace VivistaServer
 			{
 				await context.Response.WriteAsync(Environment.NewLine);
 				await context.Response.WriteAsync(e.ToString());
+				Console.WriteLine(e.StackTrace);
 			}
 			#endif
 		}

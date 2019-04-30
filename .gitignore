@@ -29,3 +29,5 @@ _testmain.go
 VivistaServer/bin/
 
 VivistaServer/obj/
+
+VivistaServer\.sln\.DotSettings\.user
