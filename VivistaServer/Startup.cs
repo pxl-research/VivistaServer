@@ -1,19 +1,14 @@
 ﻿using System;
-using System.Buffers.Text;
 using System.Collections.Generic;
-using System.Data;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
-using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
-using Dapper;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.DependencyInjection;
+using Dapper;
 using Npgsql;
 
 namespace VivistaServer
@@ -214,6 +209,7 @@ namespace VivistaServer
 				count = indexCountDefault;
 			}
 
+			//TODO(Simon): Fuzzy search for username
 			if (!String.IsNullOrEmpty(author))
 			{
 				userid = await GetUserId(author, connection);
@@ -245,7 +241,7 @@ namespace VivistaServer
 								limit @count
 								offset @offset", new { userid, uploadDate, count, offset });
 
-				videos.count = videos.videos.Count();
+				videos.count = videos.videos.AsList().Count;
 				videos.page = videos.totalcount > 0 ? offset / videos.totalcount + 1 : 1;
 				await context.Response.Body.WriteAsync(Utf8Json.JsonSerializer.SerializeUnsafe(videos));
 			}
@@ -366,9 +362,8 @@ namespace VivistaServer
 				return;
 			}
 
-			if (Guid.TryParse(videoId, out var _) && Guid.TryParse(extraId, out var _))
+			if (Guid.TryParse(videoId, out _) && Guid.TryParse(extraId, out _))
 			{
-
 				string filename = Path.Combine(baseFilePath, videoId, "extra", extraId);
 				await WriteFile(context, filename, "application/octet-stream", "");
 				return;
@@ -395,8 +390,10 @@ namespace VivistaServer
 			{
 				try
 				{
-					var ids = await connection.QueryAsync<string>(@"select id from extra_files where video_id = @videoId", new { videoId });
-					await context.Response.Body.WriteAsync(Utf8Json.JsonSerializer.SerializeUnsafe(ids));
+					var ids = await connection.QueryAsync<Guid>(@"select guid from extra_files where video_id = @videoId", new { videoId });
+					var stringIds = new List<string>();
+					foreach (var id in ids) { stringIds.Add(id.ToString().Replace("-", "")); }
+					await context.Response.Body.WriteAsync(Utf8Json.JsonSerializer.SerializeUnsafe(stringIds));
 				}
 				catch (Exception e)
 				{
@@ -491,7 +488,15 @@ namespace VivistaServer
 				var expiry = DateTime.UtcNow.AddMinutes(sessionLength);
 				var userid = await GetUserId(username, connection);
 
-				await connection.ExecuteAsync("insert into sessions (token, expiry, userid) values (@token, @expiry, @userId)", new { token, expiry, userid });
+				try
+				{
+					await connection.ExecuteAsync("delete from sessions where userid = @userId", new { userid });
+					await connection.ExecuteAsync("insert into sessions (token, expiry, userid) values (@token, @expiry, @userId)", new { token, expiry, userid });
+				}
+				catch (Exception e)
+				{
+					await WriteError(context, "Something went wrong while processing this request", StatusCodes.Status500InternalServerError, e);
+				}
 
 				//TODO(Simon): Wrap in JSON. Look for other occurences in file
 				await context.Response.WriteAsync(token);
@@ -535,7 +540,7 @@ namespace VivistaServer
 					Task.WaitAll(metaTask, downloadSizeTask, userIdTask);
 
 					var meta = metaTask.Result;
-					int userId = userIdTask.Result ?? -1;
+					int userId = userIdTask.Result;
 
 					if (await UserOwnsVideo(guid, userId, connection))
 					{
@@ -575,11 +580,13 @@ namespace VivistaServer
 		{
 			var form = context.Request.Form;
 			string token = form["token"];
-			string guid = form["guid"];
+			string videoGuid = form["videoguid"];
+			string rawExtraGuids = form["extraguids"];
+			var extraGuids = rawExtraGuids.Split(',');
 
 			if (await AuthenticateToken(token, connection))
 			{
-				string basePath = Path.Combine(baseFilePath, guid, "extra");
+				string basePath = Path.Combine(baseFilePath, videoGuid, "extra");
 				try
 				{
 					Directory.CreateDirectory(basePath);
@@ -591,6 +598,23 @@ namespace VivistaServer
 							await file.CopyToAsync(stream);
 						}
 					}
+					
+					var clearTask = connection.ExecuteAsync("delete from extra_files where video_id = @videoGuid::uuid", new { videoGuid });
+
+					var param = new[]
+					{
+						new { video_id = "", guid = "" }
+					}.ToList();
+
+					param.Clear();
+
+					foreach (var id in extraGuids)
+					{
+						param.Add(new { video_id = videoGuid, guid = id });
+					}
+
+					await clearTask;
+					await connection.ExecuteAsync("insert into extra_files (video_id, guid) values (@video_id::uuid, @guid::uuid)", param);
 
 					await context.Response.WriteAsync("{}");
 					return;
@@ -655,7 +679,7 @@ namespace VivistaServer
 			return Convert.ToBase64String(bytes).Substring(0, 32);
 		}
 
-		private static async Task<int?> GetUserId(string username, NpgsqlConnection connection)
+		private static async Task<int> GetUserId(string username, NpgsqlConnection connection)
 		{
 			int? id;
 			try
@@ -669,7 +693,7 @@ namespace VivistaServer
 			return id ?? -1;
 		}
 
-		private static async Task<int?> GetUserIdFromToken(string token, NpgsqlConnection connection) 
+		private static async Task<int> GetUserIdFromToken(string token, NpgsqlConnection connection) 
 		{
 			int? id;
 			try
@@ -847,7 +871,7 @@ namespace VivistaServer
 			}
 			catch (Exception e)
 			{
-				await WriteError(context, "Something went wrong while reading this file", 500, e);
+				await WriteError(context, "Something went wrong while reading this file", StatusCodes.Status500InternalServerError, e);
 				return;
 			}
 		}
