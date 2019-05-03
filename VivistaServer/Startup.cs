@@ -21,7 +21,7 @@ namespace VivistaServer
 			public int userid;
 			public string username;
 			public DateTime timestamp;
-			public int downloadSize;
+			public int downloadsize;
 
 			public string title;
 			public string description;
@@ -535,9 +535,8 @@ namespace VivistaServer
 
 					//TODO(Simon): Move all the file-reading and database code somewhere else. So that users don't have to reupload if database insert fails
 					var metaTask = Task.Run(() => ReadMetaFile(metaPath));
-					var downloadSizeTask = Task.Run(() => GetDirectorySize(new DirectoryInfo(basePath)));
 					var userIdTask = GetUserIdFromToken(token, connection);
-					Task.WaitAll(metaTask, downloadSizeTask, userIdTask);
+					Task.WaitAll(metaTask, userIdTask);
 
 					var meta = metaTask.Result;
 					int userId = userIdTask.Result;
@@ -545,16 +544,16 @@ namespace VivistaServer
 					if (await UserOwnsVideo(guid, userId, connection))
 					{
 						var timestamp = DateTime.UtcNow;
-						await connection.ExecuteAsync(@"update videos set (downloadsize, title, description, length, timestamp)
-												= (@downloadSize, @title, @description, @length, @timestamp)
+						await connection.ExecuteAsync(@"update videos set (title, description, length, timestamp)
+												= (@title, @description, @length, @timestamp)
 												where id = @guid",
-													new { guid, downloadsize = downloadSizeTask.Result, meta.title, meta.description, meta.length, timestamp });
+													new { guid, meta.title, meta.description, meta.length, timestamp });
 					}
 					else
 					{
-						await connection.ExecuteAsync(@"insert into videos (id, userid, downloadsize, title, description, length)
-												values (@guid, @userid, @downloadSize, @title, @description, @length)",
-													new { guid, userid = userId, downloadsize = downloadSizeTask.Result, meta.title, meta.description, meta.length });
+						await connection.ExecuteAsync(@"insert into videos (id, userid, title, description, length)
+												values (@guid, @userid, @title, @description, @length)",
+													new { guid, userid = userId, meta.title, meta.description, meta.length });
 					}
 
 					await context.Response.WriteAsync("{}");
@@ -586,14 +585,15 @@ namespace VivistaServer
 
 			if (await AuthenticateToken(token, connection))
 			{
-				string basePath = Path.Combine(baseFilePath, videoGuid, "extra");
+				string basePath = Path.Combine(baseFilePath, videoGuid);
+				string extraPath = Path.Combine(basePath, "extra");
 				try
 				{
-					Directory.CreateDirectory(basePath);
+					Directory.CreateDirectory(extraPath);
 
 					foreach (var file in form.Files)
 					{
-						using (var stream = new FileStream(Path.Combine(basePath, file.Name), FileMode.OpenOrCreate))
+						using (var stream = new FileStream(Path.Combine(extraPath, file.Name), FileMode.OpenOrCreate))
 						{
 							await file.CopyToAsync(stream);
 						}
@@ -613,8 +613,12 @@ namespace VivistaServer
 						param.Add(new { video_id = videoGuid, guid = id });
 					}
 
+					var downloadSizeTask = Task.Run(() => GetDirectorySize(new DirectoryInfo(basePath)));
+
 					await clearTask;
 					await connection.ExecuteAsync("insert into extra_files (video_id, guid) values (@video_id::uuid, @guid::uuid)", param);
+					var downloadSize = await downloadSizeTask;
+					await connection.ExecuteAsync("update videos set (downloadsize) = (@downloadSize) where id = @videoGuid::uuid", new { videoGuid, downloadsize = downloadSize});
 
 					await context.Response.WriteAsync("{}");
 					return;
