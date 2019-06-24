@@ -7,7 +7,6 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.DependencyInjection;
 using Dapper;
 using Npgsql;
 
@@ -44,12 +43,12 @@ namespace VivistaServer
 			public int length;
 		}
 
-		private static readonly PathString indexURL     = new PathString("/");
-		private static readonly PathString registerURL  = new PathString("/register");
-		private static readonly PathString loginURL	    = new PathString("/login");
-		private static readonly PathString videoURL	    = new PathString("/video");
-		private static readonly PathString metaURL      = new PathString("/meta");
-		private static readonly PathString extraURL	    = new PathString("/extra");
+		private static readonly PathString indexURL = new PathString("/");
+		private static readonly PathString registerURL = new PathString("/register");
+		private static readonly PathString loginURL = new PathString("/login");
+		private static readonly PathString videoURL = new PathString("/video");
+		private static readonly PathString metaURL = new PathString("/meta");
+		private static readonly PathString extraURL = new PathString("/extra");
 		private static readonly PathString allExtrasURL = new PathString("/extras");
 		private static readonly PathString thumbnailURL = new PathString("/thumbnail");
 
@@ -71,10 +70,10 @@ namespace VivistaServer
 
 		// This method gets called by the runtime. Use this method to add services to the container.
 		// For more information on how to configure your application, visit https://go.microsoft.com/fwlink/?LinkID=398940
-		public void ConfigureServices(IServiceCollection services)
-		{
-
-		}
+		//public void ConfigureServices(IServiceCollection services)
+		//{
+		//
+		//}
 
 		// This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
 		public void Configure(IApplicationBuilder app, IHostingEnvironment env)
@@ -308,13 +307,9 @@ namespace VivistaServer
 		private async Task MetaGet(HttpContext context)
 		{
 			string path = context.Request.Path.Value;
-			var id = path.Substring(path.LastIndexOf('/') + 1);
-			if (id[id.Length - 1] == '/')
-			{
-				id = id.Substring(0, id.Length - 1);
-			}
+			string id = extractId(path.AsMemory());
 
-			if (Guid.TryParse(id, out var _))
+			if (Guid.TryParse(id, out _))
 			{
 				string filename = Path.Combine(baseFilePath, id, "meta.json");
 				await WriteFile(context, filename, "application/json", "meta.json");
@@ -325,19 +320,16 @@ namespace VivistaServer
 				await Write404(context);
 				return;
 			}
+
 		}
 
 		//TODO(Simon): Switch to query string, instead of path for id
 		private async Task ThumbnailGet(HttpContext context)
 		{
 			string path = context.Request.Path.Value;
-			var id = path.Substring(path.LastIndexOf('/') + 1);
-			if (id[id.Length - 1] == '/')
-			{
-				id = id.Substring(0, id.Length - 1);
-			}
+			string id = extractId(path.AsMemory());
 
-			if (Guid.TryParse(id, out var _))
+			if (Guid.TryParse(id, out _))
 			{
 				string filename = Path.Combine(baseFilePath, id, "thumb.jpg");
 				await WriteFile(context, filename, "image/jpg", "thumb.jpg");
@@ -348,6 +340,19 @@ namespace VivistaServer
 				await Write404(context);
 				return;
 			}
+		}
+
+		string extractId(ReadOnlyMemory<char> memory)
+		{
+			var span = memory.Span;
+			//NOTE(Simon): filter out '/meta/'
+			span = span.Slice(span.IndexOf('/') + 1);
+			span = span.Slice(span.IndexOf('/') + 1);
+			if (span[span.Length - 1] == '/')
+			{
+				span = span.Slice(0, span.Length - 1);
+			}
+			return span.ToString();
 		}
 
 		private static async Task ExtraGet(HttpContext context)
@@ -598,7 +603,7 @@ namespace VivistaServer
 							await file.CopyToAsync(stream);
 						}
 					}
-					
+
 					var clearTask = connection.ExecuteAsync("delete from extra_files where video_id = @videoGuid::uuid", new { videoGuid });
 
 					var param = new[]
@@ -618,7 +623,7 @@ namespace VivistaServer
 					await clearTask;
 					await connection.ExecuteAsync("insert into extra_files (video_id, guid) values (@video_id::uuid, @guid::uuid)", param);
 					var downloadSize = await downloadSizeTask;
-					await connection.ExecuteAsync("update videos set (downloadsize) = (@downloadSize) where id = @videoGuid::uuid", new { videoGuid, downloadsize = downloadSize});
+					await connection.ExecuteAsync("update videos set (downloadsize) = (@downloadSize) where id = @videoGuid::uuid", new { videoGuid, downloadsize = downloadSize });
 
 					await context.Response.WriteAsync("{}");
 					return;
@@ -697,7 +702,7 @@ namespace VivistaServer
 			return id ?? -1;
 		}
 
-		private static async Task<int> GetUserIdFromToken(string token, NpgsqlConnection connection) 
+		private static async Task<int> GetUserIdFromToken(string token, NpgsqlConnection connection)
 		{
 			int? id;
 			try
@@ -792,7 +797,7 @@ namespace VivistaServer
 			{
 				return false;
 			}
-			
+
 			return count > 0;
 		}
 
@@ -884,14 +889,14 @@ namespace VivistaServer
 		{
 			context.Response.StatusCode = errorCode;
 			await context.Response.WriteAsync($"{{\"error\": \"{error}\"}}");
-			#if DEBUG
+#if DEBUG
 			if (e != null)
 			{
 				await context.Response.WriteAsync(Environment.NewLine);
 				await context.Response.WriteAsync(e.ToString());
 				Console.WriteLine(e.StackTrace);
 			}
-			#endif
+#endif
 		}
 
 		private static async Task Write404(HttpContext context, string message = "File Not Found")
