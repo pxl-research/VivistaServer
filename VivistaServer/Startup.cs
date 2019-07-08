@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.FileProviders;
 using Dapper;
 using Npgsql;
 
@@ -36,6 +37,8 @@ namespace VivistaServer
 			public IEnumerable<Video> videos;
 		}
 
+
+
 		public class Meta
 		{
 			public Guid guid;
@@ -44,12 +47,12 @@ namespace VivistaServer
 			public int length;
 		}
 
-		private static readonly PathString indexURL     = new PathString("/");
-		private static readonly PathString registerURL  = new PathString("/register");
-		private static readonly PathString loginURL	    = new PathString("/login");
-		private static readonly PathString videoURL	    = new PathString("/video");
-		private static readonly PathString metaURL      = new PathString("/meta");
-		private static readonly PathString extraURL	    = new PathString("/extra");
+		private static readonly PathString indexURL = new PathString("/");
+		private static readonly PathString registerURL = new PathString("/register");
+		private static readonly PathString loginURL = new PathString("/login");
+		private static readonly PathString videoURL = new PathString("/video");
+		private static readonly PathString metaURL = new PathString("/meta");
+		private static readonly PathString extraURL = new PathString("/extra");
 		private static readonly PathString allExtrasURL = new PathString("/extras");
 		private static readonly PathString thumbnailURL = new PathString("/thumbnail");
 
@@ -68,6 +71,18 @@ namespace VivistaServer
 
 		//NOTE(Simon): Use GetPgsqlConfig() instead of this directly, it handles caching of this variable.
 		private static string connectionString;
+
+		private Dictionary<string, string> supportedExtensions = new Dictionary<string, string>
+		{
+			{".html", "text/html"},
+			{".js", "application/javascript"},
+			{".css", "text/css"},
+			{".png", "image/png"},
+			{".jpeg", "image/jpeg"},
+			{".jpg", "image/jpeg"},
+			{".mp4", "video/mpeg"},
+			{".gif", "gif"},
+		};
 
 		// This method gets called by the runtime. Use this method to add services to the container.
 		// For more information on how to configure your application, visit https://go.microsoft.com/fwlink/?LinkID=398940
@@ -146,7 +161,7 @@ namespace VivistaServer
 					}
 					else
 					{
-						await Write404(context);
+						await StaticFileGet(context, env);
 					}
 				}
 				else if (isPost)
@@ -182,6 +197,7 @@ namespace VivistaServer
 		}
 
 
+
 		private async Task PeriodicFunction()
 		{
 			while (true)
@@ -189,6 +205,56 @@ namespace VivistaServer
 				Console.WriteLine("periodic");
 				await Task.Delay(5000);
 			}
+		}
+
+		private async Task StaticFileGet(HttpContext context, IHostingEnvironment env)
+		{
+			var rawPath = context.Request.Path.Value;
+
+			var filename = rawPath.Substring(rawPath.IndexOf("/") + 1);
+			var extension = rawPath.Substring(rawPath.LastIndexOf("."));
+			var supported = supportedExtensions.Keys.Contains(extension);
+
+
+			if (!String.IsNullOrEmpty(extension))
+			{
+				if (supported)
+				{
+					context.Response.ContentType = supportedExtensions[extension];
+					var filepath = Path.Join("static", filename);
+					if (File.Exists(filepath))
+					{
+						if (extension == ".html" && filename != "main.html")
+						{
+							var templateFilename = Path.Join("static", "template.html");
+							var template = File.ReadAllText(templateFilename);
+							var content = File.ReadAllText(filepath);
+							var result = ReplaceContent(template, content);
+							await context.Response.WriteAsync(result);
+						}
+						else
+						{
+							await context.Response.SendFileAsync(env.ContentRootFileProvider.GetFileInfo(filepath));
+						}
+						return;
+					}
+					else
+					{
+						await Write404(context, "File not found");
+						return;
+					}
+				}
+				else
+				{
+					await WriteError(context, "Extension not supported", StatusCodes.Status415UnsupportedMediaType);
+					return;
+				}
+			}
+
+		}
+		public string ReplaceContent(string template, string content)
+		{
+			return template.Replace("<&content&>", content);
 		}
 
 		private async Task IndexGet(HttpContext context, NpgsqlConnection connection)
@@ -408,7 +474,7 @@ namespace VivistaServer
 			var form = context.Request.Form;
 
 			string username = form["username"].ToString().ToLowerInvariant().Trim();
-			string password = form["password"].ToString();
+			string password = form["password"].ToString(); 
 
 			if (username.Length == 0)
 			{
@@ -598,7 +664,7 @@ namespace VivistaServer
 							await file.CopyToAsync(stream);
 						}
 					}
-					
+
 					var clearTask = connection.ExecuteAsync("delete from extra_files where video_id = @videoGuid::uuid", new { videoGuid });
 
 					var param = new[]
@@ -618,7 +684,7 @@ namespace VivistaServer
 					await clearTask;
 					await connection.ExecuteAsync("insert into extra_files (video_id, guid) values (@video_id::uuid, @guid::uuid)", param);
 					var downloadSize = await downloadSizeTask;
-					await connection.ExecuteAsync("update videos set (downloadsize) = (@downloadSize) where id = @videoGuid::uuid", new { videoGuid, downloadsize = downloadSize});
+					await connection.ExecuteAsync("update videos set (downloadsize) = (@downloadSize) where id = @videoGuid::uuid", new { videoGuid, downloadsize = downloadSize });
 
 					await context.Response.WriteAsync("{}");
 					return;
@@ -697,7 +763,7 @@ namespace VivistaServer
 			return id ?? -1;
 		}
 
-		private static async Task<int> GetUserIdFromToken(string token, NpgsqlConnection connection) 
+		private static async Task<int> GetUserIdFromToken(string token, NpgsqlConnection connection)
 		{
 			int? id;
 			try
@@ -792,7 +858,7 @@ namespace VivistaServer
 			{
 				return false;
 			}
-			
+
 			return count > 0;
 		}
 
