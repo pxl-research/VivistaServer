@@ -3,13 +3,18 @@ a,abbr,acronym,address,applet,article,aside,audio,b,big,blockquote,body,canvas,c
 
 /*Own styles*/
 
-html {
+html,body {
 	font-size: 25px;
 	font-family: 'Nunito', sans-serif;
 	color: #111;
+	/*removes the white space in the home screen */
+	width: 100%;
+	height: 100%;
+	margin: 0px;
+	padding: 0px;
 }
 p{
-	margin-top: 25px;
+	margin-top: 1rem;
 }
 /* latin */
 @font-face {
@@ -23,7 +28,7 @@ p{
 /*chapters*/
 h1{
 	font-size: 2rem;
-	margin: 1rem 0;
+	margin: 0 0 1rem 0;
 }
 
 h2{
@@ -34,6 +39,15 @@ h2{
 
 h3{
 	font-size: 1.5rem;
+	/*gebruikt voor blog titel*/
+	padding-top: 30px;
+	color:#FFCE00;
+}
+
+.h1email{
+	font-size: 1.75rem;
+	margin: 1rem 0 1.5rem 0;
+	text-align: center;
 }
 
 .hidden {
@@ -86,28 +100,52 @@ h3{
 	font-size: 1rem;
 	font-weight: bold;
 }
-
+.error{
+	color: red;
+	font-family: 'Nunito', sans-serif;
+	font-size: 0.75rem;
+	margin-bottom: 20px;
+	margin-top: 10px;
+	visibility: hidden;
+}
 .question:before {
 	content: "⮞ ";
 }
-.hero{
-	width: 100%;
-	background-image: linear-gradient(to bottom right,red,#FFCE00);
-	height: 80vh;
-	min-height: 600px;
-}
-
 .question.active:before {
 	content: "⮟ ";
 }
 
-
-.img-responsive {
-	height: auto;
+/*Hero content on the main page*/
+.hero{
 	width: 100%;
+	background-image: linear-gradient(to bottom right, #f39800,#FFCE00);
+	height: 80vh;
+	min-height: 600px;
+
+}
+.herochild{
+	padding-top: 10%; 
+	text-align: center;
 	max-width: 100%;
 }
 
+.img-responsive {
+	height: 100%;
+	width: 100%;
+}
+/*animation for the images*/
+
+.img-hover-zoom{
+	height: 100%;
+	width: 100%;
+}
+.img-hover-zoom img {
+	transition: transform .5s ease;
+}
+.img-hover-zoom:hover img{
+	transform: scale(1.1);
+}
+/*container*/
 .main-container {
 	max-width: 1000px;
 	margin: 0 auto;
@@ -121,10 +159,12 @@ section{
 nav {
 	height: 60px;
 	padding-top: 10px;
+	background-color: #ffffff;
 }
 
 nav > ul {
 	float: right;
+	padding-right: 1rem;
 }
 
 nav > ul > li {
@@ -134,6 +174,7 @@ nav > ul > li {
 
 nav > .logo > img {
 	height: 40px;
+	padding-left: 1rem;
 }
 
 nav > div.logo {
@@ -146,14 +187,17 @@ nav a {
 	font-variant: small-caps;
 }
 
-
 nav a:hover {
 	color: #FFCE00;
+}
+.navimage{
+	height: 40px;
+	padding-left: 1rem;
 }
 
 .container {
 	padding: 0 15px;
-	margin-top: 50px;/* bijgezet voor tussen ruimte */
+	margin-top: 50px;
 }
 /*Columms and rows section*/
 .row {
@@ -171,11 +215,12 @@ nav a:hover {
 input{
 	width: 100%;
 	padding:10px 20px;
+	padding-bottom: 0.6rem;
 	margin: 20px 0;
 	border-radius: 5px;
 	border: 1px solid black;
 	box-sizing: border-box;
-
+	margin-bottom: 0px;
 }
 
 textarea {
@@ -185,7 +230,6 @@ textarea {
 	border-radius: 5px;
 	border: 1px solid black;
 	box-sizing: border-box;
-	/*Nakijken kanten komen niet het zelfde uit textarea is korter*/
 }
 
 .divform{
@@ -194,14 +238,12 @@ textarea {
 	box-sizing: border-box;
 }
 
+/*colummuns and rows section*/
 .col {
 	padding: 0 15px;
 	float: left;
 	box-sizing: border-box;
 }
-
-@media (max-width: 767px)
-{
 	.col-1 {
 		width: 8.3333%;
 	}
@@ -238,8 +280,8 @@ textarea {
 	.col-12 {
 		width: 100%;
 	}
-}
 
+/*Adust to the screen size*/
 @media (min-width: 768px)
 {
 	.col-sm-1 {
