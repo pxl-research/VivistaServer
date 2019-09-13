@@ -80,7 +80,6 @@ function validate_form()
 	if (document.getElementById("fname").value == "")
 	{
 		document.getElementById("errorfname").style.visibility = "visible";
-		
 		valid = false;
 	}
 	else
