@@ -8,6 +8,8 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Dapper;
+using Microsoft.AspNetCore.Http.Internal;
+using Microsoft.Net.Http.Headers;
 using Npgsql;
 
 namespace VivistaServer
@@ -35,7 +37,7 @@ namespace VivistaServer
 			public IEnumerable<Video> videos;
 		}
 
-		public class Meta
+        public class Meta
 		{
 			public Guid guid;
 			public string title;
@@ -47,12 +49,13 @@ namespace VivistaServer
 		private static readonly PathString registerURL = new PathString("/register");
 		private static readonly PathString loginURL = new PathString("/login");
 		private static readonly PathString videoURL = new PathString("/video");
+        private static readonly PathString streamURL = new PathString("/stream");
 		private static readonly PathString metaURL = new PathString("/meta");
 		private static readonly PathString extraURL = new PathString("/extra");
 		private static readonly PathString allExtrasURL = new PathString("/extras");
 		private static readonly PathString thumbnailURL = new PathString("/thumbnail");
 
-		private static RNGCryptoServiceProvider rng;
+        private static RNGCryptoServiceProvider rng;
 
 		private const int indexCountDefault = 10;
 		private const int bcryptWorkFactor = 12;
@@ -63,7 +66,7 @@ namespace VivistaServer
 		private const int mb = 1024 * kb;
 		private const int gb = 1024 * mb;
 
-		private const string baseFilePath = @"C:\test\";
+		private const string baseFilePath = @"E:\test\";
 
 		//NOTE(Simon): Use GetPgsqlConfig() instead of this directly, it handles caching of this variable.
 		private static string connectionString;
@@ -127,6 +130,10 @@ namespace VivistaServer
 					{
 						await VideoGet(context, connection);
 					}
+                    else if (MatchPath(path, streamURL))
+                    {
+                        await VideoStreamGet(context);
+                    }
 					else if (MatchPath(path, metaURL))
 					{
 						await MetaGet(context);
@@ -180,8 +187,7 @@ namespace VivistaServer
 			});
 		}
 
-
-		private async Task PeriodicFunction()
+        private async Task PeriodicFunction()
 		{
 			while (true)
 			{
@@ -288,7 +294,7 @@ namespace VivistaServer
 				context.Response.ContentType = "video/mp4";
 				try
 				{
-					await context.Response.SendFileAsync(videoPath);
+                    await context.Response.SendFileAsync(videoPath);
 				}
 				catch (Exception e)
 				{
@@ -303,7 +309,157 @@ namespace VivistaServer
 			}
 		}
 
-		//TODO(Simon): Switch to query string, instead of path for id
+        private async Task VideoStreamGet(HttpContext context)
+        {
+            var args = context.Request.Query;
+            var videoid = args["videoid"].ToString();
+            var mimeType = "video/mp4";
+
+            //TODO (Jeroen): Check if id is valid
+            if (string.IsNullOrEmpty(videoid))
+            {
+                await Write404(context);
+                return;
+            }
+
+            var videoPath = $"{baseFilePath}{videoid}\\main.mp4";
+            FileInfo fileInfo = new FileInfo(videoPath);
+
+            long totalLength = fileInfo.Length;
+            var range = GetRanges(context, totalLength);
+
+			if (File.Exists(videoPath))
+			{
+                var response = context.Response;
+                response.ContentType = mimeType;
+                response.Headers.Add("Accept-Ranges", "bytes");
+
+                var start = 0L;
+                var end = totalLength;
+
+				if (IsRangeRequest(range) && range.Ranges.First().From != 0)
+				{
+					if (range.Unit != "bytes" || !IsValidRangeRequest(range, totalLength))
+					{
+						response.StatusCode = 416;
+						response.Body = Stream.Null;
+						response.Headers.Add("Content-Range", $"bytes */{totalLength}");
+						await response.Body.FlushAsync();
+					}
+					else
+					{
+						response.StatusCode = 206;
+
+						//NOTE (Jeroen): Only one range supported
+						foreach (var rangeValue in range.Ranges)
+						{
+							start = rangeValue.From ?? 0;
+							end = rangeValue.To ?? 0;
+							response.Headers.Add("Content-Range", $"bytes {start}-{end}/{totalLength}");
+                            await WriteFileToResponseBody(videoPath, response, start, end);
+                        }
+					}
+				}
+                else
+                {
+                    response.StatusCode = 200;
+
+                    await WriteFileToResponseBody(videoPath, response, start, end);
+				}
+            }
+            else
+            {
+                await Write404(context);
+                return;
+            }
+        }
+
+        private bool IsValidRangeRequest(RangeHeaderValue rangeValue, long contentLength)
+        {
+            return rangeValue.Ranges.First().From.Value < contentLength && rangeValue.Ranges.First().To.Value < contentLength;
+        }
+
+        private bool IsRangeRequest(RangeHeaderValue range)
+        {
+            return range?.Ranges != null && range.Ranges.Count > 0;
+        }
+
+		private static RangeHeaderValue GetRanges(HttpContext context, long contentLength)
+		{
+			// The range header of a HTTP request can contain:
+			//	   Range: bytes=0-1			Get bytes between 0 and 1; inclusive
+			//     Range: bytes=0-500		Get bytes between 0 and 500 (501 bytes); inclusive
+			//     Range: bytes=500-1000	Get bytes between 500 and 1000 (501 bytes); inclusive
+			//     Range: bytes=-500		Get the last 500 bytes
+			//     Range: bytes=500-		Get all bytes from 500 to the end
+			// 
+			// Mutiple ranges
+			//	   Range: bytes=0-500,600-1000 Get bytes 0-500 (501 bytes) and 600-100 (401 bytes); inclusive
+			//TODO (Jeroen): Bug occurs when requesting end is larger than contentLength
+			RangeHeaderValue rangesResult = null;
+
+			string rangeHeader = context.Request.Headers["Range"];
+
+			if (!string.IsNullOrEmpty(rangeHeader))
+			{
+				var ranges = rangeHeader.Replace("bytes=", string.Empty).Split(",".ToCharArray());
+
+				rangesResult = new RangeHeaderValue();
+
+				for (int i = 0; i < ranges.Length; i++)
+				{
+					const int START = 0;
+					const int END = 1;
+
+					long startByte;
+					long endByte;
+
+					long parsedValue;
+
+					var currentRange = ranges[i].Split("-".ToCharArray());
+
+                    if (long.TryParse(currentRange[END], out parsedValue))
+                        endByte = parsedValue;
+                    else
+                        endByte = contentLength - 1;
+
+					if (long.TryParse(currentRange[START], out parsedValue))
+						startByte = parsedValue;
+                    else
+                        startByte = contentLength - endByte;
+
+                    rangesResult.Ranges.Add(new RangeItemHeaderValue(startByte, endByte));
+                }
+			}
+
+			return rangesResult;
+		}
+
+		private async Task WriteFileToResponseBody(string filePath, HttpResponse response, long start, long end)
+        {
+            var bufferSize = 0x1000;
+            var buffer = new byte[bufferSize];
+            var remainingBytes = end - start + 1;
+
+            response.ContentLength = remainingBytes;
+
+            using (FileStream fileStream = File.Open(filePath, FileMode.Open, FileAccess.Read, FileShare.Read))
+            {
+                fileStream.Seek(start, SeekOrigin.Begin);
+
+				while (remainingBytes > 0)
+				{
+					var count = remainingBytes > bufferSize ? bufferSize : (int)remainingBytes;
+					var sizeOfReadBuffer = fileStream.Read(buffer, 0, count);
+
+					await response.Body.WriteAsync(buffer, 0, sizeOfReadBuffer);
+
+					remainingBytes -= sizeOfReadBuffer;
+				}
+			}
+        }
+
+        //TODO(Simon): Switch to query string, instead of path for id
 		private async Task MetaGet(HttpContext context)
 		{
 			string path = context.Request.Path.Value;
@@ -580,7 +736,7 @@ namespace VivistaServer
 			}
 		}
 
-		private async Task ExtrasPost(HttpContext context, NpgsqlConnection connection)
+        private async Task ExtrasPost(HttpContext context, NpgsqlConnection connection)
 		{
 			var form = context.Request.Form;
 			string token = form["token"];
@@ -643,7 +799,6 @@ namespace VivistaServer
 				return;
 			}
 		}
-
 
 
 		private static string GetPgsqlConfig()

@@ -15,10 +15,10 @@ namespace VivistaServer
 		{
 			return WebHost.CreateDefaultBuilder(args)
 							.UseStartup<Startup>()
-							.UseKestrel(options =>
+                            .UseKestrel(options =>
 							{
 								options.Limits.MaxRequestBodySize = null;
-							})
+                            })
 							.ConfigureLogging(options => {
 								options.SetMinimumLevel(LogLevel.None);
 								options.ClearProviders();
