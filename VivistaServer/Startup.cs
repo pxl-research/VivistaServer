@@ -339,7 +339,7 @@ namespace VivistaServer
 
 				if (IsRangeRequest(range))
 				{
-					if (range.Unit != "bytes" || !IsValidRangeRequest(range, totalLength))
+					if (range.Ranges.Count == 0)
 					{
 						response.StatusCode = 416;
 						response.Body = Stream.Null;
@@ -350,12 +350,11 @@ namespace VivistaServer
 					{
 						response.StatusCode = 206;
 
-						//NOTE (Jeroen): Only one range supported
 						foreach (var rangeValue in range.Ranges)
 						{
 							start = rangeValue.From ?? 0;
 							end = rangeValue.To ?? 0;
-                            response.Headers.Add("Content-Range", $"bytes {start}-{end}/{totalLength}");
+							response.Headers.Add("Content-Range", $"bytes {start}-{end}/{totalLength}");
                             await WriteFileToResponseBody(videoPath, response, start, end);
                         }
 					}
@@ -374,17 +373,17 @@ namespace VivistaServer
             }
         }
 
-        private bool IsValidRangeRequest(RangeHeaderValue rangeValue, long contentLength)
+        private bool IsValidRangeRequest(long startByte, long endByte, long contentLength)
         {
-            return rangeValue.Ranges.First().From.Value < contentLength && rangeValue.Ranges.First().To.Value < contentLength;
+            return startByte < contentLength && endByte < contentLength;
         }
 
         private bool IsRangeRequest(RangeHeaderValue range)
         {
-            return range?.Ranges != null && range.Ranges.Count > 0;
+            return range?.Ranges != null;
         }
 
-		private static RangeHeaderValue GetRanges(HttpContext context, long contentLength)
+		private RangeHeaderValue GetRanges(HttpContext context, long contentLength)
 		{
 			// The range header of a HTTP request can contain:
 			//	   Range: bytes=0-1			Get bytes between 0 and 1; inclusive
@@ -428,7 +427,8 @@ namespace VivistaServer
                     else
                         startByte = contentLength - endByte;
 
-                    rangesResult.Ranges.Add(new RangeItemHeaderValue(startByte, endByte));
+					if (IsValidRangeRequest(startByte, endByte, contentLength))
+                        rangesResult.Ranges.Add(new RangeItemHeaderValue(startByte, endByte));
                 }
 			}
 
