@@ -337,7 +337,7 @@ namespace VivistaServer
                 var start = 0L;
                 var end = totalLength;
 
-				if (IsRangeRequest(range) && range.Ranges.First().From != 0)
+				if (IsRangeRequest(range))
 				{
 					if (range.Unit != "bytes" || !IsValidRangeRequest(range, totalLength))
 					{
@@ -355,7 +355,7 @@ namespace VivistaServer
 						{
 							start = rangeValue.From ?? 0;
 							end = rangeValue.To ?? 0;
-							response.Headers.Add("Content-Range", $"bytes {start}-{end}/{totalLength}");
+                            response.Headers.Add("Content-Range", $"bytes {start}-{end}/{totalLength}");
                             await WriteFileToResponseBody(videoPath, response, start, end);
                         }
 					}
