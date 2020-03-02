@@ -8,6 +8,8 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Dapper;
+using FFmpeg.NET;
+using FFmpeg.NET.Events;
 using Microsoft.AspNetCore.Http.Internal;
 using Microsoft.Net.Http.Headers;
 using Npgsql;
@@ -37,7 +39,7 @@ namespace VivistaServer
 			public IEnumerable<Video> videos;
 		}
 
-        public class Meta
+		public class Meta
 		{
 			public Guid guid;
 			public string title;
@@ -49,13 +51,13 @@ namespace VivistaServer
 		private static readonly PathString registerURL = new PathString("/register");
 		private static readonly PathString loginURL = new PathString("/login");
 		private static readonly PathString videoURL = new PathString("/video");
-        private static readonly PathString streamURL = new PathString("/stream");
+		private static readonly PathString streamURL = new PathString("/stream");
 		private static readonly PathString metaURL = new PathString("/meta");
 		private static readonly PathString extraURL = new PathString("/extra");
 		private static readonly PathString allExtrasURL = new PathString("/extras");
 		private static readonly PathString thumbnailURL = new PathString("/thumbnail");
 
-        private static RNGCryptoServiceProvider rng;
+		private static RNGCryptoServiceProvider rng;
 
 		private const int indexCountDefault = 10;
 		private const int bcryptWorkFactor = 12;
@@ -130,10 +132,10 @@ namespace VivistaServer
 					{
 						await VideoGet(context, connection);
 					}
-                    else if (MatchPath(path, streamURL))
-                    {
-                        await VideoStreamGet(context);
-                    }
+					else if (MatchPath(path, streamURL))
+					{
+						await VideoStreamGet(context);
+					}
 					else if (MatchPath(path, metaURL))
 					{
 						await MetaGet(context);
@@ -187,7 +189,7 @@ namespace VivistaServer
 			});
 		}
 
-        private async Task PeriodicFunction()
+		private async Task PeriodicFunction()
 		{
 			while (true)
 			{
@@ -294,7 +296,7 @@ namespace VivistaServer
 				context.Response.ContentType = "video/mp4";
 				try
 				{
-                    await context.Response.SendFileAsync(videoPath);
+					await context.Response.SendFileAsync(videoPath);
 				}
 				catch (Exception e)
 				{
@@ -309,79 +311,82 @@ namespace VivistaServer
 			}
 		}
 
-        private async Task VideoStreamGet(HttpContext context)
-        {
-            var args = context.Request.Query;
-            var videoid = args["videoid"].ToString();
-            var mimeType = "video/mp4";
+		private async Task VideoStreamGet(HttpContext context)
+		{
+			var args = context.Request.Query;
+			var videoid = args["videoid"].ToString();
+			var mimeType = "video/mp4";
 
-            //TODO (Jeroen): Check if id is valid
-            if (string.IsNullOrEmpty(videoid))
-            {
-                await Write404(context);
-                return;
-            }
-
-            var videoPath = $"{baseFilePath}{videoid}\\main.mp4";
-            FileInfo fileInfo = new FileInfo(videoPath);
-
-            long totalLength = fileInfo.Length;
-            var range = GetRanges(context, totalLength);
-
-			if (File.Exists(videoPath))
+			//TODO (Jeroen): Check if id is valid
+			if (string.IsNullOrEmpty(videoid))
 			{
-                var response = context.Response;
-                response.ContentType = mimeType;
-                response.Headers.Add("Accept-Ranges", "bytes");
+				await Write404(context);
+				return;
+			}
 
-                var start = 0L;
-                var end = totalLength;
+			var videoPath = $"{baseFilePath}{videoid}\\main.mp4";
+			FileInfo fileInfo = new FileInfo(videoPath);
+			
+			
+			await TranscodeVideo(videoPath, @"E:\test\1\main_test.mp4");
 
-				if (IsRangeRequest(range))
-				{
-					if (range.Ranges.Count == 0)
-					{
-						response.StatusCode = 416;
-						response.Body = Stream.Null;
-						response.Headers.Add("Content-Range", $"bytes */{totalLength}");
-						await response.Body.FlushAsync();
-					}
-					else
-					{
-						response.StatusCode = 206;
+			long totalLength = fileInfo.Length;
+			var range = GetRanges(context, totalLength);
 
-						foreach (var rangeValue in range.Ranges)
-						{
-							start = rangeValue.From ?? 0;
-							end = rangeValue.To ?? 0;
-							response.Headers.Add("Content-Range", $"bytes {start}-{end}/{totalLength}");
-                            await WriteFileToResponseBody(videoPath, response, start, end);
-                        }
-					}
-				}
-                else
-                {
-                    response.StatusCode = 200;
+			//if (File.Exists(videoPath))
+			//{
+   //             var response = context.Response;
+   //             response.ContentType = mimeType;
+   //             response.Headers.Add("Accept-Ranges", "bytes");
 
-                    await WriteFileToResponseBody(videoPath, response, start, end);
-				}
-            }
-            else
-            {
-                await Write404(context);
-                return;
-            }
-        }
+   //             var start = 0L;
+   //             var end = totalLength;
 
-        private bool IsValidRangeRequest(long startByte, long endByte, long contentLength)
-        {
-            return startByte < contentLength && endByte < contentLength;
-        }
+			//	if (IsRangeRequest(range))
+			//	{
+			//		if (range.Ranges.Count == 0)
+			//		{
+			//			response.StatusCode = 416;
+			//			response.Body = Stream.Null;
+			//			response.Headers.Add("Content-Range", $"bytes */{totalLength}");
+			//			await response.Body.FlushAsync();
+			//		}
+			//		else
+			//		{
+			//			response.StatusCode = 206;
 
-        private bool IsRangeRequest(RangeHeaderValue range)
-        {
-            return range?.Ranges != null;
-        }
+			//			foreach (var rangeValue in range.Ranges)
+			//			{
+			//				start = rangeValue.From ?? 0;
+			//				end = rangeValue.To ?? 0;
+			//				response.Headers.Add("Content-Range", $"bytes {start}-{end}/{totalLength}");
+   //                         await WriteFileToResponseBody(videoPath, response, start, end);
+   //                     }
+			//		}
+			//	}
+   //             else
+   //             {
+   //                 response.StatusCode = 200;
+
+   //                 await WriteFileToResponseBody(videoPath, response, start, end);
+			//	}
+   //         }
+   //         else
+   //         {
+   //             await Write404(context);
+   //             return;
+   //         }
+		}
+
+		private bool IsValidRangeRequest(long startByte, long endByte, long contentLength)
+		{
+			return startByte < contentLength && endByte < contentLength;
+		}
+
+		private bool IsRangeRequest(RangeHeaderValue range)
+		{
+			return range?.Ranges != null;
+		}
 
 		private RangeHeaderValue GetRanges(HttpContext context, long contentLength)
 		{
@@ -417,35 +422,35 @@ namespace VivistaServer
 
 					var currentRange = ranges[i].Split("-".ToCharArray());
 
-                    if (long.TryParse(currentRange[END], out parsedValue))
-                        endByte = parsedValue;
-                    else
-                        endByte = contentLength - 1;
+					if (long.TryParse(currentRange[END], out parsedValue))
+						endByte = parsedValue;
+					else
+						endByte = contentLength - 1;
 
 					if (long.TryParse(currentRange[START], out parsedValue))
 						startByte = parsedValue;
-                    else
-                        startByte = contentLength - endByte;
+					else
+						startByte = contentLength - endByte;
 
 					if (IsValidRangeRequest(startByte, endByte, contentLength))
-                        rangesResult.Ranges.Add(new RangeItemHeaderValue(startByte, endByte));
-                }
+						rangesResult.Ranges.Add(new RangeItemHeaderValue(startByte, endByte));
+				}
 			}
 
 			return rangesResult;
 		}
 
 		private async Task WriteFileToResponseBody(string filePath, HttpResponse response, long start, long end)
-        {
-            var bufferSize = 0x1000;
-            var buffer = new byte[bufferSize];
-            var remainingBytes = end - start + 1;
+		{
+			var bufferSize = 0x1000;
+			var buffer = new byte[bufferSize];
+			var remainingBytes = end - start + 1;
 
-            response.ContentLength = remainingBytes;
+			response.ContentLength = remainingBytes;
 
-            using (FileStream fileStream = File.Open(filePath, FileMode.Open, FileAccess.Read, FileShare.Read))
-            {
-                fileStream.Seek(start, SeekOrigin.Begin);
+			using (FileStream fileStream = File.Open(filePath, FileMode.Open, FileAccess.Read, FileShare.Read))
+			{
+				fileStream.Seek(start, SeekOrigin.Begin);
 
 				while (remainingBytes > 0)
 				{
@@ -457,9 +462,9 @@ namespace VivistaServer
 					remainingBytes -= sizeOfReadBuffer;
 				}
 			}
-        }
+		}
 
-        //TODO(Simon): Switch to query string, instead of path for id
+		//TODO(Simon): Switch to query string, instead of path for id
 		private async Task MetaGet(HttpContext context)
 		{
 			string path = context.Request.Path.Value;
@@ -736,7 +741,32 @@ namespace VivistaServer
 			}
 		}
 
-        private async Task ExtrasPost(HttpContext context, NpgsqlConnection connection)
+		private async Task TranscodeVideo(string input, string output)
+		{
+			Console.WriteLine("Transcoding file...");
+			Engine ffmpeg = null;
+
+			// NOTE (Jeroen): Only works on windows
+			ffmpeg = new Engine(@"..\bin\ffmpeg\v4\ffmpeg.exe");
+			var bitrates =[2500, 5000, 10000, 15000, 20000, 25000];
+
+			ffmpeg.Progress += OnTranscodeProgress;
+			ffmpeg.Complete += OnTranscodeComplete;
+
+			await ffmpeg.ExecuteAsync($"-y -i {input} -preset slow -an -c:v h264_nvenc -crf 22 -b:v 20000k -maxrate 40000k -bufsize 80000k -pix_fmt yuv420p -f mp4 {output}");
+		}
+
+		private static void OnTranscodeProgress(object sender, ConversionProgressEventArgs e)
+		{
+			Console.WriteLine("Frame: {0}", e.Frame);
+		}
+
+		private static void OnTranscodeComplete(object sender, ConversionCompleteEventArgs e)
+		{
+			Console.WriteLine("Completed transcoding file");
+		}
+
+		private async Task ExtrasPost(HttpContext context, NpgsqlConnection connection)
 		{
 			var form = context.Request.Form;
 			string token = form["token"];
@@ -799,7 +829,6 @@ namespace VivistaServer
 				return;
 			}
 		}
-
 
 		private static string GetPgsqlConfig()
 		{
