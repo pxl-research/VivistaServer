@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
@@ -10,7 +11,6 @@ using Microsoft.AspNetCore.Http;
 using Dapper;
 using FFmpeg.NET;
 using FFmpeg.NET.Events;
-using Microsoft.AspNetCore.Http.Internal;
 using Microsoft.Net.Http.Headers;
 using Npgsql;
 
@@ -46,6 +46,8 @@ namespace VivistaServer
 			public string description;
 			public int length;
 		}
+
+		private Queue<FileInfo> videoQueue;
 
 		private static readonly PathString indexURL = new PathString("/");
 		private static readonly PathString registerURL = new PathString("/register");
@@ -326,56 +328,53 @@ namespace VivistaServer
 
 			var videoPath = $"{baseFilePath}{videoid}\\main.mp4";
 			FileInfo fileInfo = new FileInfo(videoPath);
-			
-			
-			await TranscodeVideo(videoPath, @"E:\test\1\main_test.mp4");
 
 			long totalLength = fileInfo.Length;
 			var range = GetRanges(context, totalLength);
 
-			//if (File.Exists(videoPath))
-			//{
-   //             var response = context.Response;
-   //             response.ContentType = mimeType;
-   //             response.Headers.Add("Accept-Ranges", "bytes");
+			if (File.Exists(videoPath))
+			{
+				var response = context.Response;
+				response.ContentType = mimeType;
+				response.Headers.Add("Accept-Ranges", "bytes");
 
-   //             var start = 0L;
-   //             var end = totalLength;
+				var start = 0L;
+				var end = totalLength;
 
-			//	if (IsRangeRequest(range))
-			//	{
-			//		if (range.Ranges.Count == 0)
-			//		{
-			//			response.StatusCode = 416;
-			//			response.Body = Stream.Null;
-			//			response.Headers.Add("Content-Range", $"bytes */{totalLength}");
-			//			await response.Body.FlushAsync();
-			//		}
-			//		else
-			//		{
-			//			response.StatusCode = 206;
+				if (IsRangeRequest(range))
+				{
+					if (range.Ranges.Count == 0)
+					{
+						response.StatusCode = 416;
+						response.Body = Stream.Null;
+						response.Headers.Add("Content-Range", $"bytes */{totalLength}");
+						await response.Body.FlushAsync();
+					}
+					else
+					{
+						response.StatusCode = 206;
 
-			//			foreach (var rangeValue in range.Ranges)
-			//			{
-			//				start = rangeValue.From ?? 0;
-			//				end = rangeValue.To ?? 0;
-			//				response.Headers.Add("Content-Range", $"bytes {start}-{end}/{totalLength}");
-   //                         await WriteFileToResponseBody(videoPath, response, start, end);
-   //                     }
-			//		}
-			//	}
-   //             else
-   //             {
-   //                 response.StatusCode = 200;
+						foreach (var rangeValue in range.Ranges)
+						{
+							start = rangeValue.From ?? 0;
+							end = rangeValue.To ?? 0;
+							response.Headers.Add("Content-Range", $"bytes {start}-{end}/{totalLength}");
+							await WriteFileToResponseBody(videoPath, response, start, end);
+						}
+					}
+				}
+				else
+				{
+					response.StatusCode = 200;
 
-   //                 await WriteFileToResponseBody(videoPath, response, start, end);
-			//	}
-   //         }
-   //         else
-   //         {
-   //             await Write404(context);
-   //             return;
-   //         }
+					await WriteFileToResponseBody(videoPath, response, start, end);
+				}
+			}
+			else
+			{
+				await Write404(context);
+				return;
+			}
 		}
 
 		private bool IsValidRangeRequest(long startByte, long endByte, long contentLength)
@@ -678,8 +677,8 @@ namespace VivistaServer
 			var form = context.Request.Form;
 			string token = form["token"];
 
-			if (await AuthenticateToken(token, connection))
-			{
+			//if (await AuthenticateToken(token, connection))
+			//{
 				var guid = new Guid(form["uuid"]);
 				string basePath = Path.Combine(baseFilePath, guid.ToString());
 				string videoPath = Path.Combine(basePath, "main.mp4");
@@ -697,33 +696,35 @@ namespace VivistaServer
 						var metaCopyOp = form.Files["meta"].CopyToAsync(metaStream);
 						var thumbCopyOp = form.Files["thumb"].CopyToAsync(thumbStream);
 						await Task.WhenAll(videoCopyOp, metaCopyOp, thumbCopyOp);
+
+						await videoCopyOp.ContinueWith(task => VideoEncoder.EncodeAsync(videoPath));
 					}
 
 					//TODO(Simon): Move all the file-reading and database code somewhere else. So that users don't have to reupload if database insert fails
-					var metaTask = Task.Run(() => ReadMetaFile(metaPath));
-					var userIdTask = GetUserIdFromToken(token, connection);
-					Task.WaitAll(metaTask, userIdTask);
+					//var metaTask = Task.Run(() => ReadMetaFile(metaPath));
+					//var userIdTask = GetUserIdFromToken(token, connection);
+					//Task.WaitAll(metaTask, userIdTask);
 
-					var meta = metaTask.Result;
-					int userId = userIdTask.Result;
+					//var meta = metaTask.Result;
+					//int userId = userIdTask.Result;
 
-					if (await UserOwnsVideo(guid, userId, connection))
-					{
-						var timestamp = DateTime.UtcNow;
-						await connection.ExecuteAsync(@"update videos set (title, description, length, timestamp)
-												= (@title, @description, @length, @timestamp)
-												where id = @guid",
-													new { guid, meta.title, meta.description, meta.length, timestamp });
-					}
-					else
-					{
-						await connection.ExecuteAsync(@"insert into videos (id, userid, title, description, length)
-												values (@guid, @userid, @title, @description, @length)",
-													new { guid, userid = userId, meta.title, meta.description, meta.length });
-					}
+					//if (await UserOwnsVideo(guid, userId, connection))
+					//{
+					//	var timestamp = DateTime.UtcNow;
+					//	await connection.ExecuteAsync(@"update videos set (title, description, length, timestamp)
+					//							= (@title, @description, @length, @timestamp)
+					//							where id = @guid",
+					//								new { guid, meta.title, meta.description, meta.length, timestamp });
+					//}
+					//else
+					//{
+					//	await connection.ExecuteAsync(@"insert into videos (id, userid, title, description, length)
+					//							values (@guid, @userid, @title, @description, @length)",
+					//								new { guid, userid = userId, meta.title, meta.description, meta.length });
+					//}
 
-					await context.Response.WriteAsync("{}");
-					return;
+					//await context.Response.WriteAsync("{}");
+					//return;
 				}
 				catch (Exception e)
 				{
@@ -733,37 +734,12 @@ namespace VivistaServer
 					await WriteError(context, "Something went wrong while uploading this file", StatusCodes.Status500InternalServerError, e);
 					return;
 				}
-			}
-			else
-			{
-				await WriteError(context, "{}", StatusCodes.Status401Unauthorized);
-				return;
-			}
-		}
-
-		private async Task TranscodeVideo(string input, string output)
-		{
-			Console.WriteLine("Transcoding file...");
-			Engine ffmpeg = null;
-
-			// NOTE (Jeroen): Only works on windows
-			ffmpeg = new Engine(@"..\bin\ffmpeg\v4\ffmpeg.exe");
-			var bitrates =[2500, 5000, 10000, 15000, 20000, 25000];
-
-			ffmpeg.Progress += OnTranscodeProgress;
-			ffmpeg.Complete += OnTranscodeComplete;
-
-			await ffmpeg.ExecuteAsync($"-y -i {input} -preset slow -an -c:v h264_nvenc -crf 22 -b:v 20000k -maxrate 40000k -bufsize 80000k -pix_fmt yuv420p -f mp4 {output}");
-		}
-
-		private static void OnTranscodeProgress(object sender, ConversionProgressEventArgs e)
-		{
-			Console.WriteLine("Frame: {0}", e.Frame);
-		}
-
-		private static void OnTranscodeComplete(object sender, ConversionCompleteEventArgs e)
-		{
-			Console.WriteLine("Completed transcoding file");
+			//}
+			//else
+			//{
+			//	await WriteError(context, "{}", StatusCodes.Status401Unauthorized);
+			//	return;
+			//}
 		}
 
 		private async Task ExtrasPost(HttpContext context, NpgsqlConnection connection)
