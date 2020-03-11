@@ -47,8 +47,6 @@ namespace VivistaServer
 			public int length;
 		}
 
-		private Queue<FileInfo> videoQueue;
-
 		private static readonly PathString indexURL = new PathString("/");
 		private static readonly PathString registerURL = new PathString("/register");
 		private static readonly PathString loginURL = new PathString("/login");
@@ -197,6 +195,10 @@ namespace VivistaServer
 			{
 				Console.WriteLine("periodic");
 				await Task.Delay(5000);
+				if (VideoEncoder.Count() > 0)
+				{
+					VideoEncoder.ProcessVideoAsync();
+				}
 			}
 		}
 
@@ -317,16 +319,26 @@ namespace VivistaServer
 		{
 			var args = context.Request.Query;
 			var videoid = args["videoid"].ToString();
+			var videoQuality = args["quality"].ToString();
 			var mimeType = "video/mp4";
+			string videoPath;
 
-			//TODO (Jeroen): Check if id is valid
+			//TODO (Jeroen): Sanitize query parameters
 			if (string.IsNullOrEmpty(videoid))
 			{
 				await Write404(context);
 				return;
 			}
 
-			var videoPath = $"{baseFilePath}{videoid}\\main.mp4";
+			if (string.IsNullOrEmpty(videoQuality))
+			{
+				videoPath = $"{baseFilePath}{videoid}\\main.mp4";
+			}
+			else
+			{
+				videoPath = $"{baseFilePath}{videoid}\\main_{videoQuality}.mp4";
+			}
+
 			FileInfo fileInfo = new FileInfo(videoPath);
 
 			long totalLength = fileInfo.Length;
@@ -336,8 +348,7 @@ namespace VivistaServer
 			{
 				var response = context.Response;
 				response.ContentType = mimeType;
-				response.Headers.Add("Accept-Ranges", "bytes");
-
+				
 				var start = 0L;
 				var end = totalLength;
 
@@ -353,6 +364,7 @@ namespace VivistaServer
 					else
 					{
 						response.StatusCode = 206;
+						response.Headers.Add("Accept-Ranges", "bytes");
 
 						foreach (var rangeValue in range.Ranges)
 						{
@@ -405,7 +417,8 @@ namespace VivistaServer
 
 			if (!string.IsNullOrEmpty(rangeHeader))
 			{
-				var ranges = rangeHeader.Replace("bytes=", string.Empty).Split(",".ToCharArray());
+				//TODO(Simon): Maybe convert to Span<> or Memory<>
+				var ranges = rangeHeader.Replace("bytes=", string.Empty).Split(',');
 
 				rangesResult = new RangeHeaderValue();
 
@@ -417,22 +430,30 @@ namespace VivistaServer
 					long startByte;
 					long endByte;
 
-					long parsedValue;
+					var currentRange = ranges[i].Split('-');
 
-					var currentRange = ranges[i].Split("-".ToCharArray());
-
-					if (long.TryParse(currentRange[END], out parsedValue))
+					if (long.TryParse(currentRange[END], out var parsedValue))
+					{
 						endByte = parsedValue;
+					}
 					else
+					{
 						endByte = contentLength - 1;
+					}
 
 					if (long.TryParse(currentRange[START], out parsedValue))
+					{
 						startByte = parsedValue;
+					}
 					else
+					{
 						startByte = contentLength - endByte;
+					}
 
 					if (IsValidRangeRequest(startByte, endByte, contentLength))
+					{
 						rangesResult.Ranges.Add(new RangeItemHeaderValue(startByte, endByte));
+					}
 				}
 			}
 
@@ -441,7 +462,7 @@ namespace VivistaServer
 
 		private async Task WriteFileToResponseBody(string filePath, HttpResponse response, long start, long end)
 		{
-			var bufferSize = 0x1000;
+			var bufferSize = 4096;
 			var buffer = new byte[bufferSize];
 			var remainingBytes = end - start + 1;
 
@@ -674,72 +695,84 @@ namespace VivistaServer
 
 		private async Task VideoPost(HttpContext context, NpgsqlConnection connection)
 		{
-			var form = context.Request.Form;
-			string token = form["token"];
+			try
+			{
+				var form = context.Request.Form;
+				string token = form["token"];
 
-			//if (await AuthenticateToken(token, connection))
-			//{
-				var guid = new Guid(form["uuid"]);
-				string basePath = Path.Combine(baseFilePath, guid.ToString());
-				string videoPath = Path.Combine(basePath, "main.mp4");
-				string metaPath = Path.Combine(basePath, "meta.json");
-				string thumbPath = Path.Combine(basePath, "thumb.jpg");
-
-				try
+				if (await AuthenticateToken(token, connection))
 				{
-					Directory.CreateDirectory(basePath);
-					using (var videoStream = new FileStream(videoPath, FileMode.OpenOrCreate))
-					using (var metaStream = new FileStream(metaPath, FileMode.OpenOrCreate))
-					using (var thumbStream = new FileStream(thumbPath, FileMode.OpenOrCreate))
+					var guid = new Guid(form["uuid"]);
+					string basePath = Path.Combine(baseFilePath, guid.ToString());
+					string videoPath = Path.Combine(basePath, "main.mp4");
+					string metaPath = Path.Combine(basePath, "meta.json");
+					string thumbPath = Path.Combine(basePath, "thumb.jpg");
+
+					try
 					{
-						var videoCopyOp = form.Files["video"].CopyToAsync(videoStream);
-						var metaCopyOp = form.Files["meta"].CopyToAsync(metaStream);
-						var thumbCopyOp = form.Files["thumb"].CopyToAsync(thumbStream);
-						await Task.WhenAll(videoCopyOp, metaCopyOp, thumbCopyOp);
+						Directory.CreateDirectory(basePath);
+						using (var videoStream = new FileStream(videoPath, FileMode.OpenOrCreate))
+						using (var metaStream = new FileStream(metaPath, FileMode.OpenOrCreate))
+						using (var thumbStream = new FileStream(thumbPath, FileMode.OpenOrCreate))
+						{
+							var videoCopyOp = form.Files["video"].CopyToAsync(videoStream);
+							var metaCopyOp = form.Files["meta"].CopyToAsync(metaStream);
+							var thumbCopyOp = form.Files["thumb"].CopyToAsync(thumbStream);
+							await Task.WhenAll(videoCopyOp, metaCopyOp, thumbCopyOp);
+						}
 
-						await videoCopyOp.ContinueWith(task => VideoEncoder.EncodeAsync(videoPath));
+						if (!VideoEncoder.Add(videoPath))
+						{
+							await WriteError(context, "{}", StatusCodes.Status500InternalServerError);
+						}
+
+						////TODO(Simon): Move all the file-reading and database code somewhere else. So that users don't have to reupload if database insert fails
+						var metaTask = Task.Run(() => ReadMetaFile(metaPath));
+						var userIdTask = GetUserIdFromToken(token, connection);
+						Task.WaitAll(metaTask, userIdTask);
+
+						var meta = metaTask.Result;
+						int userId = userIdTask.Result;
+
+						if (await UserOwnsVideo(guid, userId, connection))
+						{
+							var timestamp = DateTime.UtcNow;
+							await connection.ExecuteAsync(@"update videos set (title, description, length, timestamp)
+												= (@title, @description, @length, @timestamp)
+												where id = @guid",
+								new {guid, meta.title, meta.description, meta.length, timestamp});
+						}
+						else
+						{
+							await connection.ExecuteAsync(@"insert into videos (id, userid, title, description, length)
+												values (@guid, @userid, @title, @description, @length)",
+								new {guid, userid = userId, meta.title, meta.description, meta.length});
+						}
+
+						await context.Response.WriteAsync("{}");
+						return;
 					}
-
-					//TODO(Simon): Move all the file-reading and database code somewhere else. So that users don't have to reupload if database insert fails
-					//var metaTask = Task.Run(() => ReadMetaFile(metaPath));
-					//var userIdTask = GetUserIdFromToken(token, connection);
-					//Task.WaitAll(metaTask, userIdTask);
-
-					//var meta = metaTask.Result;
-					//int userId = userIdTask.Result;
-
-					//if (await UserOwnsVideo(guid, userId, connection))
-					//{
-					//	var timestamp = DateTime.UtcNow;
-					//	await connection.ExecuteAsync(@"update videos set (title, description, length, timestamp)
-					//							= (@title, @description, @length, @timestamp)
-					//							where id = @guid",
-					//								new { guid, meta.title, meta.description, meta.length, timestamp });
-					//}
-					//else
-					//{
-					//	await connection.ExecuteAsync(@"insert into videos (id, userid, title, description, length)
-					//							values (@guid, @userid, @title, @description, @length)",
-					//								new { guid, userid = userId, meta.title, meta.description, meta.length });
-					//}
-
-					//await context.Response.WriteAsync("{}");
-					//return;
+					catch (Exception e)
+					{
+						//NOTE(Simon): If upload fails, just delete everything so we can start fresh next time.
+						//TODO(Simon): Look into supporting partial uploads
+						Directory.Delete(basePath, true);
+						await WriteError(context, "Something went wrong while uploading this file",
+							StatusCodes.Status500InternalServerError, e);
+						return;
+					}
 				}
-				catch (Exception e)
+				else
 				{
-					//NOTE(Simon): If upload fails, just delete everything so we can start fresh next time.
-					//TODO(Simon): Look into supporting partial uploads
-					Directory.Delete(basePath, true);
-					await WriteError(context, "Something went wrong while uploading this file", StatusCodes.Status500InternalServerError, e);
+					await WriteError(context, "{}", StatusCodes.Status401Unauthorized);
 					return;
 				}
-			//}
-			//else
-			//{
-			//	await WriteError(context, "{}", StatusCodes.Status401Unauthorized);
-			//	return;
-			//}
+			}
+			catch (Exception ex)
+			{
+				await WriteError(context, ex.Message, StatusCodes.Status500InternalServerError);
+			}
+
 		}
 
 		private async Task ExtrasPost(HttpContext context, NpgsqlConnection connection)
