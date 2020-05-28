@@ -2,15 +2,12 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Dapper;
-using FFmpeg.NET;
-using FFmpeg.NET.Events;
 using Microsoft.Net.Http.Headers;
 using Npgsql;
 
@@ -47,8 +44,6 @@ namespace VivistaServer
 			public int length;
 		}
 
-		private Queue<FileInfo> videoQueue;
-
 		private static readonly PathString indexURL = new PathString("/");
 		private static readonly PathString registerURL = new PathString("/register");
 		private static readonly PathString loginURL = new PathString("/login");
@@ -70,7 +65,7 @@ namespace VivistaServer
 		private const int mb = 1024 * kb;
 		private const int gb = 1024 * mb;
 
-		private const string baseFilePath = @"E:\test\";
+		private const string baseFilePath = @"D:\test\";
 
 		//NOTE(Simon): Use GetPgsqlConfig() instead of this directly, it handles caching of this variable.
 		private static string connectionString;

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -11,7 +12,7 @@ namespace VivistaServer
 {
 	public abstract class VideoEncoder
 	{
-		private static Queue<FileInfo> videoQueue = new Queue<FileInfo>();
+		private static ConcurrentQueue<FileInfo> videoQueue = new ConcurrentQueue<FileInfo>();
 		private static long frames;
 
 		private static bool isProcessing = false;
@@ -30,7 +31,7 @@ namespace VivistaServer
 			else
 			{
 				// TODO (Jeroen): return error
-				Debug.WriteLine("[VideoEncoder]: Could not find video file.");
+				Debug.WriteLine("[VideoEncoder]: Could not find video file");
 				return;
 			}
 		}
@@ -65,7 +66,7 @@ namespace VivistaServer
 			}
 			else
 			{
-				Debug.WriteLine("[VideoEncoder]: Ffmpeg binary not found.");
+				Debug.WriteLine("[VideoEncoder]: Ffmpeg binary not found");
 				return;
 			}
 
@@ -75,7 +76,7 @@ namespace VivistaServer
 
 			var outputPath = Path.Combine($"{input.DirectoryName}", "main");
 
-			Debug.WriteLine($"[VideoEncoder]: Started transcoding {input.Name}.");
+			Debug.WriteLine($"[VideoEncoder]: Started transcoding {input.FullName}");
 			var command =
 				$"-y -i {input.FullName} -filter_complex \"[0:v]format=pix_fmts=yuv420p,split=3[s1][s2][s3]\"" +
 				$" -map \"[s1]\" -preset slow -vsync passthrough -an -c:v libx264 -crf 20 -b:v 10M -maxrate 15M -bufsize 30M -f mp4 {outputPath}_10.mp4" +
@@ -92,12 +93,12 @@ namespace VivistaServer
 
 		private static void OnTranscodeProgress(object sender, ConversionProgressEventArgs e)
 		{
-			Debug.WriteLine("[VideoEncoder]: Processing: {0}.", e.ProcessedDuration);
+			Debug.WriteLine("[VideoEncoder]: Processing: {0}., e.ProcessedDuration);
 		}
 
 		private static void OnTranscodeComplete(object sender, ConversionCompleteEventArgs e)
 		{
-			Debug.WriteLine("[VideoEncoder]: Completed transcoding.");
+			Debug.WriteLine("[VideoEncoder]: Completed transcoding");
 			_ = ProcessVideoAsync();
 		}
 	}
