@@ -16,17 +16,15 @@ namespace VivistaServer
 		private static long frames;
 
 		private static bool isProcessing = false;
+		private const int queueLimit = 10;
 
-		public static async void EncodeAsync(string path)
+		public static bool Add(string path)
 		{
-			if (File.Exists(path))
+			if (File.Exists(path) && videoQueue.Count <= queueLimit)
 			{
 				var file = new FileInfo(path);
 				videoQueue.Enqueue(file);
-				if (!isProcessing)
-				{
-					await ProcessVideoAsync();
-				}
+				return true;
 			}
 			else
 			{
@@ -36,18 +34,26 @@ namespace VivistaServer
 			}
 		}
 
-		private static async Task ProcessVideoAsync()
+		public static int Count()
 		{
-			FileInfo video = null;
-			var hasVideo = videoQueue.TryDequeue(out video);
-			if (hasVideo)
+			return videoQueue.Count;
+		}
+
+		public static async void ProcessVideoAsync()
+		{
+			if (!isProcessing)
 			{
-				isProcessing = true;
-				await TranscodeVideoAsync(video);
-			}
-			else
-			{
-				isProcessing = false;
+				FileInfo video = null;
+				var hasVideo = videoQueue.TryDequeue(out video);
+				if (hasVideo)
+				{
+					isProcessing = true;
+					await TranscodeVideoAsync(video);
+				}
+				else
+				{
+					isProcessing = false;
+				}
 			}
 		}
 
@@ -78,10 +84,10 @@ namespace VivistaServer
 
 			Debug.WriteLine($"[VideoEncoder]: Started transcoding {input.FullName}");
 			var command =
-				$"-y -i {input.FullName} -filter_complex \"[0:v]format=pix_fmts=yuv420p,split=3[s1][s2][s3]\"" +
-				$" -map \"[s1]\" -preset slow -vsync passthrough -an -c:v libx264 -crf 20 -b:v 10M -maxrate 15M -bufsize 30M -f mp4 {outputPath}_10.mp4" +
-				$" -map \"[s2]\" -preset slow -vsync passthrough -an -c:v libx264 -crf 20 -b:v 15M -maxrate 30M -bufsize 60M -f mp4 {outputPath}_15.mp4" +
-				$" -map \"[s3]\" -preset slow -vsync passthrough -an -c:v libx264 -crf 20 -b:v 20M -maxrate 40M -bufsize 80M -f mp4 {outputPath}_20.mp4";
+				$"-y -i {input.FullName} -filter_complex \"[0:v]format=pix_fmts=yuv420p,split=3[in1][in2][in3];[in1]scale=1920:-1[out1];[in2]scale=2732:-1[out2];[in3]scale=4096:-1[out3]\"" +
+				$" -map \"[out1]\" -preset medium -vsync passthrough -an -c:v libx264 -crf 18 -b:v 10M -maxrate 15M -bufsize 30M -f mp4 {outputPath}_1080.mp4" +
+				$" -map \"[out2]\" -preset medium -vsync passthrough -an -c:v libx264 -crf 18 -b:v 15M -maxrate 30M -bufsize 60M -f mp4 {outputPath}_1440.mp4" +
+				$" -map \"[out3]\" -preset medium -vsync passthrough -an -c:v libx264 -crf 18 -b:v 20M -maxrate 40M -bufsize 80M -f mp4 {outputPath}_2160.mp4";
 			Debug.WriteLine(command);
 			await ffmpeg.ExecuteAsync(command);
 		}

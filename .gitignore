@@ -31,3 +31,7 @@ VivistaServer/bin/
 VivistaServer/obj/
 
 VivistaServer\.sln\.DotSettings\.user
+
+.vs/VivistaServer/v16/
+
+.vs/VivistaServer/DesignTimeBuild/.dtbcache
