@@ -24,7 +24,7 @@ _testmain.go
 *.test
 *.prof
 
-\.vs/VivistaServer/v15/
+\.vs/VivistaServer/
 
 VivistaServer/bin/
 

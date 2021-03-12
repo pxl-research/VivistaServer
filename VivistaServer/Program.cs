@@ -17,7 +17,7 @@ namespace VivistaServer
 							.UseStartup<Startup>()
 							.UseKestrel(options =>
 							{
-								options.Limits.MaxRequestBodySize = null;
+								options.AllowSynchronousIO = true;
 							})
 							.ConfigureLogging(options => {
 								options.SetMinimumLevel(LogLevel.None);
