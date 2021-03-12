@@ -222,7 +222,7 @@ namespace VivistaServer
 			//TODO(Simon): Fuzzy search for username
 			if (!String.IsNullOrEmpty(author))
 			{
-				userid = await GetUserId(author, connection);
+				userid = await GetUserIdFromUsername(author, connection);
 			}
 
 			if (!Int32.TryParse(args["agedays"].ToString(), out int daysOld) || daysOld < 0)
@@ -414,21 +414,29 @@ namespace VivistaServer
 			{
 				var form = context.Request.Form;
 
-			string username = form["username"].ToString().ToLowerInvariant().Trim();
-			string password = form["password"].ToString();
+				string username = form["username"].ToString().ToLowerInvariant().Trim();
+				string password = form["password"].ToString();
+				string email = form["email"].ToString().ToLowerInvariant().Trim();
 
 				if (username.Length == 0)
 				{
 					await WriteError(context, "Username too short", StatusCodes.Status400BadRequest);
 					return;
-			}
-			if (password.Length == 0)
-			{
-				await WriteError(context, "Password too short", StatusCodes.Status400BadRequest);
-				return;
-			}
+				}
 
-			var userExists = await UserExists(username, connection);
+				if (password.Length == 0)
+				{
+					await WriteError(context, "Password too short", StatusCodes.Status400BadRequest);
+					return;
+				}
+
+				if (email.Length == 0)
+				{
+					await WriteError(context, "Email too short", StatusCodes.Status400BadRequest);
+					return;
+				}
+
+				var userExists = await UserExists(email, connection);
 				var hashedPassword = BCrypt.Net.BCrypt.HashPassword(password, bcryptWorkFactor);
 
 				if (!userExists)
@@ -459,7 +467,7 @@ namespace VivistaServer
 				{
 					var token = NewSessionToken(32);
 					var expiry = DateTime.UtcNow.AddMinutes(sessionLength);
-					var userid = await GetUserId(username, connection);
+					var userid = await GetUserIdFromEmail(email, connection);
 
 					if (userid == -1)
 					{
@@ -491,15 +499,15 @@ namespace VivistaServer
 		{
 			var args = context.Request.Query;
 
-			string username = args["username"].ToString().ToLowerInvariant().Trim();
+			string email = args["email"].ToString().ToLowerInvariant().Trim();
 			string password = args["password"];
-			bool success = await AuthenticateUser(username, password, connection);
+			bool success = await AuthenticateUser(email, password, connection);
 
 			if (success)
 			{
 				string token = NewSessionToken(32);
 				var expiry = DateTime.UtcNow.AddMinutes(sessionLength);
-				var userid = await GetUserId(username, connection);
+				var userid = await GetUserIdFromEmail(email, connection);
 
 				try
 				{
@@ -522,6 +530,8 @@ namespace VivistaServer
 
 		private static async Task VideoPost(HttpContext context, NpgsqlConnection connection)
 		{
+			context.Features.Get<IHttpMaxRequestBodySizeFeature>().MaxRequestBodySize = null;
+
 			var form = context.Request.Form;
 			string token = form["token"];
 
@@ -690,7 +700,21 @@ namespace VivistaServer
 			return Convert.ToBase64String(bytes).Substring(0, 32);
 		}
 
-		private static async Task<int> GetUserId(string username, NpgsqlConnection connection)
+		private static async Task<int> GetUserIdFromEmail(string email, NpgsqlConnection connection)
+		{
+			int? id;
+			try
+			{
+				id = await connection.QueryFirstOrDefaultAsync<int?>("select userid from users where email = @email", new { email });
+			}
+			catch
+			{
+				id = null;
+			}
+			return id ?? -1;
+		}
+
+		private static async Task<int> GetUserIdFromUsername(string username, NpgsqlConnection connection)
 		{
 			int? id;
 			try
@@ -719,11 +743,11 @@ namespace VivistaServer
 			return id ?? -1;
 		}
 
-		private static async Task<bool> UserExists(string username, NpgsqlConnection connection)
+		private static async Task<bool> UserExists(string email, NpgsqlConnection connection)
 		{
 			try
 			{
-				int count = await connection.QuerySingleAsync<int>("select count(*) from users where username=@username", new { username });
+				int count = await connection.QuerySingleAsync<int>("select count(*) from users where email=@email", new { email });
 				return count > 0;
 			}
 			catch
@@ -732,12 +756,12 @@ namespace VivistaServer
 			}
 		}
 
-		private static async Task<bool> AuthenticateUser(string username, string password, NpgsqlConnection connection)
+		private static async Task<bool> AuthenticateUser(string email, string password, NpgsqlConnection connection)
 		{
 			string storedPassword;
 			try
 			{
-				storedPassword = await connection.QuerySingleAsync<string>("select pass from users where username = @username", new { username });
+				storedPassword = await connection.QuerySingleAsync<string>("select pass from users where email = @email", new {email});
 			}
 			catch
 			{
@@ -853,6 +877,8 @@ namespace VivistaServer
 			}
 			return size;
 		}
+
+
 
 
 		private static async Task WriteFile(HttpContext context, string filename, string contentType, string responseFileName)
