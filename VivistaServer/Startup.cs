@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
@@ -46,14 +47,7 @@ namespace VivistaServer
 			public int length;
 		}
 
-		private static readonly PathString indexURL = new PathString("/");
-		private static readonly PathString registerURL = new PathString("/register");
-		private static readonly PathString loginURL = new PathString("/login");
-		private static readonly PathString videoURL = new PathString("/video");
-		private static readonly PathString metaURL = new PathString("/meta");
-		private static readonly PathString extraURL = new PathString("/extra");
-		private static readonly PathString allExtrasURL = new PathString("/extras");
-		private static readonly PathString thumbnailURL = new PathString("/thumbnail");
+		private static Router router;
 
 		private static RNGCryptoServiceProvider rng;
 
@@ -77,16 +71,10 @@ namespace VivistaServer
 			{
 				config.MultipartBodyLengthLimit = long.MaxValue;
 			});
+			
+			router = new Router();
 		}
 
-		// This method gets called by the runtime. Use this method to add services to the container.
-		// For more information on how to configure your application, visit https://go.microsoft.com/fwlink/?LinkID=398940
-		//public void ConfigureServices(IServiceCollection services)
-		//{
-		//
-		//}
-
-		// This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
 		public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
 		{
 			if (env.IsDevelopment())
@@ -118,79 +106,15 @@ namespace VivistaServer
 					Console.WriteLine($"\tBody: {new StreamReader(context.Request.Body).ReadToEnd()}");
 				}
 #endif
-
-				var path = context.Request.Path;
-				bool isGet = context.Request.Method == "GET";
-				bool isPost = context.Request.Method == "POST";
-
-				context.Response.ContentType = "application/json";
-
 				var connection = new NpgsqlConnection(GetPgsqlConfig());
 				connection.Open();
 
-				if (isGet)
-				{
-					if (MatchPath(path, indexURL))
-					{
-						await IndexGet(context, connection).ConfigureAwait(false);
-					}
-					else if (MatchPath(path, videoURL))
-					{
-						await VideoGet(context, connection);
-					}
-					else if (MatchPath(path, metaURL))
-					{
-						await MetaGet(context);
-					}
-					else if (MatchPath(path, extraURL))
-					{
-						await ExtraGet(context);
-					}
-					else if (MatchPath(path, allExtrasURL))
-					{
-						await ExtrasGet(context, connection);
-					}
-					else if (MatchPath(path, thumbnailURL))
-					{
-						await ThumbnailGet(context);
-					}
-					else
-					{
-						await Write404(context);
-					}
-				}
-				else if (isPost)
-				{
-					if (MatchPath(path, registerURL))
-					{
-						await RegisterPost(context, connection);
-					}
-					else if (MatchPath(path, loginURL))
-					{
-						await LoginPost(context, connection);
-					}
-					else if (MatchPath(path, videoURL))
-					{
-						await VideoPost(context, connection).ConfigureAwait(false);
-					}
-					else if (MatchPath(path, allExtrasURL))
-					{
-						await ExtrasPost(context, connection);
-					}
-					else
-					{
-						await Write404(context);
-					}
-				}
-				else
-				{
-					await Write404(context);
-				}
+				context.Response.ContentType = "application/json";
+				await router.RouteAsync(context.Request, context, connection);
 
 				connection.Close();
 			});
 		}
-
 
 		private static async Task PeriodicFunction()
 		{
@@ -201,6 +125,7 @@ namespace VivistaServer
 			}
 		}
 
+		[Route("GET", "/")]
 		private static async Task IndexGet(HttpContext context, NpgsqlConnection connection)
 		{
 			var args = context.Request.Query;
@@ -261,6 +186,7 @@ namespace VivistaServer
 			}
 		}
 
+		[Route("GET", "/video")]
 		private static async Task VideoGet(HttpContext context, NpgsqlConnection connection)
 		{
 			var args = context.Request.Query;
@@ -312,7 +238,8 @@ namespace VivistaServer
 		}
 
 		//TODO(Simon): Switch to query string, instead of path for id
-		private static async Task MetaGet(HttpContext context)
+		[Route("GET", "/meta")]
+		private static async Task MetaGet(HttpContext context, NpgsqlConnection connection)
 		{
 			var args = context.Request.Query;
 			string id = args["videoid"].ToString();
@@ -329,7 +256,8 @@ namespace VivistaServer
 		}
 
 		//TODO(Simon): Switch to query string, instead of path for id
-		private static async Task ThumbnailGet(HttpContext context)
+		[Route("GET", "/thumbnail")]
+		private static async Task ThumbnailGet(HttpContext context, NpgsqlConnection connection)
 		{
 			string path = context.Request.Path.Value;
 			string id = ExtractId(path.AsMemory());
@@ -358,7 +286,8 @@ namespace VivistaServer
 			return span.ToString();
 		}
 
-		private static async Task ExtraGet(HttpContext context)
+		[Route("GET", "/extra")]
+		private static async Task ExtraGet(HttpContext context, NpgsqlConnection connection)
 		{
 			var args = context.Request.Query;
 			string videoId = args["videoid"];
@@ -381,6 +310,7 @@ namespace VivistaServer
 			}
 		}
 
+		[Route("GET", "/extras")]
 		private static async Task ExtrasGet(HttpContext context, NpgsqlConnection connection)
 		{
 			var args = context.Request.Query;
@@ -408,6 +338,7 @@ namespace VivistaServer
 			}
 		}
 
+		[Route("POST", "/register")]
 		private static async Task RegisterPost(HttpContext context, NpgsqlConnection connection)
 		{
 			if (context.Request.HasFormContentType)
@@ -495,6 +426,7 @@ namespace VivistaServer
 			}
 		}
 
+		[Route("POST", "/login")]
 		private static async Task LoginPost(HttpContext context, NpgsqlConnection connection)
 		{
 			var args = context.Request.Query;
@@ -528,6 +460,7 @@ namespace VivistaServer
 			}
 		}
 
+		[Route("POST", "/video")]
 		private static async Task VideoPost(HttpContext context, NpgsqlConnection connection)
 		{
 			context.Features.Get<IHttpMaxRequestBodySizeFeature>().MaxRequestBodySize = null;
@@ -595,6 +528,7 @@ namespace VivistaServer
 			}
 		}
 
+		[Route("POST", "/extras")]
 		private static async Task ExtrasPost(HttpContext context, NpgsqlConnection connection)
 		{
 			var form = context.Request.Form;
@@ -656,7 +590,11 @@ namespace VivistaServer
 			}
 		}
 
-
+		[Route("GET", "/hjkglfds")]
+		private static Task Test(HttpContext a, NpgsqlConnection b)
+		{
+			throw new NotImplementedException();
+		}
 
 		private static string GetPgsqlConfig()
 		{
@@ -929,6 +867,12 @@ namespace VivistaServer
 		private static async Task Write404(HttpContext context, string message = "File Not Found")
 		{
 			await WriteError(context, message, StatusCodes.Status404NotFound);
+		}
+
+		[Route("", "404")]
+		private static async Task Error404(HttpContext context, NpgsqlConnection connection)
+		{
+			await Write404(context);
 		}
 	}
 }
