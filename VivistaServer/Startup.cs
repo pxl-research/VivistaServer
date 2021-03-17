@@ -81,6 +81,10 @@ namespace VivistaServer
 			{
 				app.UseDeveloperExceptionPage();
 			}
+			else
+			{
+				app.UseHsts();
+			}
 
 			rng = new RNGCryptoServiceProvider();
 			Task.Run(PeriodicFunction);
