@@ -110,13 +110,8 @@ namespace VivistaServer
 					Console.WriteLine($"\tBody: {new StreamReader(context.Request.Body).ReadToEnd()}");
 				}
 #endif
-				var connection = new NpgsqlConnection(GetPgsqlConfig());
-				connection.Open();
-
 				context.Response.ContentType = "application/json";
-				await router.RouteAsync(context.Request, context, connection);
-
-				connection.Close();
+				await router.RouteAsync(context.Request, context);
 			});
 		}
 
@@ -130,7 +125,7 @@ namespace VivistaServer
 		}
 
 		[Route("GET", "/")]
-		private static async Task IndexGet(HttpContext context, NpgsqlConnection connection)
+		private static async Task IndexGet(HttpContext context)
 		{
 			var args = context.Request.Query;
 
@@ -147,6 +142,9 @@ namespace VivistaServer
 			{
 				count = indexCountDefault;
 			}
+
+			using var connection = new NpgsqlConnection(GetPgsqlConfig());
+			connection.Open();
 
 			//TODO(Simon): Fuzzy search for username
 			if (!String.IsNullOrEmpty(author))
@@ -191,7 +189,7 @@ namespace VivistaServer
 		}
 
 		[Route("GET", "/video")]
-		private static async Task VideoGet(HttpContext context, NpgsqlConnection connection)
+		private static async Task VideoGet(HttpContext context)
 		{
 			var args = context.Request.Query;
 			var videoid = args["videoid"].ToString();
@@ -201,6 +199,9 @@ namespace VivistaServer
 				await Write404(context);
 				return;
 			}
+
+			using var connection = new NpgsqlConnection(GetPgsqlConfig());
+			connection.Open();
 
 			Video video;
 			try
@@ -241,9 +242,8 @@ namespace VivistaServer
 			}
 		}
 
-		//TODO(Simon): Switch to query string, instead of path for id
 		[Route("GET", "/meta")]
-		private static async Task MetaGet(HttpContext context, NpgsqlConnection connection)
+		private static async Task MetaGet(HttpContext context)
 		{
 			var args = context.Request.Query;
 			string id = args["videoid"].ToString();
@@ -259,12 +259,11 @@ namespace VivistaServer
 			}
 		}
 
-		//TODO(Simon): Switch to query string, instead of path for id
 		[Route("GET", "/thumbnail")]
-		private static async Task ThumbnailGet(HttpContext context, NpgsqlConnection connection)
+		private static async Task ThumbnailGet(HttpContext context)
 		{
-			string path = context.Request.Path.Value;
-			string id = ExtractId(path.AsMemory());
+			var args = context.Request.Query;
+			string id = args["id"];
 
 			if (Guid.TryParse(id, out _))
 			{
@@ -277,21 +276,9 @@ namespace VivistaServer
 			}
 		}
 
-		private static string ExtractId(ReadOnlyMemory<char> memory)
-		{
-			var span = memory.Span;
-			//NOTE(Simon): filter out '/meta/'
-			span = span.Slice(span.IndexOf('/') + 1);
-			span = span.Slice(span.IndexOf('/') + 1);
-			if (span[^1] == '/')
-			{
-				span = span[0..^1];
-			}
-			return span.ToString();
-		}
 
 		[Route("GET", "/extra")]
-		private static async Task ExtraGet(HttpContext context, NpgsqlConnection connection)
+		private static async Task ExtraGet(HttpContext context)
 		{
 			var args = context.Request.Query;
 			string videoId = args["videoid"];
@@ -315,7 +302,7 @@ namespace VivistaServer
 		}
 
 		[Route("GET", "/extras")]
-		private static async Task ExtrasGet(HttpContext context, NpgsqlConnection connection)
+		private static async Task ExtrasGet(HttpContext context)
 		{
 			var args = context.Request.Query;
 			string idstring = args["videoid"];
@@ -325,6 +312,9 @@ namespace VivistaServer
 				await Write404(context);
 				return;
 			}
+
+			using var connection = new NpgsqlConnection(GetPgsqlConfig());
+			connection.Open();
 
 			if (Guid.TryParse(idstring, out var videoId))
 			{
@@ -343,7 +333,7 @@ namespace VivistaServer
 		}
 
 		[Route("POST", "/register")]
-		private static async Task RegisterPost(HttpContext context, NpgsqlConnection connection)
+		private static async Task RegisterPost(HttpContext context)
 		{
 			if (context.Request.HasFormContentType)
 			{
@@ -370,6 +360,9 @@ namespace VivistaServer
 					await WriteError(context, "Email too short", StatusCodes.Status400BadRequest);
 					return;
 				}
+
+				using var connection = new NpgsqlConnection(GetPgsqlConfig());
+				connection.Open();
 
 				var userExists = await UserExists(email, connection);
 				var hashedPassword = BCrypt.Net.BCrypt.HashPassword(password, bcryptWorkFactor);
@@ -431,9 +424,11 @@ namespace VivistaServer
 		}
 
 		[Route("POST", "/login")]
-		private static async Task LoginPost(HttpContext context, NpgsqlConnection connection)
+		private static async Task LoginPost(HttpContext context)
 		{
 			var args = context.Request.Query;
+			using var connection = new NpgsqlConnection(GetPgsqlConfig());
+			connection.Open();
 
 			string email = args["email"].ToString().ToLowerInvariant().Trim();
 			string password = args["password"];
@@ -465,9 +460,12 @@ namespace VivistaServer
 		}
 
 		[Route("POST", "/video")]
-		private static async Task VideoPost(HttpContext context, NpgsqlConnection connection)
+		private static async Task VideoPost(HttpContext context)
 		{
 			context.Features.Get<IHttpMaxRequestBodySizeFeature>().MaxRequestBodySize = null;
+			
+			using var connection = new NpgsqlConnection(GetPgsqlConfig());
+			connection.Open();
 
 			var form = context.Request.Form;
 			string token = form["token"];
@@ -533,8 +531,11 @@ namespace VivistaServer
 		}
 
 		[Route("POST", "/extras")]
-		private static async Task ExtrasPost(HttpContext context, NpgsqlConnection connection)
+		private static async Task ExtrasPost(HttpContext context)
 		{
+			using var connection = new NpgsqlConnection(GetPgsqlConfig());
+			connection.Open();
+
 			var form = context.Request.Form;
 			string token = form["token"];
 			string videoGuid = form["videoguid"];
@@ -592,12 +593,6 @@ namespace VivistaServer
 			{
 				await WriteError(context, "{}", StatusCodes.Status401Unauthorized);
 			}
-		}
-
-		[Route("GET", "/hjkglfds")]
-		private static Task Test(HttpContext a, NpgsqlConnection b)
-		{
-			throw new NotImplementedException();
 		}
 
 		private static string GetPgsqlConfig()
@@ -874,7 +869,7 @@ namespace VivistaServer
 		}
 
 		[Route("", "404")]
-		private static async Task Error404(HttpContext context, NpgsqlConnection connection)
+		private static async Task Error404(HttpContext context)
 		{
 			await Write404(context);
 		}

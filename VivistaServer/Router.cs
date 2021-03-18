@@ -8,6 +8,19 @@ using Npgsql;
 
 namespace VivistaServer
 {
+	[AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]
+	public class RouteAttribute : Attribute
+	{
+		public string method;
+		public string route;
+
+		public RouteAttribute(string method, string route)
+		{
+			this.method = method;
+			this.route = route;
+		}
+	}
+
 	internal struct Route
 	{
 		public readonly string method;
@@ -27,7 +40,7 @@ namespace VivistaServer
 
 	public class Router
 	{
-		private delegate Task RouteDelegate(HttpContext context, NpgsqlConnection connection);
+		private delegate Task RouteDelegate(HttpContext context);
 		private readonly Dictionary<Route, RouteDelegate> routes;
 
 		public Router()
@@ -35,7 +48,6 @@ namespace VivistaServer
 #if DEBUG
 			Asserts();
 #endif
-
 			routes = new Dictionary<Route, RouteDelegate>();
 
 			var methods = Assembly.GetExecutingAssembly().GetTypes().
@@ -44,21 +56,24 @@ namespace VivistaServer
 
 			foreach (var method in methods)
 			{
-				var attrib = (RouteAttribute)method.GetCustomAttribute(typeof(RouteAttribute), false);
+				var attribs = (RouteAttribute[])method.GetCustomAttributes(typeof(RouteAttribute), false);
 
-				routes.Add(new Route(attrib.method, attrib.route), (RouteDelegate) Delegate.CreateDelegate(typeof(RouteDelegate), null, method));
+				foreach (var attrib in attribs)
+				{
+					routes.Add(new Route(attrib.method, attrib.route), (RouteDelegate) Delegate.CreateDelegate(typeof(RouteDelegate), null, method));
+				}
 			}
 		}
 
-		public async Task RouteAsync(HttpRequest request, HttpContext context, NpgsqlConnection connection)
+		public async Task RouteAsync(HttpRequest request, HttpContext context)
 		{
 			if (routes.TryGetValue(new Route(request.Method, request.Path), out var del))
 			{
-				await del.Invoke(context, connection);
+				await del.Invoke(context);
 			}
 			else
 			{
-				await routes[new Route("", "404")].Invoke(context, connection);
+				await routes[new Route("", "404")].Invoke(context);
 			}
 		}
 
@@ -82,20 +97,14 @@ namespace VivistaServer
 				}
 
 				var parameters = method.GetParameters();
-				if (parameters.Length != 2)
+				if (parameters.Length != 1)
 				{
-					throw new Exception($"Method {method.DeclaringType.FullName}.{method.Name}() should have exactly 2 parameters if it is to have a {nameof(RouteAttribute)}");
-					
+					throw new Exception($"Method {method.DeclaringType.FullName}.{method.Name}() should have exactly 1 parameter if it is to have a {nameof(RouteAttribute)}");
 				}
 
 				if (parameters[0].ParameterType.Name != nameof(HttpContext))
 				{
 					throw new Exception($"Method {method.DeclaringType.FullName}.{method.Name}() should have a first parameter of type {nameof(HttpContext)} if it is to have a {nameof(RouteAttribute)}");
-				}
-
-				if (parameters[1].ParameterType.Name != nameof(NpgsqlConnection))
-				{
-					throw new Exception($"Method {method.DeclaringType.FullName}.{method.Name}() should have a second parameter of type {nameof(NpgsqlConnection)} if it is to have a {nameof(RouteAttribute)}");
 				}
 
 				if (method.ReturnType.Name != nameof(Task))
@@ -104,6 +113,6 @@ namespace VivistaServer
 				}
 			}
 		}
-	}
 #endif
+	}
 }
