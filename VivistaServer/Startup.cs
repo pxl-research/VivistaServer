@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Npgsql;
+using static VivistaServer.CommonController;
 
 namespace VivistaServer
 {
@@ -49,22 +50,11 @@ namespace VivistaServer
 
 		private static Router router;
 
-		private static RNGCryptoServiceProvider rng;
 
 		private const int indexCountDefault = 10;
-		private const int bcryptWorkFactor = 12;
-		private const int sessionLength = 1 * 24 * 60;
-
-		private const int fileBufferSize = 16 * kb;
-		private const int kb = 1024;
-		private const int mb = 1024 * kb;
-		private const int gb = 1024 * mb;
 
 		private const string baseFilePath = @"C:\VivistaServerData\";
 
-		//NOTE(Simon): Use GetPgsqlConfig() instead of this directly, it handles caching of this variable.
-		private static string connectionString;
-		
 		public void ConfigureServices(IServiceCollection services)
 		{
 			services.Configure<FormOptions>(config =>
@@ -124,8 +114,12 @@ namespace VivistaServer
 			}
 		}
 
-		[Route("GET", "/")]
-		private static async Task IndexGet(HttpContext context)
+
+
+
+		[Route("GET", "/api/videos")]
+		[Route("GET", "/api/v1/videos")]
+		private static async Task VideosGet(HttpContext context)
 		{
 			var args = context.Request.Query;
 
@@ -143,13 +137,13 @@ namespace VivistaServer
 				count = indexCountDefault;
 			}
 
-			using var connection = new NpgsqlConnection(GetPgsqlConfig());
+			using var connection = new NpgsqlConnection(Database.GetPgsqlConfig());
 			connection.Open();
 
 			//TODO(Simon): Fuzzy search for username
 			if (!String.IsNullOrEmpty(author))
 			{
-				userid = await GetUserIdFromUsername(author, connection);
+				userid = await UserController.GetUserIdFromUsername(author, connection);
 			}
 
 			if (!Int32.TryParse(args["agedays"].ToString(), out int daysOld) || daysOld < 0)
@@ -188,7 +182,8 @@ namespace VivistaServer
 			}
 		}
 
-		[Route("GET", "/video")]
+		[Route("GET", "/api/video")]
+		[Route("GET", "/api/v1/video")]
 		private static async Task VideoGet(HttpContext context)
 		{
 			var args = context.Request.Query;
@@ -200,7 +195,7 @@ namespace VivistaServer
 				return;
 			}
 
-			using var connection = new NpgsqlConnection(GetPgsqlConfig());
+			using var connection = new NpgsqlConnection(Database.GetPgsqlConfig());
 			connection.Open();
 
 			Video video;
@@ -242,235 +237,19 @@ namespace VivistaServer
 			}
 		}
 
-		[Route("GET", "/meta")]
-		private static async Task MetaGet(HttpContext context)
-		{
-			var args = context.Request.Query;
-			string id = args["videoid"].ToString();
-
-			if (Guid.TryParse(id, out _))
-			{
-				string filename = Path.Combine(baseFilePath, id, "meta.json");
-				await WriteFile(context, filename, "application/json", "meta.json");
-			}
-			else
-			{
-				await Write404(context);
-			}
-		}
-
-		[Route("GET", "/thumbnail")]
-		private static async Task ThumbnailGet(HttpContext context)
-		{
-			var args = context.Request.Query;
-			string id = args["id"];
-
-			if (Guid.TryParse(id, out _))
-			{
-				string filename = Path.Combine(baseFilePath, id, "thumb.jpg");
-				await WriteFile(context, filename, "image/jpg", "thumb.jpg");
-			}
-			else
-			{
-				await Write404(context);
-			}
-		}
-
-
-		[Route("GET", "/extra")]
-		private static async Task ExtraGet(HttpContext context)
-		{
-			var args = context.Request.Query;
-			string videoId = args["videoid"];
-			string extraId = args["extraid"];
-
-			if (String.IsNullOrEmpty(videoId) || String.IsNullOrEmpty(extraId))
-			{
-				await Write404(context);
-				return;
-			}
-
-			if (Guid.TryParse(videoId, out _) && Guid.TryParse(extraId, out _))
-			{
-				string filename = Path.Combine(baseFilePath, videoId, "extra", extraId);
-				await WriteFile(context, filename, "application/octet-stream", "");
-			}
-			else
-			{
-				await Write404(context);
-			}
-		}
-
-		[Route("GET", "/extras")]
-		private static async Task ExtrasGet(HttpContext context)
-		{
-			var args = context.Request.Query;
-			string idstring = args["videoid"];
-
-			if (String.IsNullOrEmpty(idstring))
-			{
-				await Write404(context);
-				return;
-			}
-
-			using var connection = new NpgsqlConnection(GetPgsqlConfig());
-			connection.Open();
-
-			if (Guid.TryParse(idstring, out var videoId))
-			{
-				try
-				{
-					var ids = await connection.QueryAsync<Guid>(@"select guid from extra_files where video_id = @videoId", new { videoId });
-					var stringIds = new List<string>();
-					foreach (var id in ids) { stringIds.Add(id.ToString().Replace("-", "")); }
-					await context.Response.Body.WriteAsync(Utf8Json.JsonSerializer.SerializeUnsafe(stringIds));
-				}
-				catch (Exception e)
-				{
-					await WriteError(context, "Something went wrong while processing this request", StatusCodes.Status500InternalServerError, e);
-				}
-			}
-		}
-
-		[Route("POST", "/register")]
-		private static async Task RegisterPost(HttpContext context)
-		{
-			if (context.Request.HasFormContentType)
-			{
-				var form = context.Request.Form;
-
-				string username = form["username"].ToString().ToLowerInvariant().Trim();
-				string password = form["password"].ToString();
-				string email = form["email"].ToString().ToLowerInvariant().Trim();
-
-				if (username.Length == 0)
-				{
-					await WriteError(context, "Username too short", StatusCodes.Status400BadRequest);
-					return;
-				}
-
-				if (password.Length == 0)
-				{
-					await WriteError(context, "Password too short", StatusCodes.Status400BadRequest);
-					return;
-				}
-
-				if (email.Length == 0)
-				{
-					await WriteError(context, "Email too short", StatusCodes.Status400BadRequest);
-					return;
-				}
-
-				using var connection = new NpgsqlConnection(GetPgsqlConfig());
-				connection.Open();
-
-				var userExists = await UserExists(email, connection);
-				var hashedPassword = BCrypt.Net.BCrypt.HashPassword(password, bcryptWorkFactor);
-
-				if (!userExists)
-				{
-					try
-					{
-						int success = await connection.ExecuteAsync("insert into users (username, email, pass) values (@username, @email, @hashedPassword)", new { username, email, hashedPassword });
-
-						if (success == 0)
-						{
-							await WriteError(context, "Something went wrong while registering", StatusCodes.Status500InternalServerError);
-							return;
-						}
-					}
-					catch (Exception e)
-					{
-						await WriteError(context, "Something went wrong while registering", StatusCodes.Status500InternalServerError, e);
-						return;
-					}
-				}
-				else
-				{
-					await WriteError(context, "This user already exists", StatusCodes.Status409Conflict);
-					return;
-				}
-
-				//NOTE(Simon): Create session token to immediately log user in.
-				{
-					var token = NewSessionToken(32);
-					var expiry = DateTime.UtcNow.AddMinutes(sessionLength);
-					var userid = await GetUserIdFromEmail(email, connection);
-
-					if (userid == -1)
-					{
-						await WriteError(context, "Something went wrong while logging in", StatusCodes.Status500InternalServerError);
-						return;
-					}
-
-					try
-					{
-						await connection.ExecuteAsync("insert into sessions (token, expiry, userid) values (@token, @expiry, @userid)", new { token, expiry, userid });
-					}
-					catch (Exception e)
-					{
-						await WriteError(context, "Something went wrong while logging in", StatusCodes.Status500InternalServerError, e);
-						return;
-					}
-
-					//TODO(Simon): Wrap in JSON. Look for other occurences in file
-					await context.Response.WriteAsync(token);
-				}
-			}
-			else
-			{
-				await WriteError(context, "Request did not contain a form", StatusCodes.Status400BadRequest);
-			}
-		}
-
-		[Route("POST", "/login")]
-		private static async Task LoginPost(HttpContext context)
-		{
-			var args = context.Request.Query;
-			using var connection = new NpgsqlConnection(GetPgsqlConfig());
-			connection.Open();
-
-			string email = args["email"].ToString().ToLowerInvariant().Trim();
-			string password = args["password"];
-			bool success = await AuthenticateUser(email, password, connection);
-
-			if (success)
-			{
-				string token = NewSessionToken(32);
-				var expiry = DateTime.UtcNow.AddMinutes(sessionLength);
-				var userid = await GetUserIdFromEmail(email, connection);
-
-				try
-				{
-					await connection.ExecuteAsync("delete from sessions where userid = @userId", new { userid });
-					await connection.ExecuteAsync("insert into sessions (token, expiry, userid) values (@token, @expiry, @userId)", new { token, expiry, userid });
-				}
-				catch (Exception e)
-				{
-					await WriteError(context, "Something went wrong while processing this request", StatusCodes.Status500InternalServerError, e);
-				}
-
-				//TODO(Simon): Wrap in JSON. Look for other occurences in file
-				await context.Response.WriteAsync(token);
-			}
-			else
-			{
-				await WriteError(context, "{}", StatusCodes.Status401Unauthorized);
-			}
-		}
-
-		[Route("POST", "/video")]
+		[Route("POST", "/api/video")]
+		[Route("POST", "/api/v1/video")]
 		private static async Task VideoPost(HttpContext context)
 		{
 			context.Features.Get<IHttpMaxRequestBodySizeFeature>().MaxRequestBodySize = null;
-			
-			using var connection = new NpgsqlConnection(GetPgsqlConfig());
+
+			using var connection = new NpgsqlConnection(Database.GetPgsqlConfig());
 			connection.Open();
 
 			var form = context.Request.Form;
 			string token = form["token"];
 
-			if (await AuthenticateToken(token, connection))
+			if (await UserController.AuthenticateToken(token, connection))
 			{
 				var guid = new Guid(form["uuid"]);
 				string basePath = Path.Combine(baseFilePath, guid.ToString());
@@ -493,7 +272,7 @@ namespace VivistaServer
 
 					//TODO(Simon): Move all the file-reading and database code somewhere else. So that users don't have to reupload if database insert fails
 					var metaTask = Task.Run(() => ReadMetaFile(metaPath));
-					var userIdTask = GetUserIdFromToken(token, connection);
+					var userIdTask = UserController.GetUserIdFromToken(token, connection);
 					Task.WaitAll(metaTask, userIdTask);
 
 					var meta = metaTask.Result;
@@ -530,10 +309,104 @@ namespace VivistaServer
 			}
 		}
 
-		[Route("POST", "/extras")]
+		[Route("GET", "/api/meta")]
+		[Route("GET", "/api/v1/meta")]
+		private static async Task MetaGet(HttpContext context)
+		{
+			var args = context.Request.Query;
+			string id = args["videoid"].ToString();
+
+			if (Guid.TryParse(id, out _))
+			{
+				string filename = Path.Combine(baseFilePath, id, "meta.json");
+				await WriteFile(context, filename, "application/json", "meta.json");
+			}
+			else
+			{
+				await Write404(context);
+			}
+		}
+
+		[Route("GET", "/api/thumbnail")]
+		[Route("GET", "/api/v1/thumbnail")]
+		private static async Task ThumbnailGet(HttpContext context)
+		{
+			var args = context.Request.Query;
+			string id = args["id"];
+
+			if (Guid.TryParse(id, out _))
+			{
+				string filename = Path.Combine(baseFilePath, id, "thumb.jpg");
+				await WriteFile(context, filename, "image/jpg", "thumb.jpg");
+			}
+			else
+			{
+				await Write404(context);
+			}
+		}
+
+		[Route("GET", "/api/extra")]
+		[Route("GET", "/api/v1/extra")]
+		private static async Task ExtraGet(HttpContext context)
+		{
+			var args = context.Request.Query;
+			string videoId = args["videoid"];
+			string extraId = args["extraid"];
+
+			if (String.IsNullOrEmpty(videoId) || String.IsNullOrEmpty(extraId))
+			{
+				await Write404(context);
+				return;
+			}
+
+			if (Guid.TryParse(videoId, out _) && Guid.TryParse(extraId, out _))
+			{
+				string filename = Path.Combine(baseFilePath, videoId, "extra", extraId);
+				await WriteFile(context, filename, "application/octet-stream", "");
+			}
+			else
+			{
+				await Write404(context);
+			}
+		}
+
+		[Route("GET", "/api/extras")]
+		[Route("GET", "/api/v1/extras")]
+		private static async Task ExtrasGet(HttpContext context)
+		{
+			var args = context.Request.Query;
+			string idstring = args["videoid"];
+
+			if (String.IsNullOrEmpty(idstring))
+			{
+				await Write404(context);
+				return;
+			}
+
+			using var connection = new NpgsqlConnection(Database.GetPgsqlConfig());
+			connection.Open();
+
+			if (Guid.TryParse(idstring, out var videoId))
+			{
+				try
+				{
+					var ids = await connection.QueryAsync<Guid>(@"select guid from extra_files where video_id = @videoId", new { videoId });
+					var stringIds = new List<string>();
+					foreach (var id in ids) { stringIds.Add(id.ToString().Replace("-", "")); }
+					await context.Response.Body.WriteAsync(Utf8Json.JsonSerializer.SerializeUnsafe(stringIds));
+				}
+				catch (Exception e)
+				{
+					await WriteError(context, "Something went wrong while processing this request", StatusCodes.Status500InternalServerError, e);
+				}
+			}
+		}
+
+		[Route("POST", "/api/extras")]
+		[Route("POST", "/api/v1/extras")]
 		private static async Task ExtrasPost(HttpContext context)
 		{
-			using var connection = new NpgsqlConnection(GetPgsqlConfig());
+			using var connection = new NpgsqlConnection(Database.GetPgsqlConfig());
 			connection.Open();
 
 			var form = context.Request.Form;
@@ -542,7 +415,7 @@ namespace VivistaServer
 			string rawExtraGuids = form["extraguids"];
 			var extraGuids = rawExtraGuids.Split(',');
 
-			if (await AuthenticateToken(token, connection))
+			if (await UserController.AuthenticateToken(token, connection))
 			{
 				string basePath = Path.Combine(baseFilePath, videoGuid);
 				string extraPath = Path.Combine(basePath, "extra");
@@ -595,143 +468,11 @@ namespace VivistaServer
 			}
 		}
 
-		private static string GetPgsqlConfig()
-		{
-			if (string.IsNullOrEmpty(connectionString))
-			{
-				var host = Environment.GetEnvironmentVariable("VIVISTA_DB_HOST");
-				if (String.IsNullOrEmpty(host))
-				{
-					host = "localhost";
-				}
 
-				var user = Environment.GetEnvironmentVariable("VIVISTA_DB_USER");
-				if (String.IsNullOrEmpty(user))
-				{
-					user = "postgres";
-				}
-
-				var password = Environment.GetEnvironmentVariable("VIVISTA_DB_PASSWORD");
-				if (String.IsNullOrEmpty(password))
-				{
-					password = Environment.GetEnvironmentVariable("USER");
-				}
-
-				var database = "postgres";
-
-				connectionString = $"Server={host};Port=5432;Database={database};User Id={user};Password={password};Pooling=true;Minimum Pool Size=0;Maximum Pool Size=100;";
-			}
-
-			return connectionString;
-		}
 
 		private static bool MatchPath(PathString fullPath, PathString startSegment)
 		{
 			return fullPath.StartsWithSegments(startSegment, StringComparison.OrdinalIgnoreCase);
-		}
-
-		private static string NewSessionToken(int numBytes)
-		{
-			var bytes = new byte[numBytes];
-			rng.GetBytes(bytes);
-			return Convert.ToBase64String(bytes).Substring(0, 32);
-		}
-
-		private static async Task<int> GetUserIdFromEmail(string email, NpgsqlConnection connection)
-		{
-			int? id;
-			try
-			{
-				id = await connection.QueryFirstOrDefaultAsync<int?>("select userid from users where email = @email", new { email });
-			}
-			catch
-			{
-				id = null;
-			}
-			return id ?? -1;
-		}
-
-		private static async Task<int> GetUserIdFromUsername(string username, NpgsqlConnection connection)
-		{
-			int? id;
-			try
-			{
-				id = await connection.QueryFirstOrDefaultAsync<int?>("select userid from users where username = @username", new { username });
-			}
-			catch
-			{
-				id = null;
-			}
-			return id ?? -1;
-		}
-
-		private static async Task<int> GetUserIdFromToken(string token, NpgsqlConnection connection)
-		{
-			int? id;
-			try
-			{
-				id = await connection.QueryFirstOrDefaultAsync<int?>("select userid from sessions where token = @token", new { token });
-			}
-			catch
-			{
-				id = null;
-			}
-
-			return id ?? -1;
-		}
-
-		private static async Task<bool> UserExists(string email, NpgsqlConnection connection)
-		{
-			try
-			{
-				int count = await connection.QuerySingleAsync<int>("select count(*) from users where email=@email", new { email });
-				return count > 0;
-			}
-			catch
-			{
-				return false;
-			}
-		}
-
-		private static async Task<bool> AuthenticateUser(string email, string password, NpgsqlConnection connection)
-		{
-			string storedPassword;
-			try
-			{
-				storedPassword = await connection.QuerySingleAsync<string>("select pass from users where email = @email", new {email});
-			}
-			catch
-			{
-				return false;
-			}
-
-			return BCrypt.Net.BCrypt.Verify(password, storedPassword);
-		}
-
-		private static async Task<bool> AuthenticateToken(string token, NpgsqlConnection connection)
-		{
-			DateTime validUntil;
-
-			try
-			{
-				validUntil = await connection.QuerySingleAsync<DateTime>("select expiry from sessions where token = @token", new { token });
-			}
-			catch
-			{
-				return false;
-			}
-
-			if (DateTime.UtcNow > validUntil)
-			{
-				await connection.ExecuteAsync("delete from sessions where token = @token", new { token });
-				return false;
-			}
-			else
-			{
-				var newExpiry = DateTime.UtcNow.AddMinutes(sessionLength);
-				await connection.ExecuteAsync("update sessions set expiry = @newExpiry where token = @token", new { newExpiry, token });
-				return true;
-			}
 		}
 
 		private static async Task<bool> UserOwnsVideo(Guid guid, int userId, NpgsqlConnection connection)
@@ -813,65 +554,6 @@ namespace VivistaServer
 				size += GetDirectorySize(dir);
 			}
 			return size;
-		}
-
-
-
-
-		private static async Task WriteFile(HttpContext context, string filename, string contentType, string responseFileName)
-		{
-			//TODO(Simon): Pooling of buffers?
-			byte[] buffer = new byte[fileBufferSize];
-
-			try
-			{
-				context.Response.ContentType = contentType;
-				context.Response.Headers["Content-Disposition"] = "attachment; filename=" + responseFileName;
-				context.Response.ContentLength = new FileInfo(filename).Length;
-
-				using (var stream = File.OpenRead(filename))
-				{
-					int read;
-					while ((read = await stream.ReadAsync(buffer, 0, buffer.Length)) > 0)
-					{
-						await context.Response.Body.WriteAsync(buffer.AsMemory(0, read));
-					}
-				}
-			}
-			catch (FileNotFoundException)
-			{
-				await Write404(context);
-			}
-			catch (Exception e)
-			{
-				await WriteError(context, "Something went wrong while reading this file", StatusCodes.Status500InternalServerError, e);
-			}
-		}
-
-		//NOTE(Simon): Exception is only output in DEBUG
-		private static async Task WriteError(HttpContext context, string error, int errorCode, Exception e = null)
-		{
-			context.Response.StatusCode = errorCode;
-			await context.Response.WriteAsync($"{{\"error\": \"{error}\"}}");
-#if DEBUG
-			if (e != null)
-			{
-				await context.Response.WriteAsync(Environment.NewLine);
-				await context.Response.WriteAsync(e.ToString());
-				Console.WriteLine(e.StackTrace);
-			}
-#endif
-		}
-
-		private static async Task Write404(HttpContext context, string message = "File Not Found")
-		{
-			await WriteError(context, message, StatusCodes.Status404NotFound);
-		}
-
-		[Route("", "404")]
-		private static async Task Error404(HttpContext context)
-		{
-			await Write404(context);
 		}
 	}
 }
