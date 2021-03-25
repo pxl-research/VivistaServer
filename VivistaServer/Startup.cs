@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Dapper;
+using Fluid;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -105,6 +106,9 @@ namespace VivistaServer
 				}
 #endif
 				context.Response.ContentType = "application/json";
+
+				parser.TryParse()
+
 				await router.RouteAsync(context.Request, context);
 			});
 		}

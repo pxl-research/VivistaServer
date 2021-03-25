@@ -2,6 +2,7 @@
 using System.Security.Cryptography;
 using System.Threading.Tasks;
 using Dapper;
+using Fluid;
 using Microsoft.AspNetCore.Http;
 using Npgsql;
 using static VivistaServer.CommonController;
@@ -216,6 +217,8 @@ namespace VivistaServer
 			string token = args["token"].ToString();
 
 			//TODO(Simon): Show HTML. Put token in hidden form element
+			var model = new TemplateContext(new { test = "test" });
+			await context.Response.WriteAsync(await HTMLRenderer.Render("testTemplate", model));
 		}
 
 		[Route("POST", "/reset_password_finish")]
