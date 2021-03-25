@@ -8,6 +8,7 @@ using static VivistaServer.CommonController;
 
 namespace VivistaServer
 {
+	//TODO(Simon): User roles, role permissions
 	public class UserController
 	{
 		private const int passwordResetExpiry = 1 * 60;
@@ -55,12 +56,19 @@ namespace VivistaServer
 				{
 					try
 					{
-						int success = await connection.ExecuteAsync("insert into users (username, email, pass) values (@username, @email, @hashedPassword)", new { username, email, hashedPassword });
+						string verificationToken = NewVerifyEmailToken();
+						int success = await connection.ExecuteAsync(@"insert into users (username, email, pass, verification_token)
+																	values (@username, @email, @hashedPassword, @verificationToken)", 
+																	new { username, email, hashedPassword, verificationToken});
 
 						if (success == 0)
 						{
 							await WriteError(context, "Something went wrong while registering", StatusCodes.Status500InternalServerError);
 							return;
+						}
+						else
+						{
+							await EmailClient.SendEmailConfirmationMail(email, verificationToken);
 						}
 					}
 					catch (Exception e)
@@ -77,7 +85,7 @@ namespace VivistaServer
 
 				//NOTE(Simon): Create session token to immediately log user in.
 				{
-					var token = NewSessionToken(32);
+					var token = NewToken(32);
 					var expiry = DateTime.UtcNow.AddMinutes(sessionExpiry);
 					var userid = await GetUserIdFromEmail(email, connection);
 
@@ -121,7 +129,7 @@ namespace VivistaServer
 
 			if (success)
 			{
-				string token = NewSessionToken(32);
+				string token = NewToken(32);
 				var expiry = DateTime.UtcNow.AddMinutes(sessionExpiry);
 				var userid = await GetUserIdFromEmail(email, connection);
 
@@ -141,6 +149,30 @@ namespace VivistaServer
 			else
 			{
 				await WriteError(context, "{}", StatusCodes.Status401Unauthorized);
+			}
+		}
+
+		[Route("GET", "/verify_email")]
+		private static async Task VerifyEmailGet(HttpContext context)
+		{
+			using var connection = new NpgsqlConnection(Database.GetPgsqlConfig());
+			connection.Open();
+
+			var args = context.Request.Query;
+			string email = args["email"].ToString();
+			string token = args["token"].ToString();
+
+			int userid = await GetUserIdFromEmail(email, connection);
+
+			bool success = await VerifyEmail(userid, token, connection);
+
+			if (success)
+			{
+
+			}
+			else
+			{
+
 			}
 		}
 
@@ -169,7 +201,7 @@ namespace VivistaServer
 				//TODO(Simon): Send email
 				if (token != null)
 				{
-
+					await EmailClient.SendPasswordResetMail(email, token);
 				}
 			}
 		}
@@ -197,8 +229,10 @@ namespace VivistaServer
 			string token = form["token"].ToString();
 			string password = form["password"].ToString();
 			string confirmPassword = form["confirm_password"].ToString();
+			int userid = await GetUserIdFromEmail(email, connection);
 
-			if (await AuthenticatePasswordResetToken(email, token, connection))
+
+			if (await AuthenticatePasswordResetToken(userid, token, connection))
 			{
 				if (password != confirmPassword)
 				{
@@ -229,7 +263,7 @@ namespace VivistaServer
 		}
 
 
-		private static string NewSessionToken(int numBytes)
+		private static string NewToken(int numBytes)
 		{
 			var bytes = new byte[numBytes];
 			rng.GetBytes(bytes);
@@ -309,29 +343,54 @@ namespace VivistaServer
 			return rows > 0;
 		}
 
+		private static string NewVerifyEmailToken()
+		{
+			return NewToken(16);
+		}
+
+		private static async Task<bool> VerifyEmail(int userid, string token, NpgsqlConnection connection)
+		{
+			bool valid;
+			try
+			{
+				int count = await connection.QuerySingleAsync<int>("select count(*) from users where userid=@userid and verification_token=@token", new { userid, token });
+
+				valid = count > 0;
+			}
+			catch
+			{
+				return false;
+			}
+
+			return valid;
+		}
+
 		private static async Task<string> CreatePasswordResetToken(string email, NpgsqlConnection connection)
 		{
-			string token = NewSessionToken(32);
+			string token = NewToken(32);
 			var expiry = DateTime.UtcNow.AddMinutes(passwordResetExpiry);
 
 			int userid = await GetUserIdFromEmail(email, connection);
 
 			if (userid != -1)
 			{
-				await connection.ExecuteAsync("insert into password_reset_tokens (token, expiry, userid) values (@token, @expiry, @userId)", new { token, expiry, userid });
+				await connection.ExecuteAsync(@"insert into password_reset_tokens (token, expiry, userid) 
+											values (@token, @expiry, @userId)
+											on conflict(userid)
+											do update set token=@token, expiry=@expiry", new { token, expiry, userid });
 				return token;
 			}
 
 			return null;
 		}
 
-		private static async Task<bool> AuthenticatePasswordResetToken(string email, string token, NpgsqlConnection connection)
+		private static async Task<bool> AuthenticatePasswordResetToken(int userid, string token, NpgsqlConnection connection)
 		{
 			DateTime validUntil;
 
 			try
 			{
-				validUntil = await connection.QuerySingleAsync<DateTime>("select expiry from password_reset_tokens where email=@email and token=@token", new { email, token });
+				validUntil = await connection.QuerySingleAsync<DateTime>("select expiry from password_reset_tokens where userid=@userid and token=@token", new { userid, token });
 			}
 			catch
 			{

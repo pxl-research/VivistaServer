@@ -63,6 +63,8 @@ namespace VivistaServer
 			});
 			
 			router = new Router();
+
+			EmailClient.InitCredentials();
 		}
 
 		public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
@@ -70,10 +72,12 @@ namespace VivistaServer
 			if (env.IsDevelopment())
 			{
 				app.UseDeveloperExceptionPage();
+				CommonController.baseURL = "https://localhost:5001";
 			}
 			else
 			{
 				app.UseHsts();
+				CommonController.baseURL = "https://vivista.net";
 			}
 
 			rng = new RNGCryptoServiceProvider();

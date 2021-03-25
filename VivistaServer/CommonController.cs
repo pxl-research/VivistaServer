@@ -16,6 +16,8 @@ namespace VivistaServer
 
 		public static RNGCryptoServiceProvider rng;
 
+		public static string baseURL;
+
 		public static async Task WriteFile(HttpContext context, string filename, string contentType, string responseFileName)
 		{
 			//TODO(Simon): Pooling of buffers?
