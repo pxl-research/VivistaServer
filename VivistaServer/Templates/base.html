@@ -1,0 +1,39 @@
+<!doctype html>
+
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+
+	<title>Vivista</title>
+	<meta name="description" content="Educational VR tool">
+	<meta name="author" content="Vivista">
+
+	<link rel="stylesheet" href="https://unpkg.com/purecss@2.0.5/build/pure-min.css">
+	<link rel="stylesheet" href="style.css?v=1.0">
+
+</head>
+
+<body class="pure-g">
+	<div class="pure-u-5-5">
+		<button class="pure-button" id="switch-themes">Switch theme</button>
+		<p>Test text</p>
+	</div>
+</body>
+</html>
+
+<script src="js/scripts.js"></script>
+<script type="text/javascript">
+	document.getElementById("switch-themes").addEventListener("click", function()
+	{
+		var data = document.documentElement.dataset;
+		if (data.theme == "dark")
+		{
+			data.theme = "";
+		}
+		else
+		{
+			data.theme = "dark";
+		}
+	});
+</script>
