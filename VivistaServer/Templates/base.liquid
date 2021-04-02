@@ -1,11 +1,11 @@
 <!doctype html>
 
-<html lang="en" data-theme="">
+<html lang="en" data-theme="dark">
 <head>
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 
-	<title>Vivista</title>
+	<title>Vivista - Educational VR tool</title>
 	<meta name="description" content="Educational VR tool">
 	<meta name="author" content="Vivista">
 
@@ -38,21 +38,7 @@
 		</ul>
 	</header>
 	<div class="pure-g main-content">
-		<div class="pure-u-1">
-			<div class="pure-button-group" role="group">
-				<a class="pure-button" href="?tab=new">New</a>
-				<a class="pure-button" href="?tab=popular">Popular</a>
-				<a class="pure-button pure-button-active" href="?tab=most-watched">Most watched</a>
-			</div>
-			<br>
-		</div>
-
-		<div class="video-tile pure-u-1 pure-u-sm-1-2 pure-u-md-1-3 pure-u-lg-1-4 pure-u-xl-1-6">
-			<img class="video-thumb pure-img" src="thumb.png">
-			<p><a href="#">Airfield hangar</a></p>
-			<a class="uploader">Hogeschool PXL</a>
-		</div>
-
+		{{ content | raw}}
 	</div>
 	<footer class="footer">
 		<div class="pure-g">
@@ -76,18 +62,23 @@
 </body>
 </html>
 
-<script src="js/scripts.js"></script>
+<!--<script src="scripts.js"></script>-->
 <script type="text/javascript">
 	var el = document.getElementById("dark-mode-toggle");
+	var data = document.documentElement.dataset;
+
 	el.addEventListener("change", function()
 	{
-		var data = document.documentElement.dataset;
 		data.theme = el.checked ? "dark" : "";
+		localStorage.setItem("theme", data.theme);
 	});
 	window.onload = function()
 	{
-		var el = document.getElementById("dark-mode-toggle");
-		var data = document.documentElement.dataset;
+		data.theme = localStorage.getItem("theme");
+		if (data.theme === null)
+		{
+			data.theme = document.documentElement.dataset;
+		}
 		el.checked = data.theme == "dark"
 	}
 
