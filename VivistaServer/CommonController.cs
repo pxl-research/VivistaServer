@@ -73,5 +73,15 @@ namespace VivistaServer
 		{
 			await Write404(context);
 		}
+
+		public static void SetJSONContentType(HttpContext context)
+		{
+			context.Response.ContentType = "application/json";
+		}
+
+		public static void SetHTMLContentType(HttpContext context)
+		{
+			context.Response.ContentType = "text/html";
+		}
 	}
 }

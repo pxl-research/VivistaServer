@@ -156,6 +156,7 @@ namespace VivistaServer
 		[Route("GET", "/verify_email")]
 		private static async Task VerifyEmailGet(HttpContext context)
 		{
+			SetHTMLContentType(context);
 			using var connection = new NpgsqlConnection(Database.GetPgsqlConfig());
 			connection.Open();
 
@@ -210,6 +211,7 @@ namespace VivistaServer
 		[Route("GET", "/reset_password_finish")]
 		private static async Task ResetPasswordFinishGet(HttpContext context)
 		{
+			SetHTMLContentType(context);
 			using var connection = new NpgsqlConnection(Database.GetPgsqlConfig());
 			connection.Open();
 
@@ -224,6 +226,7 @@ namespace VivistaServer
 		[Route("POST", "/reset_password_finish")]
 		private static async Task ResetPasswordFinishPost(HttpContext context)
 		{
+			SetHTMLContentType(context);
 			using var connection = new NpgsqlConnection(Database.GetPgsqlConfig());
 			connection.Open();
 

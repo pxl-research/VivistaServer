@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
@@ -62,10 +61,12 @@ namespace VivistaServer
 			{
 				config.MultipartBodyLengthLimit = long.MaxValue;
 			});
-			
+
 			router = new Router();
 
 			EmailClient.InitCredentials();
+
+			HTMLRenderer.RegisterLayout(BaseLayout.Web, "Templates/base.liquid");
 		}
 
 		public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
@@ -81,36 +82,42 @@ namespace VivistaServer
 				CommonController.baseURL = "https://vivista.net";
 			}
 
+			app.UseStaticFiles();
+
 			rng = new RNGCryptoServiceProvider();
 			Task.Run(PeriodicFunction);
 
 			app.Run(async (context) =>
 			{
-#if DEBUG
-				Console.WriteLine("Request data:");
-				Console.WriteLine($"\tPath: {context.Request.Path}");
-				Console.WriteLine($"\tMethod: {context.Request.Method}");
-				Console.WriteLine("\tQuery: ");
-				foreach (var kvp in context.Request.Query)
-				{
-					Console.WriteLine($"\t\t{kvp.Key}: {kvp.Value}");
-				}
-				Console.WriteLine("\tHeaders: ");
-				foreach (var kvp in context.Request.Headers)
-				{
-					Console.WriteLine($"\t\t{kvp.Key}: {kvp.Value}");
-				}
-				if (!context.Request.HasFormContentType)
-				{
-					Console.WriteLine($"\tBody: {new StreamReader(context.Request.Body).ReadToEnd()}");
-				}
-#endif
-				context.Response.ContentType = "application/json";
+				PrintDebugData(context);
 
-				parser.TryParse()
+				SetJSONContentType(context);
 
 				await router.RouteAsync(context.Request, context);
 			});
+		}
+
+		private void PrintDebugData(HttpContext context)
+		{
+#if DEBUG
+			Console.WriteLine("Request data:");
+			Console.WriteLine($"\tPath: {context.Request.Path}");
+			Console.WriteLine($"\tMethod: {context.Request.Method}");
+			Console.WriteLine("\tQuery: ");
+			foreach (var kvp in context.Request.Query)
+			{
+				Console.WriteLine($"\t\t{kvp.Key}: {kvp.Value}");
+			}
+			Console.WriteLine("\tHeaders: ");
+			foreach (var kvp in context.Request.Headers)
+			{
+				Console.WriteLine($"\t\t{kvp.Key}: {kvp.Value}");
+			}
+			if (!context.Request.HasFormContentType)
+			{
+				Console.WriteLine($"\tBody: {new StreamReader(context.Request.Body).ReadToEnd()}");
+			}
+#endif
 		}
 
 		private static async Task PeriodicFunction()
@@ -476,6 +483,27 @@ namespace VivistaServer
 			}
 		}
 
+		[Route("GET", "/")]
+		private static async Task IndexGet(HttpContext context)
+		{
+			SetHTMLContentType(context);
+
+			int count = 10;
+			int offset = 0;
+
+			using var connection = new NpgsqlConnection(Database.GetPgsqlConfig());
+			connection.Open();
+
+			var videos = await connection.QueryAsync<Video>(@"select v.id, v.userid, u.username, v.timestamp, v.downloadsize, v.title, v.description, v.length from videos v
+								inner join users u on v.userid = u.userid
+								order by v.timestamp desc
+								limit @count
+								offset @offset", new { count, offset });
+
+			var templateContext = new TemplateContext(new {videos});
+
+			await context.Response.WriteAsync(await HTMLRenderer.Render("Templates\\index.liquid", templateContext));
+		}
 
 
 		private static bool MatchPath(PathString fullPath, PathString startSegment)
@@ -563,5 +591,6 @@ namespace VivistaServer
 			}
 			return size;
 		}
+
 	}
 }
