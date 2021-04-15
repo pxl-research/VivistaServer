@@ -39,7 +39,7 @@ namespace VivistaServer
 			var message = new MimeMessage();
 			message.From.Add(noreplyAddress);
 			message.To.Add(new MailboxAddress(receiver, receiver));
-			message.Subject = "Vivista password reset code";
+			message.Subject = "Confirm email address";
 			message.Body = new TextPart("plain") { Text = $@"Thank you for creating an account on Vivista! 
 														Click or copy and paste the following link to verify your email address. 
 

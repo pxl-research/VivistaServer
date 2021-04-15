@@ -18,9 +18,10 @@
 
 <body>
 	<header class="home-menu pure-menu pure-menu-horizontal pure-menu-fixed">
-		<a href="#" class="pure-menu-heading pure-menu-image-link"><img src="logo.png"></a>
+		<a href="/" class="pure-menu-heading pure-menu-image-link"><img src="logo.png"></a>
 
 		<ul id="menu-right" class="pure-menu-list">
+			<li class="pure-menu-item"><a href="/register" class="pure-menu-link">Register</a></li>
 			<li class="pure-menu-item pure-menu-has-children pure-menu-allow-hover">
 				<a href="#" class="pure-menu-link pure-menu-image-link"><img class="profile-picture-small" src="profile.png"></a>
 				<ul class="pure-menu-children">
@@ -37,7 +38,7 @@
 			</li>
 		</ul>
 	</header>
-	<div class="pure-g main-content">
+	<div class="main-content">
 		{{ content | raw}}
 	</div>
 	<footer class="footer">

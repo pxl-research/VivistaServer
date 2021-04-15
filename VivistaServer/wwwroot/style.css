@@ -10,6 +10,7 @@ html {
 	--shadow: hsl(0, 0%, 75%);
 	--footer-bg: hsl(200, 0%, 85%);
 	--footer-border: hsl(200, 0%, 80%);
+	--anchor-font: hsl(210, 100%, 50%);
 
 	--toggle-bg: #aaa;
 	--toggle-bg-active: #eee;
@@ -29,6 +30,7 @@ html[data-theme='dark'] {
 	--shadow: hsl(0, 0%, 7.5%);
 	--footer-bg: hsl(200, 0%, 28%);
 	--footer-border: hsl(200, 0%, 40%);
+	--anchor-font: hsl(50, 100%, 50%);
 
 	--toggle-fg: #000;
 }
@@ -39,6 +41,14 @@ body {
 	min-height: 100%;
 	display: flex;
 	flex-direction: column;
+}
+
+a {
+	color: var(--anchor-font);
+}
+
+.center {
+	justify-content: center;
 }
 
 .main-content {
@@ -61,6 +71,11 @@ body {
 	border-radius: 50% 50%;
 	vertical-align: middle;
 }
+
+.formerror {
+	color: red;
+}
+
 
 .video-tile {
 	box-sizing: border-box;

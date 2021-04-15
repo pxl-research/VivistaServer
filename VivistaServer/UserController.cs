@@ -16,109 +16,102 @@ namespace VivistaServer
 		private const int sessionExpiry = 1 * 24 * 60;
 		private const int bcryptWorkFactor = 12;
 
+		[Route("GET", "/register")]
+		private static async Task RegisterGet(HttpContext context)
+		{
+			SetHTMLContentType(context);
 
-		[Route("POST", "/api/register")]
-		[Route("POST", "/api/v1/register")]
+			await context.Response.WriteAsync(await HTMLRenderer.Render("Templates\\register.liquid", null));
+		}
+
+		[Route("POST", "/register")]
 		private static async Task RegisterPost(HttpContext context)
 		{
-			if (context.Request.HasFormContentType)
+			SetHTMLContentType(context);
+
+			string result;
+			int code;
+
+			var form = context.Request.Form;
+
+			try
 			{
-				var form = context.Request.Form;
+				(result, code) = await RegisterWithForm(context);
+			}
+			catch (Exception e)
+			{
+				var templateContext = new TemplateContext(new {
+					username = form["username"].ToString(), 
+					email = form["email"].ToString(), 
+					error = "An unknown error happened while registering this account. Try again later." });
+				await context.Response.WriteAsync(await HTMLRenderer.Render("Templates\\register.liquid", templateContext));
+				return;
+			}
 
-				string username = form["username"].ToString().ToLowerInvariant().Trim();
-				string password = form["password"].ToString();
-				string email = form["email"].ToString().ToLowerInvariant().Trim();
-
-				if (username.Length == 0)
+			if (code != StatusCodes.Status200OK)
+			{
+				var templateContext = new TemplateContext(new
 				{
-					await WriteError(context, "Username too short", StatusCodes.Status400BadRequest);
-					return;
-				}
-
-				if (password.Length == 0)
-				{
-					await WriteError(context, "Password too short", StatusCodes.Status400BadRequest);
-					return;
-				}
-
-				if (email.Length == 0)
-				{
-					await WriteError(context, "Email too short", StatusCodes.Status400BadRequest);
-					return;
-				}
-
-				using var connection = new NpgsqlConnection(Database.GetPgsqlConfig());
-				connection.Open();
-
-				var userExists = await UserExists(email, connection);
-				var hashedPassword = BCrypt.Net.BCrypt.HashPassword(password, bcryptWorkFactor);
-
-				if (!userExists)
-				{
-					try
-					{
-						string verificationToken = NewVerifyEmailToken();
-						int success = await connection.ExecuteAsync(@"insert into users (username, email, pass, verification_token)
-																	values (@username, @email, @hashedPassword, @verificationToken)", 
-																	new { username, email, hashedPassword, verificationToken});
-
-						if (success == 0)
-						{
-							await WriteError(context, "Something went wrong while registering", StatusCodes.Status500InternalServerError);
-							return;
-						}
-						else
-						{
-							await EmailClient.SendEmailConfirmationMail(email, verificationToken);
-						}
-					}
-					catch (Exception e)
-					{
-						await WriteError(context, "Something went wrong while registering", StatusCodes.Status500InternalServerError, e);
-						return;
-					}
-				}
-				else
-				{
-					await WriteError(context, "This user already exists", StatusCodes.Status409Conflict);
-					return;
-				}
-
-				//NOTE(Simon): Create session token to immediately log user in.
-				{
-					var token = NewToken(32);
-					var expiry = DateTime.UtcNow.AddMinutes(sessionExpiry);
-					var userid = await GetUserIdFromEmail(email, connection);
-
-					if (userid == -1)
-					{
-						await WriteError(context, "Something went wrong while logging in", StatusCodes.Status500InternalServerError);
-						return;
-					}
-
-					try
-					{
-						await connection.ExecuteAsync("insert into sessions (token, expiry, userid) values (@token, @expiry, @userid)", new { token, expiry, userid });
-					}
-					catch (Exception e)
-					{
-						await WriteError(context, "Something went wrong while logging in", StatusCodes.Status500InternalServerError, e);
-						return;
-					}
-
-					//TODO(Simon): Wrap in JSON. Look for other occurences in file
-					await context.Response.WriteAsync(token);
-				}
+					username = form["username"].ToString(),
+					email = form["email"].ToString(),
+					error = result
+				});
+				await context.Response.WriteAsync(await HTMLRenderer.Render("Templates\\register.liquid", templateContext));
 			}
 			else
 			{
-				await WriteError(context, "Request did not contain a form", StatusCodes.Status400BadRequest);
+				var cookies = context.Response.Cookies;
+				cookies.Append("session", result);
+				await context.Response.WriteAsync(await HTMLRenderer.Render("Templates\\registerSuccess.liquid", null));
 			}
+		}
+
+		[Route("POST", "/api/register")]
+		[Route("POST", "/api/v1/register")]
+		private static async Task RegisterPostApi(HttpContext context)
+		{
+			string result;
+			int code;
+
+			try
+			{
+				(result, code) = await RegisterWithForm(context);
+			}
+			catch (Exception e)
+			{
+				await WriteError(context, "Something went wrong while processing this request", StatusCodes.Status500InternalServerError, e);
+				return;
+			}
+
+			if (code != StatusCodes.Status200OK)
+			{
+				await WriteError(context, result, code);
+			}
+			else
+			{
+				await context.Response.Body.WriteAsync(Utf8Json.JsonSerializer.SerializeUnsafe(new { token = result }));
+			}
+		}
+
+		[Route("GET", "/login")]
+		private static async Task LoginGet(HttpContext context)
+		{
+			SetHTMLContentType(context);
+
+			await context.Response.WriteAsync(await HTMLRenderer.Render("Templates\\login.liquid", null));
+		}
+
+		[Route("POST", "/login")]
+		private static async Task LoginPost(HttpContext context)
+		{
+			SetHTMLContentType(context);
+
+			await context.Response.WriteAsync(await HTMLRenderer.Render("Templates\\loginSuccess.liquid", null));
 		}
 
 		[Route("POST", "/api/login")]
 		[Route("POST", "/api/v1/login")]
-		private static async Task LoginPost(HttpContext context)
+		private static async Task LoginPostApi(HttpContext context)
 		{
 			using var connection = new NpgsqlConnection(Database.GetPgsqlConfig());
 			connection.Open();
@@ -268,13 +261,71 @@ namespace VivistaServer
 			}
 		}
 
-
-		private static string NewToken(int numBytes)
+		//NOTE(Simon): If return int == 200, string == session token. If return int != 200, string == error description
+		private static async Task<(string, int)> RegisterWithForm(HttpContext context)
 		{
-			var bytes = new byte[numBytes];
-			rng.GetBytes(bytes);
-			return Convert.ToBase64String(bytes).Substring(0, 32);
+			if (context.Request.HasFormContentType)
+			{
+				var form = context.Request.Form;
+
+				string username = form["username"].ToString().ToLowerInvariant().Trim();
+				string password = form["password"].ToString();
+				string email = form["email"].ToString().ToLowerInvariant().Trim();
+
+				if (username.Length < 3)
+				{
+					return ("Username too short", StatusCodes.Status400BadRequest);
+				}
+
+				if (password.Length < 8)
+				{
+					return ("Password too short", StatusCodes.Status400BadRequest);
+				}
+
+				//NOTE(Simon): Shortest possible is a@a.a
+				if (email.Length < 5)
+				{
+					return ("Email too short", StatusCodes.Status400BadRequest);
+				}
+
+				using var connection = new NpgsqlConnection(Database.GetPgsqlConfig());
+				connection.Open();
+
+				var userExists = await UserExists(email, connection);
+				var hashedPassword = BCrypt.Net.BCrypt.HashPassword(password, bcryptWorkFactor);
+
+				if (!userExists)
+				{
+					string verificationToken = NewVerifyEmailToken();
+					int success = await connection.ExecuteAsync(@"insert into users (username, email, pass, verification_token)
+																	values (@username, @email, @hashedPassword, @verificationToken)",
+																new { username, email, hashedPassword, verificationToken });
+
+					if (success == 0)
+					{
+						throw new Exception("Something went wrong while writing new user to db");
+					}
+
+					await EmailClient.SendEmailConfirmationMail(email, verificationToken);
+				}
+				else
+				{
+					return ("This user already exists", StatusCodes.Status409Conflict);
+				}
+
+				//NOTE(Simon): Create session token to immediately log user in.
+				{
+					var token = await CreateNewSession(email, connection);
+
+					return (token, StatusCodes.Status200OK);
+				}
+			}
+			else
+			{
+				return ("Request did not contain a form", StatusCodes.Status400BadRequest);
+			}
 		}
+
 
 		private static async Task<int> GetUserIdFromEmail(string email, NpgsqlConnection connection)
 		{
@@ -349,6 +400,18 @@ namespace VivistaServer
 			return rows > 0;
 		}
 
+		private static string NewToken(int numBytes)
+		{
+			var bytes = new byte[numBytes];
+			rng.GetBytes(bytes);
+			return Convert.ToBase64String(bytes).Substring(0, numBytes);
+		}
+
+		private static string NewSessionToken()
+		{
+			return NewToken(32);
+		}
+
 		private static string NewVerifyEmailToken()
 		{
 			return NewToken(16);
@@ -388,6 +451,22 @@ namespace VivistaServer
 			}
 
 			return null;
+		}
+
+		private static async Task<string> CreateNewSession(string email, NpgsqlConnection connection)
+		{
+			var token = NewSessionToken();
+			var expiry = DateTime.UtcNow.AddMinutes(sessionExpiry);
+			var userid = await GetUserIdFromEmail(email, connection);
+
+			if (userid == -1)
+			{
+				throw new Exception("Something went wrong while retrieving UserID");
+			}
+
+			await connection.ExecuteAsync("insert into sessions (token, expiry, userid) values (@token, @expiry, @userid)", new { token, expiry, userid });
+
+			return token;
 		}
 
 		private static async Task<bool> AuthenticatePasswordResetToken(int userid, string token, NpgsqlConnection connection)
