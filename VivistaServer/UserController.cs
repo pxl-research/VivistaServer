@@ -9,6 +9,19 @@ using static VivistaServer.CommonController;
 
 namespace VivistaServer
 {
+	class RegisterModel
+	{
+		public string username;
+		public string email;
+		public string error;
+	}
+
+	class LoginModel
+	{
+		public string email;
+		public string error;
+	}
+
 	//TODO(Simon): User roles, role permissions
 	public class UserController
 	{
@@ -32,7 +45,12 @@ namespace VivistaServer
 			string result;
 			int code;
 
-			var form = context.Request.Form;
+			var model = new RegisterModel
+			{
+				username = context.Request.Form["username"].ToString(),
+				email = context.Request.Form["email"].ToString(),
+				error = ""
+			};
 
 			try
 			{
@@ -40,22 +58,16 @@ namespace VivistaServer
 			}
 			catch (Exception e)
 			{
-				var templateContext = new TemplateContext(new {
-					username = form["username"].ToString(), 
-					email = form["email"].ToString(), 
-					error = "An unknown error happened while registering this account. Try again later." });
+				model.error = "An unknown error happened while registering this account. Please try again later.";
+				var templateContext = new TemplateContext(model);
 				await context.Response.WriteAsync(await HTMLRenderer.Render("Templates\\register.liquid", templateContext));
 				return;
 			}
 
 			if (code != StatusCodes.Status200OK)
 			{
-				var templateContext = new TemplateContext(new
-				{
-					username = form["username"].ToString(),
-					email = form["email"].ToString(),
-					error = result
-				});
+				model.error = result;
+				var templateContext = new TemplateContext(model);
 				await context.Response.WriteAsync(await HTMLRenderer.Render("Templates\\register.liquid", templateContext));
 			}
 			else
@@ -106,43 +118,65 @@ namespace VivistaServer
 		{
 			SetHTMLContentType(context);
 
-			await context.Response.WriteAsync(await HTMLRenderer.Render("Templates\\loginSuccess.liquid", null));
+			string result;
+			int code;
+
+			var model = new LoginModel
+			{
+				email = context.Request.Form["email"].ToString(),
+			};
+
+			try
+			{
+				(result, code) = await LoginWithForm(context);
+			}
+			catch (Exception e)
+			{
+				model.error = "An unknown error happened while logging in. Please try again later.";
+				var templateContext = new TemplateContext(model);
+				await context.Response.WriteAsync(await HTMLRenderer.Render("Templates\\login.liquid", templateContext));
+				return;
+			}
+
+			if (code != StatusCodes.Status200OK)
+			{
+				model.error = result;
+				var templateContext = new TemplateContext(model);
+				await context.Response.WriteAsync(await HTMLRenderer.Render("Templates\\login.liquid", templateContext));
+			}
+			else
+			{
+				var cookies = context.Response.Cookies;
+				cookies.Append("session", result);
+
+				context.Response.Redirect("/");
+			}
 		}
 
 		[Route("POST", "/api/login")]
 		[Route("POST", "/api/v1/login")]
 		private static async Task LoginPostApi(HttpContext context)
 		{
-			using var connection = new NpgsqlConnection(Database.GetPgsqlConfig());
-			connection.Open();
+			string result;
+			int code;
 
-			var form = context.Request.Form;
-			string email = form["email"].ToString().ToLowerInvariant().Trim();
-			string password = form["password"];
-			bool success = await AuthenticateUser(email, password, connection);
-
-			if (success)
+			try
 			{
-				string token = NewToken(32);
-				var expiry = DateTime.UtcNow.AddMinutes(sessionExpiry);
-				var userid = await GetUserIdFromEmail(email, connection);
+				(result, code) = await LoginWithForm(context);
+			}
+			catch (Exception e)
+			{
+				await WriteError(context, "Something went wrong while processing this request", StatusCodes.Status500InternalServerError, e);
+				return;
+			}
 
-				try
-				{
-					await connection.ExecuteAsync("delete from sessions where userid = @userId", new { userid });
-					await connection.ExecuteAsync("insert into sessions (token, expiry, userid) values (@token, @expiry, @userId)", new { token, expiry, userid });
-				}
-				catch (Exception e)
-				{
-					await WriteError(context, "Something went wrong while processing this request", StatusCodes.Status500InternalServerError, e);
-				}
-
-				//TODO(Simon): Wrap in JSON. Look for other occurrences in file
-				await context.Response.WriteAsync(token);
+			if (code != StatusCodes.Status200OK)
+			{
+				await WriteError(context, "{}", StatusCodes.Status401Unauthorized);
 			}
 			else
 			{
-				await WriteError(context, "{}", StatusCodes.Status401Unauthorized);
+				await context.Response.Body.WriteAsync(Utf8Json.JsonSerializer.SerializeUnsafe(new { token = result }));
 			}
 		}
 
@@ -326,6 +360,33 @@ namespace VivistaServer
 			}
 		}
 
+		private static async Task<(string, int)> LoginWithForm(HttpContext context)
+		{
+			using var connection = new NpgsqlConnection(Database.GetPgsqlConfig());
+			connection.Open();
+
+			var form = context.Request.Form;
+			string email = form["email"].ToString().ToLowerInvariant().Trim();
+			string password = form["password"];
+			bool success = await AuthenticateUser(email, password, connection);
+
+			if (success)
+			{
+				string token = NewToken(32);
+				var expiry = DateTime.UtcNow.AddMinutes(sessionExpiry);
+				var userid = await GetUserIdFromEmail(email, connection);
+
+				await connection.ExecuteAsync("delete from sessions where userid = @userId", new { userid });
+				await connection.ExecuteAsync("insert into sessions (token, expiry, userid) values (@token, @expiry, @userId)", new { token, expiry, userid });
+
+				//TODO(Simon): Wrap in JSON. Look for other occurrences in file
+				return (token, StatusCodes.Status200OK);
+			}
+			else
+			{
+				return ("This combination of email and password was not found", StatusCodes.Status401Unauthorized);
+			}
+		}
 
 		private static async Task<int> GetUserIdFromEmail(string email, NpgsqlConnection connection)
 		{
