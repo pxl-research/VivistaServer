@@ -1,13 +1,21 @@
 ﻿using System;
+using Npgsql;
 
 namespace VivistaServer
 {
 	public class Database
 	{
+		public static NpgsqlConnection OpenNewConnection()
+		{
+			var conn = new NpgsqlConnection(GetPgsqlConfig());
+			conn.Open();
+			return conn;
+		}
+
 		//NOTE(Simon): Use GetPgsqlConfig() instead of this directly, it handles caching of this variable.
 		private static string connectionString;
 
-		public static string GetPgsqlConfig()
+		private static string GetPgsqlConfig()
 		{
 			if (string.IsNullOrEmpty(connectionString))
 			{

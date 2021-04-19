@@ -152,8 +152,7 @@ namespace VivistaServer
 				count = indexCountDefault;
 			}
 
-			using var connection = new NpgsqlConnection(Database.GetPgsqlConfig());
-			connection.Open();
+			using var connection = Database.OpenNewConnection();
 
 			//TODO(Simon): Fuzzy search for username
 			if (!String.IsNullOrEmpty(author))
@@ -210,8 +209,7 @@ namespace VivistaServer
 				return;
 			}
 
-			using var connection = new NpgsqlConnection(Database.GetPgsqlConfig());
-			connection.Open();
+			using var connection = Database.OpenNewConnection();
 
 			Video video;
 			try
@@ -258,8 +256,7 @@ namespace VivistaServer
 		{
 			context.Features.Get<IHttpMaxRequestBodySizeFeature>().MaxRequestBodySize = null;
 
-			using var connection = new NpgsqlConnection(Database.GetPgsqlConfig());
-			connection.Open();
+			using var connection = Database.OpenNewConnection();
 
 			var form = context.Request.Form;
 			string token = form["token"];
@@ -398,8 +395,7 @@ namespace VivistaServer
 				return;
 			}
 
-			using var connection = new NpgsqlConnection(Database.GetPgsqlConfig());
-			connection.Open();
+			using var connection = Database.OpenNewConnection();
 
 			if (Guid.TryParse(idstring, out var videoId))
 			{
@@ -421,8 +417,7 @@ namespace VivistaServer
 		[Route("POST", "/api/v1/extras")]
 		private static async Task ExtrasPost(HttpContext context)
 		{
-			using var connection = new NpgsqlConnection(Database.GetPgsqlConfig());
-			connection.Open();
+			using var connection = Database.OpenNewConnection();
 
 			var form = context.Request.Form;
 			string token = form["token"];
@@ -491,8 +486,7 @@ namespace VivistaServer
 			int count = 10;
 			int offset = 0;
 
-			using var connection = new NpgsqlConnection(Database.GetPgsqlConfig());
-			connection.Open();
+			using var connection = Database.OpenNewConnection();
 
 			var videos = await connection.QueryAsync<Video>(@"select v.id, v.userid, u.username, v.timestamp, v.downloadsize, v.title, v.description, v.length from videos v
 								inner join users u on v.userid = u.userid

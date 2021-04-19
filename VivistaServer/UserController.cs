@@ -184,8 +184,7 @@ namespace VivistaServer
 		private static async Task VerifyEmailGet(HttpContext context)
 		{
 			SetHTMLContentType(context);
-			using var connection = new NpgsqlConnection(Database.GetPgsqlConfig());
-			connection.Open();
+			using var connection = Database.OpenNewConnection();
 
 			var args = context.Request.Query;
 			string email = args["email"].ToString();
@@ -254,8 +253,7 @@ namespace VivistaServer
 		private static async Task ResetPasswordFinishPost(HttpContext context)
 		{
 			SetHTMLContentType(context);
-			using var connection = new NpgsqlConnection(Database.GetPgsqlConfig());
-			connection.Open();
+			using var connection = Database.OpenNewConnection();
 
 			var form = context.Request.Form;
 			string email = form["email"].ToString();
@@ -263,7 +261,6 @@ namespace VivistaServer
 			string password = form["password"].ToString();
 			string confirmPassword = form["confirm_password"].ToString();
 			int userid = await GetUserIdFromEmail(email, connection);
-
 
 			if (await AuthenticatePasswordResetToken(userid, token, connection))
 			{
@@ -322,8 +319,7 @@ namespace VivistaServer
 					return ("Email too short", StatusCodes.Status400BadRequest);
 				}
 
-				using var connection = new NpgsqlConnection(Database.GetPgsqlConfig());
-				connection.Open();
+				using var connection = Database.OpenNewConnection();
 
 				var userExists = await UserExists(email, connection);
 				var hashedPassword = BCrypt.Net.BCrypt.HashPassword(password, bcryptWorkFactor);
@@ -360,10 +356,10 @@ namespace VivistaServer
 			}
 		}
 
+		//NOTE(Simon): If return int == 200, string == session token. If return int != 200, string == error description
 		private static async Task<(string, int)> LoginWithForm(HttpContext context)
 		{
-			using var connection = new NpgsqlConnection(Database.GetPgsqlConfig());
-			connection.Open();
+			using var connection = Database.OpenNewConnection();
 
 			var form = context.Request.Form;
 			string email = form["email"].ToString().ToLowerInvariant().Trim();
