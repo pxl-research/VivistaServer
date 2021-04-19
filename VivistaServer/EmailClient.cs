@@ -15,7 +15,7 @@ namespace VivistaServer
 
 		public static async Task<bool> SendPasswordResetMail(string receiver, string token)
 		{
-			var url = $"{CommonController.baseURL}/reset_password_finish?token={token}";
+			var url = $"{CommonController.baseURL}/reset_password_finish?email={receiver}&token={token}";
 
 			var message = new MimeMessage();
 			message.From.Add(noreplyAddress);

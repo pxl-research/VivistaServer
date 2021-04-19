@@ -585,6 +585,5 @@ namespace VivistaServer
 			}
 			return size;
 		}
-
 	}
 }

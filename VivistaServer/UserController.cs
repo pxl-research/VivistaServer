@@ -196,41 +196,40 @@ namespace VivistaServer
 
 			if (success)
 			{
-
+				await context.Response.WriteAsync(await HTMLRenderer.Render("Templates\\verifyEmailSuccess.liquid", null));
 			}
 			else
 			{
-
+				await context.Response.WriteAsync(await HTMLRenderer.Render("Templates\\verifyEmailFailure.liquid", null));
 			}
 		}
 
-		[Route("POST", "/api/reset_password_start")]
-		[Route("POST", "/api/v1/reset_password_start")]
+		[Route("GET", "/reset_password")]
+		private static async Task ResetPasswordStartGet(HttpContext context)
+		{
+			SetHTMLContentType(context);
+
+			await context.Response.WriteAsync(await HTMLRenderer.Render("Templates\\resetPassword.liquid", null));
+		}
+
+		[Route("POST", "/reset_password")]
 		private static async Task ResetPasswordStartPost(HttpContext context)
 		{
-			using var connection = new NpgsqlConnection(Database.GetPgsqlConfig());
-			connection.Open();
+			SetHTMLContentType(context);
+
+			using var connection = Database.OpenNewConnection();
 
 			var form = context.Request.Form;
 			string email = form["email"].ToString().ToLowerInvariant().Trim();
 
 			var userExistsTask = UserExists(email, connection);
 
-			//NOTE(Simon): Send response before sending the reset email, so that a timing attack trying to guess existing emails is not possible
-			var writeTask = context.Response.WriteAsync("A password reset link has been sent to the provided email. It will remain valid for 1 hour.");
+			await context.Response.WriteAsync(await HTMLRenderer.Render("Templates\\resetPasswordSuccess.liquid", null));
 
-			bool userExists = await userExistsTask;
-			await writeTask;
-
-			if (userExists)
+			if (await userExistsTask)
 			{
 				var token = await CreatePasswordResetToken(email, connection);
-
-				//TODO(Simon): Send email
-				if (token != null)
-				{
-					await EmailClient.SendPasswordResetMail(email, token);
-				}
+				await EmailClient.SendPasswordResetMail(email, token);
 			}
 		}
 
@@ -238,15 +237,14 @@ namespace VivistaServer
 		private static async Task ResetPasswordFinishGet(HttpContext context)
 		{
 			SetHTMLContentType(context);
-			using var connection = new NpgsqlConnection(Database.GetPgsqlConfig());
-			connection.Open();
 
 			var args = context.Request.Query;
 			string token = args["token"].ToString();
+			string email = args["email"].ToString();
 
 			//TODO(Simon): Show HTML. Put token in hidden form element
-			var model = new TemplateContext(new { test = "test" });
-			await context.Response.WriteAsync(await HTMLRenderer.Render("testTemplate", model));
+			var model = new TemplateContext(new { token, email });
+			await context.Response.WriteAsync(await HTMLRenderer.Render("Templates\\resetPasswordFinish.liquid", model));
 		}
 
 		[Route("POST", "/reset_password_finish")]
@@ -291,6 +289,9 @@ namespace VivistaServer
 				await WriteError(context, "Reset token is invalid", StatusCodes.Status400BadRequest);
 			}
 		}
+
+
+
 
 		//NOTE(Simon): If return int == 200, string == session token. If return int != 200, string == error description
 		private static async Task<(string, int)> RegisterWithForm(HttpContext context)
