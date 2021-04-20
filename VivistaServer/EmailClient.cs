@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Net;
 using System.Threading.Tasks;
 using MailKit.Net.Smtp;
 using MimeKit;
@@ -15,7 +16,7 @@ namespace VivistaServer
 
 		public static async Task<bool> SendPasswordResetMail(string receiver, string token)
 		{
-			var url = $"{CommonController.baseURL}/reset_password_finish?email={receiver}&token={token}";
+			var url = $"{CommonController.baseURL}/reset_password_finish?email={receiver}&token={WebUtility.UrlEncode(token)}";
 
 			var message = new MimeMessage();
 			message.From.Add(noreplyAddress);
@@ -34,7 +35,8 @@ namespace VivistaServer
 
 		public static async Task<bool> SendEmailConfirmationMail(string receiver, string token)
 		{
-			var url = $"{CommonController.baseURL}/verify_email?email={receiver}&token={token}";
+			var url = $"{CommonController.baseURL}/verify_email?email={receiver}&token={WebUtility.UrlEncode(token)}";
+			url = WebUtility.UrlEncode(url);
 
 			var message = new MimeMessage();
 			message.From.Add(noreplyAddress);

@@ -22,9 +22,18 @@ namespace VivistaServer
 		public string error;
 	}
 
+	class ResetPasswordModel
+	{
+		public string email;
+		public string token;
+		public string error;
+	}
+
 	//TODO(Simon): User roles, role permissions
 	public class UserController
 	{
+		public const int minPassLength = 8;
+
 		private const int passwordResetExpiry = 1 * 60;
 		private const int sessionExpiry = 1 * 24 * 60;
 		private const int bcryptWorkFactor = 12;
@@ -48,7 +57,7 @@ namespace VivistaServer
 			var model = new RegisterModel
 			{
 				username = context.Request.Form["username"].ToString(),
-				email = context.Request.Form["email"].ToString(),
+				email = context.Request.Form["email"].ToString().NormalizeEmail(),
 				error = ""
 			};
 
@@ -123,7 +132,7 @@ namespace VivistaServer
 
 			var model = new LoginModel
 			{
-				email = context.Request.Form["email"].ToString(),
+				email = context.Request.Form["email"].ToString().NormalizeEmail(),
 			};
 
 			try
@@ -187,7 +196,7 @@ namespace VivistaServer
 			using var connection = Database.OpenNewConnection();
 
 			var args = context.Request.Query;
-			string email = args["email"].ToString();
+			string email = args["email"].ToString().NormalizeEmail();
 			string token = args["token"].ToString();
 
 			int userid = await GetUserIdFromEmail(email, connection);
@@ -220,7 +229,7 @@ namespace VivistaServer
 			using var connection = Database.OpenNewConnection();
 
 			var form = context.Request.Form;
-			string email = form["email"].ToString().ToLowerInvariant().Trim();
+			string email = form["email"].ToString().NormalizeEmail();
 
 			var userExistsTask = UserExists(email, connection);
 
@@ -239,12 +248,15 @@ namespace VivistaServer
 			SetHTMLContentType(context);
 
 			var args = context.Request.Query;
-			string token = args["token"].ToString();
-			string email = args["email"].ToString();
+			var model = new ResetPasswordModel
+			{
+				email = args["email"].ToString().NormalizeEmail(),
+				token = args["token"].ToString(),
+			};
 
 			//TODO(Simon): Show HTML. Put token in hidden form element
-			var model = new TemplateContext(new { token, email });
-			await context.Response.WriteAsync(await HTMLRenderer.Render("Templates\\resetPasswordFinish.liquid", model));
+			var templateContext = new TemplateContext(model);
+			await context.Response.WriteAsync(await HTMLRenderer.Render("Templates\\resetPasswordFinish.liquid", templateContext));
 		}
 
 		[Route("POST", "/reset_password_finish")]
@@ -254,39 +266,52 @@ namespace VivistaServer
 			using var connection = Database.OpenNewConnection();
 
 			var form = context.Request.Form;
-			string email = form["email"].ToString();
-			string token = form["token"].ToString();
-			string password = form["password"].ToString();
-			string confirmPassword = form["confirm_password"].ToString();
-			int userid = await GetUserIdFromEmail(email, connection);
+			var model = new ResetPasswordModel
+			{
+				email = form["email"].ToString().NormalizeEmail(),
+				token = form["token"].ToString(),
+			};
 
-			if (await AuthenticatePasswordResetToken(userid, token, connection))
+			string password = form["password"].ToString();
+			string confirmPassword = form["password-confirmation"].ToString();
+			int userid = await GetUserIdFromEmail(model.email, connection);
+
+			if (await AuthenticatePasswordResetToken(userid, model.token, connection))
 			{
 				if (password != confirmPassword)
 				{
-					await WriteError(context, "Passwords do not match", StatusCodes.Status400BadRequest);
+					model.error = "Passwords do not match";
+					var templateContext = new TemplateContext(model);
+					await context.Response.WriteAsync(await HTMLRenderer.Render("Templates\\resetPasswordFinish.liquid", templateContext));
 					return;
 				}
 
-				if (password.Length == 0)
+				if (password.Length < minPassLength)
 				{
-					await WriteError(context, "Password too short", StatusCodes.Status400BadRequest);
+					model.error = "Password too short";
+					var templateContext = new TemplateContext(model);
+					await context.Response.WriteAsync(await HTMLRenderer.Render("Templates\\resetPasswordFinish.liquid", templateContext));
 					return;
 				}
 
-				if (await UpdatePassword(email, password, connection))
+				if (await UpdatePassword(model.email, password, connection))
 				{
-					await context.Response.WriteAsync("Password updated succesfully");
+					await context.Response.WriteAsync(await HTMLRenderer.Render("Templates\\resetPasswordFinishSuccess.liquid", null));
+					await DeletePasswordResetToken(userid, model.token, connection);
 				}
 				else
 				{
-					await WriteError(context, "Password update failed", StatusCodes.Status500InternalServerError);
+					model.error = "An unknown error happened while resetting this password. Please try again later.";
+					var templateContext = new TemplateContext(model);
+					await context.Response.WriteAsync(await HTMLRenderer.Render("Templates\\resetPasswordFinish.liquid", templateContext));
 				}
 			}
 			else
 			{
 				//NOTE(Simon): Do not tell exact reason, could be an attack vector
-				await WriteError(context, "Reset token is invalid", StatusCodes.Status400BadRequest);
+				model.error = "This password reset token is not valid.";
+				var templateContext = new TemplateContext(model);
+				await context.Response.WriteAsync(await HTMLRenderer.Render("Templates\\resetPasswordFinish.liquid", templateContext));
 			}
 		}
 
@@ -300,16 +325,16 @@ namespace VivistaServer
 			{
 				var form = context.Request.Form;
 
-				string username = form["username"].ToString().ToLowerInvariant().Trim();
+				string username = form["username"].ToString().Trim();
 				string password = form["password"].ToString();
-				string email = form["email"].ToString().ToLowerInvariant().Trim();
+				string email = form["email"].ToString().NormalizeEmail();
 
 				if (username.Length < 3)
 				{
 					return ("Username too short", StatusCodes.Status400BadRequest);
 				}
 
-				if (password.Length < 8)
+				if (password.Length < minPassLength)
 				{
 					return ("Password too short", StatusCodes.Status400BadRequest);
 				}
@@ -363,7 +388,7 @@ namespace VivistaServer
 			using var connection = Database.OpenNewConnection();
 
 			var form = context.Request.Form;
-			string email = form["email"].ToString().ToLowerInvariant().Trim();
+			string email = form["email"].ToString().NormalizeEmail();
 			string password = form["password"];
 			bool success = await AuthenticateUser(email, password, connection);
 
@@ -533,14 +558,29 @@ namespace VivistaServer
 
 			try
 			{
-				validUntil = await connection.QuerySingleAsync<DateTime>("select expiry from password_reset_tokens where userid=@userid and token=@token", new { userid, token });
+				validUntil = await connection.QuerySingleOrDefaultAsync<DateTime>("select expiry from password_reset_tokens where userid=@userid and token=@token", new { userid, token });
 			}
 			catch
 			{
 				return false;
 			}
 
-			return validUntil < DateTime.UtcNow;
+			return validUntil > DateTime.UtcNow;
+		}
+
+		private static async Task<bool> DeletePasswordResetToken(int userid, string token, NpgsqlConnection connection)
+		{
+			int result;
+			try
+			{
+				result = await connection.ExecuteAsync("delete from password_reset_tokens where userid=@userid and token=@token", new { userid, token });
+			}
+			catch
+			{
+				return false;
+			}
+
+			return result > 0;
 		}
 
 		private static async Task<bool> AuthenticateUser(string email, string password, NpgsqlConnection connection)
