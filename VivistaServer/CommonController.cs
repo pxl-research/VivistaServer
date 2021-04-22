@@ -18,6 +18,11 @@ namespace VivistaServer
 
 		public static string baseURL;
 
+		public static bool IsUserAuthenticated(HttpContext context)
+		{
+			return (User)context.Items["user"] != null;
+		}
+
 		public static async Task WriteFile(HttpContext context, string filename, string contentType, string responseFileName)
 		{
 			//TODO(Simon): Pooling of buffers?

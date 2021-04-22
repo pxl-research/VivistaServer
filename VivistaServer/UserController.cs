@@ -51,7 +51,7 @@ namespace VivistaServer
 		public const int minPassLength = 8;
 
 		private const int passwordResetExpiryMins = 1 * 60;
-		private const int sessionExpiryMins = 1 * 24 * 60;
+		private const int sessionExpiryMins = 30 * 24 * 60;
 		private const int bcryptWorkFactor = 12;
 
 		[Route("GET", "/register")]
@@ -173,6 +173,20 @@ namespace VivistaServer
 			{
 				var cookies = context.Response.Cookies;
 				cookies.Append("session", result, new CookieOptions { MaxAge = TimeSpan.FromMinutes(sessionExpiryMins) });
+
+				context.Response.Redirect("/");
+			}
+		}
+
+		[Route("GET", "/logout")]
+		private static async Task LogoutGet(HttpContext context)
+		{
+			if (IsUserAuthenticated(context))
+			{
+				using var connection = Database.OpenNewConnection();
+
+				await InvalidateSession(context.Request.Cookies["session"], connection);
+				context.Response.Cookies.Delete("session");
 
 				context.Response.Redirect("/");
 			}
@@ -599,6 +613,18 @@ namespace VivistaServer
 			return result > 0;
 		}
 
+		private static async Task InvalidateSession(string token, NpgsqlConnection connection)
+		{
+			try
+			{
+				await connection.ExecuteAsync("delete from sessions where token=@token", new {token});
+			}
+			catch
+			{
+				return;
+			}
+		}
+
 		private static async Task<bool> AuthenticateUser(string email, string password, NpgsqlConnection connection)
 		{
 			string storedPassword;
@@ -629,7 +655,7 @@ namespace VivistaServer
 
 			if (!session.IsValid)
 			{
-				await connection.ExecuteAsync("delete from sessions where token = @token", new {token});
+				await InvalidateSession(token, connection);
 				return session;
 			}
 			else
