@@ -9,6 +9,22 @@ using static VivistaServer.CommonController;
 
 namespace VivistaServer
 {
+	public class User
+	{
+		public int userid;
+		public string username;
+		public string email;
+	}
+
+	public class Session
+	{
+		public int userid;
+		public DateTime expiry;
+		public bool IsValid => expiry > DateTime.UtcNow;
+
+		public static Session noSession = new Session {userid = -1, expiry = DateTime.MinValue};
+	}
+
 	class RegisterModel
 	{
 		public string username;
@@ -34,8 +50,8 @@ namespace VivistaServer
 	{
 		public const int minPassLength = 8;
 
-		private const int passwordResetExpiry = 1 * 60;
-		private const int sessionExpiry = 1 * 24 * 60;
+		private const int passwordResetExpiryMins = 1 * 60;
+		private const int sessionExpiryMins = 1 * 24 * 60;
 		private const int bcryptWorkFactor = 12;
 
 		[Route("GET", "/register")]
@@ -43,7 +59,7 @@ namespace VivistaServer
 		{
 			SetHTMLContentType(context);
 
-			await context.Response.WriteAsync(await HTMLRenderer.Render("Templates\\register.liquid", null));
+			await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\register.liquid", null));
 		}
 
 		[Route("POST", "/register")]
@@ -69,7 +85,7 @@ namespace VivistaServer
 			{
 				model.error = "An unknown error happened while registering this account. Please try again later.";
 				var templateContext = new TemplateContext(model);
-				await context.Response.WriteAsync(await HTMLRenderer.Render("Templates\\register.liquid", templateContext));
+				await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\register.liquid", templateContext));
 				return;
 			}
 
@@ -77,13 +93,13 @@ namespace VivistaServer
 			{
 				model.error = result;
 				var templateContext = new TemplateContext(model);
-				await context.Response.WriteAsync(await HTMLRenderer.Render("Templates\\register.liquid", templateContext));
+				await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\register.liquid", templateContext));
 			}
 			else
 			{
 				var cookies = context.Response.Cookies;
-				cookies.Append("session", result);
-				await context.Response.WriteAsync(await HTMLRenderer.Render("Templates\\registerSuccess.liquid", null));
+				cookies.Append("session", result, new CookieOptions { MaxAge = TimeSpan.FromMinutes(sessionExpiryMins) });
+				await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\registerSuccess.liquid", null));
 			}
 		}
 
@@ -119,7 +135,7 @@ namespace VivistaServer
 		{
 			SetHTMLContentType(context);
 
-			await context.Response.WriteAsync(await HTMLRenderer.Render("Templates\\login.liquid", null));
+			await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\login.liquid", null));
 		}
 
 		[Route("POST", "/login")]
@@ -143,7 +159,7 @@ namespace VivistaServer
 			{
 				model.error = "An unknown error happened while logging in. Please try again later.";
 				var templateContext = new TemplateContext(model);
-				await context.Response.WriteAsync(await HTMLRenderer.Render("Templates\\login.liquid", templateContext));
+				await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\login.liquid", templateContext));
 				return;
 			}
 
@@ -151,12 +167,12 @@ namespace VivistaServer
 			{
 				model.error = result;
 				var templateContext = new TemplateContext(model);
-				await context.Response.WriteAsync(await HTMLRenderer.Render("Templates\\login.liquid", templateContext));
+				await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\login.liquid", templateContext));
 			}
 			else
 			{
 				var cookies = context.Response.Cookies;
-				cookies.Append("session", result);
+				cookies.Append("session", result, new CookieOptions { MaxAge = TimeSpan.FromMinutes(sessionExpiryMins) });
 
 				context.Response.Redirect("/");
 			}
@@ -205,11 +221,11 @@ namespace VivistaServer
 
 			if (success)
 			{
-				await context.Response.WriteAsync(await HTMLRenderer.Render("Templates\\verifyEmailSuccess.liquid", null));
+				await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\verifyEmailSuccess.liquid", null));
 			}
 			else
 			{
-				await context.Response.WriteAsync(await HTMLRenderer.Render("Templates\\verifyEmailFailure.liquid", null));
+				await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\verifyEmailFailure.liquid", null));
 			}
 		}
 
@@ -218,7 +234,7 @@ namespace VivistaServer
 		{
 			SetHTMLContentType(context);
 
-			await context.Response.WriteAsync(await HTMLRenderer.Render("Templates\\resetPassword.liquid", null));
+			await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\resetPassword.liquid", null));
 		}
 
 		[Route("POST", "/reset_password")]
@@ -233,7 +249,7 @@ namespace VivistaServer
 
 			var userExistsTask = UserExists(email, connection);
 
-			await context.Response.WriteAsync(await HTMLRenderer.Render("Templates\\resetPasswordSuccess.liquid", null));
+			await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\resetPasswordSuccess.liquid", null));
 
 			if (await userExistsTask)
 			{
@@ -256,7 +272,7 @@ namespace VivistaServer
 
 			//TODO(Simon): Show HTML. Put token in hidden form element
 			var templateContext = new TemplateContext(model);
-			await context.Response.WriteAsync(await HTMLRenderer.Render("Templates\\resetPasswordFinish.liquid", templateContext));
+			await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\resetPasswordFinish.liquid", templateContext));
 		}
 
 		[Route("POST", "/reset_password_finish")]
@@ -282,7 +298,7 @@ namespace VivistaServer
 				{
 					model.error = "Passwords do not match";
 					var templateContext = new TemplateContext(model);
-					await context.Response.WriteAsync(await HTMLRenderer.Render("Templates\\resetPasswordFinish.liquid", templateContext));
+					await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\resetPasswordFinish.liquid", templateContext));
 					return;
 				}
 
@@ -290,20 +306,20 @@ namespace VivistaServer
 				{
 					model.error = "Password too short";
 					var templateContext = new TemplateContext(model);
-					await context.Response.WriteAsync(await HTMLRenderer.Render("Templates\\resetPasswordFinish.liquid", templateContext));
+					await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\resetPasswordFinish.liquid", templateContext));
 					return;
 				}
 
 				if (await UpdatePassword(model.email, password, connection))
 				{
-					await context.Response.WriteAsync(await HTMLRenderer.Render("Templates\\resetPasswordFinishSuccess.liquid", null));
+					await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\resetPasswordFinishSuccess.liquid", null));
 					await DeletePasswordResetToken(userid, model.token, connection);
 				}
 				else
 				{
 					model.error = "An unknown error happened while resetting this password. Please try again later.";
 					var templateContext = new TemplateContext(model);
-					await context.Response.WriteAsync(await HTMLRenderer.Render("Templates\\resetPasswordFinish.liquid", templateContext));
+					await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\resetPasswordFinish.liquid", templateContext));
 				}
 			}
 			else
@@ -311,7 +327,7 @@ namespace VivistaServer
 				//NOTE(Simon): Do not tell exact reason, could be an attack vector
 				model.error = "This password reset token is not valid.";
 				var templateContext = new TemplateContext(model);
-				await context.Response.WriteAsync(await HTMLRenderer.Render("Templates\\resetPasswordFinish.liquid", templateContext));
+				await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\resetPasswordFinish.liquid", templateContext));
 			}
 		}
 
@@ -395,7 +411,7 @@ namespace VivistaServer
 			if (success)
 			{
 				string token = NewToken(32);
-				var expiry = DateTime.UtcNow.AddMinutes(sessionExpiry);
+				var expiry = DateTime.UtcNow.AddMinutes(sessionExpiryMins);
 				var userid = await GetUserIdFromEmail(email, connection);
 
 				await connection.ExecuteAsync("delete from sessions where userid = @userId", new { userid });
@@ -520,7 +536,7 @@ namespace VivistaServer
 		private static async Task<string> CreatePasswordResetToken(string email, NpgsqlConnection connection)
 		{
 			string token = NewToken(32);
-			var expiry = DateTime.UtcNow.AddMinutes(passwordResetExpiry);
+			var expiry = DateTime.UtcNow.AddMinutes(passwordResetExpiryMins);
 
 			int userid = await GetUserIdFromEmail(email, connection);
 
@@ -539,7 +555,7 @@ namespace VivistaServer
 		private static async Task<string> CreateNewSession(string email, NpgsqlConnection connection)
 		{
 			var token = NewSessionToken();
-			var expiry = DateTime.UtcNow.AddMinutes(sessionExpiry);
+			var expiry = DateTime.UtcNow.AddMinutes(sessionExpiryMins);
 			var userid = await GetUserIdFromEmail(email, connection);
 
 			if (userid == -1)
@@ -598,29 +614,42 @@ namespace VivistaServer
 			return BCrypt.Net.BCrypt.Verify(password, storedPassword);
 		}
 
-		public static async Task<bool> AuthenticateToken(string token, NpgsqlConnection connection)
+		public static async Task<Session> AuthenticateWithToken(string token, NpgsqlConnection connection)
 		{
-			DateTime validUntil;
+			Session session;
 
 			try
 			{
-				validUntil = await connection.QuerySingleAsync<DateTime>("select expiry from sessions where token = @token", new { token });
+				session = await connection.QuerySingleAsync<Session>("select expiry, userid from sessions where token = @token", new { token });
 			}
 			catch
 			{
-				return false;
+				return Session.noSession;
 			}
 
-			if (DateTime.UtcNow > validUntil)
+			if (!session.IsValid)
 			{
-				await connection.ExecuteAsync("delete from sessions where token = @token", new { token });
-				return false;
+				await connection.ExecuteAsync("delete from sessions where token = @token", new {token});
+				return session;
 			}
 			else
 			{
-				var newExpiry = DateTime.UtcNow.AddMinutes(sessionExpiry);
-				await connection.ExecuteAsync("update sessions set expiry = @newExpiry where token = @token", new { newExpiry, token });
-				return true;
+				var newExpiry = DateTime.UtcNow.AddMinutes(sessionExpiryMins);
+				await connection.ExecuteAsync("update sessions set expiry = @newExpiry where token = @token", new {newExpiry, token});
+				return session;
+			}
+		}
+
+		public static async Task<User> GetLoggedInUser(string token, NpgsqlConnection connection)
+		{
+			var session = await AuthenticateWithToken(token, connection);
+			if (session.IsValid)
+			{
+				return await connection.QuerySingleAsync<User>("select userid, username, email from users where userid=@userid", new {userid = session.userid});
+			}
+			else
+			{
+				return null;
 			}
 		}
 	}

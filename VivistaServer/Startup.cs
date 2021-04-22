@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
@@ -12,6 +13,7 @@ using Fluid;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Primitives;
 using Npgsql;
 using static VivistaServer.CommonController;
 
@@ -89,9 +91,13 @@ namespace VivistaServer
 
 			app.Run(async (context) =>
 			{
+				var authenticateTask = AuthenticateUser(context);
+
 				PrintDebugData(context);
 
 				SetJSONContentType(context);
+
+				await authenticateTask;
 
 				await router.RouteAsync(context.Request, context);
 			});
@@ -261,7 +267,7 @@ namespace VivistaServer
 			var form = context.Request.Form;
 			string token = form["token"];
 
-			if (await UserController.AuthenticateToken(token, connection))
+			if ((User)context.Items["user"] != null)
 			{
 				var guid = new Guid(form["uuid"]);
 				string basePath = Path.Combine(baseFilePath, guid.ToString());
@@ -425,7 +431,7 @@ namespace VivistaServer
 			string rawExtraGuids = form["extraguids"];
 			var extraGuids = rawExtraGuids.Split(',');
 
-			if (await UserController.AuthenticateToken(token, connection))
+			if ((User)context.Items["user"] != null)
 			{
 				string basePath = Path.Combine(baseFilePath, videoGuid);
 				string extraPath = Path.Combine(basePath, "extra");
@@ -496,13 +502,26 @@ namespace VivistaServer
 
 			var templateContext = new TemplateContext(new {videos});
 
-			await context.Response.WriteAsync(await HTMLRenderer.Render("Templates\\index.liquid", templateContext));
+			await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\index.liquid", templateContext));
 		}
 
 
-		private static bool MatchPath(PathString fullPath, PathString startSegment)
+		private static async Task AuthenticateUser(HttpContext context)
 		{
-			return fullPath.StartsWithSegments(startSegment, StringComparison.OrdinalIgnoreCase);
+			using var connection = Database.OpenNewConnection();
+
+			var token = context.Request.Cookies["session"];
+
+			if (String.IsNullOrEmpty(token))
+			{
+				token = context.Request.Query["token"].ToString();
+			}
+
+			if (!String.IsNullOrEmpty(token))
+			{
+				var user = await UserController.GetLoggedInUser(token, connection);
+				context.Items["user"] = user;
+			}
 		}
 
 		private static async Task<bool> UserOwnsVideo(Guid guid, int userId, NpgsqlConnection connection)

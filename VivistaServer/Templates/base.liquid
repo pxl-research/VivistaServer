@@ -21,14 +21,14 @@
 		<a href="/" class="pure-menu-heading pure-menu-image-link"><img src="logo.png"></a>
 
 		<ul id="menu-right" class="pure-menu-list">
-			{% if authenticated %}
+			{% if User %}
 				<li class="pure-menu-item pure-menu-has-children pure-menu-allow-hover">
 					<a href="#" class="pure-menu-link pure-menu-image-link">
 						<img class="profile-picture-small" src="profile.png">
 					</a>
 					<ul class="pure-menu-children">
 						<li class="pure-menu-item">
-							<a href="" class="pure-menu-link">Profile</a>
+							<a href="" class="pure-menu-link">{{ User.username }}</a>
 						</li>
 						<li class="pure-menu-item">
 							<a href="#" class="pure-menu-link">My videos</a>

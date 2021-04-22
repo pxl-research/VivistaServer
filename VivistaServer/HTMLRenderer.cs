@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using Fluid;
+using Microsoft.AspNetCore.Http;
 
 namespace VivistaServer
 {
@@ -18,6 +19,8 @@ namespace VivistaServer
 		private static FluidParser parser = new FluidParser();
 		private static Dictionary<string, IFluidTemplate> templateCache = new Dictionary<string, IFluidTemplate>();
 		private static Dictionary<BaseLayout, IFluidTemplate> layoutCache = new Dictionary<BaseLayout, IFluidTemplate>();
+
+		private static UnsafeMemberAccessStrategy defaultAccessStrategy = new UnsafeMemberAccessStrategy();
 
 		static HTMLRenderer()
 		{
@@ -39,25 +42,34 @@ namespace VivistaServer
 		}
 
 		//TODO(Simon): Consider also caching last file write time, so we can auto update pages
-		public static async Task<string> Render(string templateName, TemplateContext context, BaseLayout layout = BaseLayout.Web)
+		public static async Task<string> Render(HttpContext httpContext, string templateName, TemplateContext context, BaseLayout layout = BaseLayout.Web)
 		{
 			if (templateCache.TryGetValue(templateName, out var template))
 			{
+				var user = (User)httpContext.Items["user"];
 				string result;
+
 				if (context == null)
 				{
+					context = new TemplateContext();
+					context.MemberAccessStrategy = defaultAccessStrategy;
+					context.LocalScope.SetValue("User", user);
 					result = await template.RenderAsync();
 				}
 				else
 				{
-					context.MemberAccessStrategy = new UnsafeMemberAccessStrategy();
-					context.MemberAccessStrategy.Register(context.Model.GetType());
+					//NOTE(Simon): This lib requires users to register all used models by their type name.
+					//NOTE(cont.): This block prevents having to do it manually.
+					context.MemberAccessStrategy = defaultAccessStrategy;
+					context.LocalScope.SetValue("User", user);
 					result = await template.RenderAsync(context);
 				}
 
 				if (layout != BaseLayout.None)
 				{
 					var content = new TemplateContext(new { content = result });
+					content.MemberAccessStrategy = defaultAccessStrategy;
+					content.LocalScope.SetValue("User", user);
 					result = await layoutCache[layout].RenderAsync(content);
 				}
 
