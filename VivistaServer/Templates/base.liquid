@@ -35,8 +35,8 @@
 						</li>
 						<li class="pure-menu-item">
 							<span class="pure-menu-link nohover">
-								Dark Mode <input type="checkbox" id="dark-mode-toggle" class="toggle" checked="">
-									<label for="dark-mode-toggle"> </label>
+								Dark Mode <input type="checkbox" class="toggle dark-mode-toggle" id="dark-mode-toggle-nav">
+								<label for="dark-mode-toggle-nav"> </label>
 							</span>
 						</li>
 					</ul>
@@ -63,7 +63,12 @@
 				<p>test</p>
 			</div>
 			<div class="pure-u-1 pure-u-md-1-3">
-				<p>test</p>
+				<p>
+					<span class="nohover">
+						Dark Mode <input type="checkbox" class="toggle dark-mode-toggle" id="dark-mode-toggle-footer">
+						<label for="dark-mode-toggle-footer"> </label>
+					</span>
+				</p>
 				<p>test</p>
 				<p>test</p>
 			</div>
@@ -72,24 +77,4 @@
 </body>
 </html>
 
-<!--<script src="scripts.js"></script>-->
-<script type="text/javascript">
-	var el = document.getElementById("dark-mode-toggle");
-	var data = document.documentElement.dataset;
-
-	el.addEventListener("change", function()
-	{
-		data.theme = el.checked ? "dark" : "";
-		localStorage.setItem("theme", data.theme);
-	});
-	window.onload = function()
-	{
-		data.theme = localStorage.getItem("theme");
-		if (data.theme === null)
-		{
-			data.theme = document.documentElement.dataset;
-		}
-		el.checked = data.theme == "dark"
-	}
-
-</script>
+<script src="site.js"></script>
