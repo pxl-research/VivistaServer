@@ -14,14 +14,7 @@ namespace VivistaServer
 
 		private const int fileBufferSize = 16 * kb;
 
-		public static RNGCryptoServiceProvider rng;
-
 		public static string baseURL;
-
-		public static bool IsUserAuthenticated(HttpContext context)
-		{
-			return (User)context.Items["user"] != null;
-		}
 
 		public static async Task WriteFile(HttpContext context, string filename, string contentType, string responseFileName)
 		{

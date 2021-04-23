@@ -9,22 +9,6 @@ using static VivistaServer.CommonController;
 
 namespace VivistaServer
 {
-	public class User
-	{
-		public int userid;
-		public string username;
-		public string email;
-	}
-
-	public class Session
-	{
-		public int userid;
-		public DateTime expiry;
-		public bool IsValid => expiry > DateTime.UtcNow;
-
-		public static Session noSession = new Session {userid = -1, expiry = DateTime.MinValue};
-	}
-
 	class RegisterModel
 	{
 		public string username;
@@ -51,7 +35,6 @@ namespace VivistaServer
 		public const int minPassLength = 8;
 
 		private const int passwordResetExpiryMins = 1 * 60;
-		private const int sessionExpiryMins = 30 * 24 * 60;
 		private const int bcryptWorkFactor = 12;
 
 		[Route("GET", "/register")]
@@ -97,8 +80,7 @@ namespace VivistaServer
 			}
 			else
 			{
-				var cookies = context.Response.Cookies;
-				cookies.Append("session", result, new CookieOptions { MaxAge = TimeSpan.FromMinutes(sessionExpiryMins) });
+				UserSessions.SetSessionCookie(context, result);
 				await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\registerSuccess.liquid", null));
 			}
 		}
@@ -171,9 +153,7 @@ namespace VivistaServer
 			}
 			else
 			{
-				var cookies = context.Response.Cookies;
-				cookies.Append("session", result, new CookieOptions { MaxAge = TimeSpan.FromMinutes(sessionExpiryMins) });
-
+				UserSessions.SetSessionCookie(context, result);
 				context.Response.Redirect("/");
 			}
 		}
@@ -181,11 +161,11 @@ namespace VivistaServer
 		[Route("GET", "/logout")]
 		private static async Task LogoutGet(HttpContext context)
 		{
-			if (IsUserAuthenticated(context))
+			if (await UserSessions.GetLoggedInUser(context) != null)
 			{
 				using var connection = Database.OpenNewConnection();
 
-				await InvalidateSession(context.Request.Cookies["session"], connection);
+				await UserSessions.InvalidateSession(context.Request.Cookies["session"], connection);
 				context.Response.Cookies.Delete("session");
 
 				context.Response.Redirect("/");
@@ -382,7 +362,7 @@ namespace VivistaServer
 
 				if (!userExists)
 				{
-					string verificationToken = NewVerifyEmailToken();
+					string verificationToken = Tokens.NewVerifyEmailToken();
 					int success = await connection.ExecuteAsync(@"insert into users (username, email, pass, verification_token)
 																	values (@username, @email, @hashedPassword, @verificationToken)",
 																new { username, email, hashedPassword, verificationToken });
@@ -401,7 +381,8 @@ namespace VivistaServer
 
 				//NOTE(Simon): Create session token to immediately log user in.
 				{
-					var token = await CreateNewSession(email, connection);
+					var userid = await GetUserIdFromEmail(email, connection);
+					var token = await UserSessions.CreateNewSession(userid, connection);
 
 					return (token, StatusCodes.Status200OK);
 				}
@@ -424,12 +405,8 @@ namespace VivistaServer
 
 			if (success)
 			{
-				string token = NewToken(32);
-				var expiry = DateTime.UtcNow.AddMinutes(sessionExpiryMins);
 				var userid = await GetUserIdFromEmail(email, connection);
-
-				await connection.ExecuteAsync("delete from sessions where userid = @userId", new { userid });
-				await connection.ExecuteAsync("insert into sessions (token, expiry, userid) values (@token, @expiry, @userId)", new { token, expiry, userid });
+				var token = await UserSessions.CreateNewSession(userid, connection);
 
 				//TODO(Simon): Wrap in JSON. Look for other occurrences in file
 				return (token, StatusCodes.Status200OK);
@@ -468,21 +445,6 @@ namespace VivistaServer
 			return id ?? -1;
 		}
 
-		public static async Task<int> GetUserIdFromToken(string token, NpgsqlConnection connection)
-		{
-			int? id;
-			try
-			{
-				id = await connection.QueryFirstOrDefaultAsync<int?>("select userid from sessions where token = @token", new { token });
-			}
-			catch
-			{
-				id = null;
-			}
-
-			return id ?? -1;
-		}
-
 		private static async Task<bool> UserExists(string email, NpgsqlConnection connection)
 		{
 			try
@@ -513,23 +475,6 @@ namespace VivistaServer
 			return rows > 0;
 		}
 
-		private static string NewToken(int numBytes)
-		{
-			var bytes = new byte[numBytes];
-			rng.GetBytes(bytes);
-			return Convert.ToBase64String(bytes).Substring(0, numBytes);
-		}
-
-		private static string NewSessionToken()
-		{
-			return NewToken(32);
-		}
-
-		private static string NewVerifyEmailToken()
-		{
-			return NewToken(16);
-		}
-
 		private static async Task<bool> VerifyEmail(int userid, string token, NpgsqlConnection connection)
 		{
 			bool valid;
@@ -549,7 +494,7 @@ namespace VivistaServer
 
 		private static async Task<string> CreatePasswordResetToken(string email, NpgsqlConnection connection)
 		{
-			string token = NewToken(32);
+			string token = Tokens.NewPasswordResetToken();
 			var expiry = DateTime.UtcNow.AddMinutes(passwordResetExpiryMins);
 
 			int userid = await GetUserIdFromEmail(email, connection);
@@ -564,22 +509,6 @@ namespace VivistaServer
 			}
 
 			return null;
-		}
-
-		private static async Task<string> CreateNewSession(string email, NpgsqlConnection connection)
-		{
-			var token = NewSessionToken();
-			var expiry = DateTime.UtcNow.AddMinutes(sessionExpiryMins);
-			var userid = await GetUserIdFromEmail(email, connection);
-
-			if (userid == -1)
-			{
-				throw new Exception("Something went wrong while retrieving UserID");
-			}
-
-			await connection.ExecuteAsync("insert into sessions (token, expiry, userid) values (@token, @expiry, @userid)", new { token, expiry, userid });
-
-			return token;
 		}
 
 		private static async Task<bool> AuthenticatePasswordResetToken(int userid, string token, NpgsqlConnection connection)
@@ -613,18 +542,6 @@ namespace VivistaServer
 			return result > 0;
 		}
 
-		private static async Task InvalidateSession(string token, NpgsqlConnection connection)
-		{
-			try
-			{
-				await connection.ExecuteAsync("delete from sessions where token=@token", new {token});
-			}
-			catch
-			{
-				return;
-			}
-		}
-
 		private static async Task<bool> AuthenticateUser(string email, string password, NpgsqlConnection connection)
 		{
 			string storedPassword;
@@ -638,45 +555,6 @@ namespace VivistaServer
 			}
 
 			return BCrypt.Net.BCrypt.Verify(password, storedPassword);
-		}
-
-		public static async Task<Session> AuthenticateWithToken(string token, NpgsqlConnection connection)
-		{
-			Session session;
-
-			try
-			{
-				session = await connection.QuerySingleAsync<Session>("select expiry, userid from sessions where token = @token", new { token });
-			}
-			catch
-			{
-				return Session.noSession;
-			}
-
-			if (!session.IsValid)
-			{
-				await InvalidateSession(token, connection);
-				return session;
-			}
-			else
-			{
-				var newExpiry = DateTime.UtcNow.AddMinutes(sessionExpiryMins);
-				await connection.ExecuteAsync("update sessions set expiry = @newExpiry where token = @token", new {newExpiry, token});
-				return session;
-			}
-		}
-
-		public static async Task<User> GetLoggedInUser(string token, NpgsqlConnection connection)
-		{
-			var session = await AuthenticateWithToken(token, connection);
-			if (session.IsValid)
-			{
-				return await connection.QuerySingleAsync<User>("select userid, username, email from users where userid=@userid", new {userid = session.userid});
-			}
-			else
-			{
-				return null;
-			}
 		}
 	}
 }

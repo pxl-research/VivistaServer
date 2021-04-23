@@ -46,7 +46,7 @@ namespace VivistaServer
 		{
 			if (templateCache.TryGetValue(templateName, out var template))
 			{
-				var user = (User)httpContext.Items["user"];
+				var user = await UserSessions.GetLoggedInUser(httpContext);
 				string result;
 
 				if (context == null)

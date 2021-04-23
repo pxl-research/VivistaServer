@@ -86,18 +86,20 @@ namespace VivistaServer
 
 			app.UseStaticFiles();
 
-			rng = new RNGCryptoServiceProvider();
 			Task.Run(PeriodicFunction);
 
 			app.Run(async (context) =>
 			{
-				var authenticateTask = AuthenticateUser(context);
+				var watch = Stopwatch.StartNew();
+				var authenticateTask = UserSessions.GetLoggedInUser(context);
 
 				PrintDebugData(context);
 
 				SetJSONContentType(context);
 
 				await authenticateTask;
+				watch.Stop();
+				Console.WriteLine($"request preamble: {watch.Elapsed.TotalMilliseconds} ms");
 
 				await router.RouteAsync(context.Request, context);
 			});
@@ -106,6 +108,7 @@ namespace VivistaServer
 		private void PrintDebugData(HttpContext context)
 		{
 #if DEBUG
+			var watch = Stopwatch.StartNew();
 			Console.WriteLine("Request data:");
 			Console.WriteLine($"\tPath: {context.Request.Path}");
 			Console.WriteLine($"\tMethod: {context.Request.Method}");
@@ -123,6 +126,8 @@ namespace VivistaServer
 			{
 				Console.WriteLine($"\tBody: {new StreamReader(context.Request.Body).ReadToEnd()}");
 			}
+			watch.Stop();
+			Console.WriteLine($"writing debug info: {watch.Elapsed.TotalMilliseconds} ms");
 #endif
 		}
 
@@ -265,9 +270,9 @@ namespace VivistaServer
 			using var connection = Database.OpenNewConnection();
 
 			var form = context.Request.Form;
-			string token = form["token"];
+			var user = await UserSessions.GetLoggedInUser(context);
 
-			if ((User)context.Items["user"] != null)
+			if (user != null)
 			{
 				var guid = new Guid(form["uuid"]);
 				string basePath = Path.Combine(baseFilePath, guid.ToString());
@@ -289,14 +294,9 @@ namespace VivistaServer
 					}
 
 					//TODO(Simon): Move all the file-reading and database code somewhere else. So that users don't have to reupload if database insert fails
-					var metaTask = Task.Run(() => ReadMetaFile(metaPath));
-					var userIdTask = UserController.GetUserIdFromToken(token, connection);
-					Task.WaitAll(metaTask, userIdTask);
+					var meta = await Task.Run(() => ReadMetaFile(metaPath));
 
-					var meta = metaTask.Result;
-					int userId = userIdTask.Result;
-
-					if (await UserOwnsVideo(guid, userId, connection))
+					if (await UserOwnsVideo(guid, user.userid, connection))
 					{
 						var timestamp = DateTime.UtcNow;
 						await connection.ExecuteAsync(@"update videos set (title, description, length, timestamp)
@@ -308,7 +308,7 @@ namespace VivistaServer
 					{
 						await connection.ExecuteAsync(@"insert into videos (id, userid, title, description, length)
 												values (@guid, @userid, @title, @description, @length)",
-												new { guid, userid = userId, meta.title, meta.description, meta.length });
+												new { guid, user.userid, meta.title, meta.description, meta.length });
 					}
 
 					await context.Response.WriteAsync("{}");
@@ -426,12 +426,11 @@ namespace VivistaServer
 			using var connection = Database.OpenNewConnection();
 
 			var form = context.Request.Form;
-			string token = form["token"];
 			string videoGuid = form["videoguid"];
 			string rawExtraGuids = form["extraguids"];
 			var extraGuids = rawExtraGuids.Split(',');
 
-			if ((User)context.Items["user"] != null)
+			if (await UserSessions.GetLoggedInUser(context) != null)
 			{
 				string basePath = Path.Combine(baseFilePath, videoGuid);
 				string extraPath = Path.Combine(basePath, "extra");
@@ -505,24 +504,6 @@ namespace VivistaServer
 			await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\index.liquid", templateContext));
 		}
 
-
-		private static async Task AuthenticateUser(HttpContext context)
-		{
-			using var connection = Database.OpenNewConnection();
-
-			var token = context.Request.Cookies["session"];
-
-			if (String.IsNullOrEmpty(token))
-			{
-				token = context.Request.Query["token"].ToString();
-			}
-
-			if (!String.IsNullOrEmpty(token))
-			{
-				var user = await UserController.GetLoggedInUser(token, connection);
-				context.Items["user"] = user;
-			}
-		}
 
 		private static async Task<bool> UserOwnsVideo(Guid guid, int userId, NpgsqlConnection connection)
 		{
