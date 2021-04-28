@@ -25,6 +25,8 @@ namespace VivistaServer
 
 	public class UserSessions
 	{
+		public static long activeSessions => cache.GetCount();
+
 		private const int sessionExpiryMins = 30 * 24 * 60;
 		private static MemoryCache cache = MemoryCache.Default;
 		private static CacheItemPolicy defaultPolicy = new CacheItemPolicy()
@@ -58,7 +60,7 @@ namespace VivistaServer
 
 		public static async Task<User> GetLoggedInUserFromDb(string sessionToken)
 		{
-			var connection = Database.OpenNewConnection();
+			using var connection = Database.OpenNewConnection();
 			var session = await AuthenticateWithToken(sessionToken, connection);
 			if (session.IsValid)
 			{

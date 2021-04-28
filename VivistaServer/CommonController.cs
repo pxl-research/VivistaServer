@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
@@ -6,6 +7,47 @@ using Microsoft.AspNetCore.Http;
 
 namespace VivistaServer
 {
+	public class Pagination
+	{
+		public int page;
+		public int pageCount;
+		public int totalCount;
+		public int countPerPage;
+		public int count;
+		public int offset;
+		public List<int> pageNumbers = new List<int>();
+
+		public Pagination(int totalCount, int countPerPage, int offset)
+		{
+			this.totalCount = totalCount;
+			this.countPerPage = countPerPage;
+			this.offset = offset;
+
+			Update();
+		}
+
+		public void Update()
+		{
+			page = offset / countPerPage + 1;
+			pageCount = (int)MathF.Ceiling(totalCount / (float)countPerPage);
+			count = page < pageCount ? countPerPage : totalCount - (pageCount - 1) * countPerPage;
+
+			pageNumbers.Add(1);
+
+			if (pageCount > 1)
+			{
+				int start = Math.Clamp(page - 2, 2, Math.Max(pageCount - 1, 2));
+				int end = Math.Clamp(page + 3, 2, Math.Max(pageCount, 2));
+				for (int i = start; i < end; i++)
+				{
+					pageNumbers.Add(i);
+				}
+
+				pageNumbers.Add(pageCount);
+			}
+		}
+	}
+
 	public class CommonController
 	{
 		private const int kb = 1024;

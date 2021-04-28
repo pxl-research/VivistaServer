@@ -39,7 +39,8 @@ namespace VivistaServer
 
 				var database = "postgres";
 
-				connectionString = $"Server={host};Port=5432;Database={database};User Id={user};Password={password};Pooling=true;Minimum Pool Size=0;Maximum Pool Size=100;";
+				string parameters = "Pooling = true; Minimum Pool Size = 1; Maximum Pool Size = 100;Max Auto Prepare = 20";
+				connectionString = $"Server={host};Port=5432;Database={database};User Id={user};Password={password};{parameters}";
 			}
 
 			return connectionString;

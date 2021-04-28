@@ -499,11 +499,82 @@ namespace VivistaServer
 								limit @count
 								offset @offset", new { count, offset });
 
-			var templateContext = new TemplateContext(new {videos});
+			var templateContext = new TemplateContext(new { videos });
 
 			await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\index.liquid", templateContext));
 		}
 
+		[Route("GET", "/my_videos")]
+		private static async Task MyVideosGet(HttpContext context)
+		{
+			SetHTMLContentType(context);
+
+			var userTask = UserSessions.GetLoggedInUser(context);
+			using var connection = Database.OpenNewConnection();
+			var user = await userTask;
+
+			const int countPerPage = 20;
+			int page = 1;
+			if (context.Request.Query.ContainsKey("page"))
+			{
+				Int32.TryParse(context.Request.Query["page"], out page);
+			}
+
+			int offset = (page - 1) * countPerPage;
+
+			if (user != null)
+			{
+				var numVideos = await NumVideosForUser(user.userid, connection);
+				var VideosTask = VideosForUser(user.userid, countPerPage, offset, connection);
+
+				var pagination = new Pagination(numVideos, countPerPage, offset);
+
+				var templateContext = new TemplateContext(new { videos = await VideosTask, pagination });
+
+				await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\myVideos.liquid", templateContext));
+			}
+			else
+			{
+				await Write404(context);
+			}
+		}
+
+
+
+
+
+
+		private static async Task<IEnumerable<Video>> VideosForUser(int userid, int count, int offset, NpgsqlConnection connection)
+		{
+			try
+			{
+				var videos = await connection.QueryAsync<Video>(@"select id, timestamp, downloadsize, title, description, length from videos
+																where userid=@userid
+																order by timestamp desc
+																limit @count
+																offset @offset", new { userid, count, offset });
+				
+				return videos;
+			}
+			catch (Exception e)
+			{
+				return new List<Video>();
+			}
+		}
+
+		private static async Task<int> NumVideosForUser(int userid, NpgsqlConnection connection)
+		{
+			try
+			{
+				int totalcount = await connection.QuerySingleAsync<int>(@"select count(*) from videos
+																		where userid=@userid", new { userid });
+				return totalcount;
+			}
+			catch (Exception e)
+			{
+				return 0;
+			}
+		}
 
 		private static async Task<bool> UserOwnsVideo(Guid guid, int userId, NpgsqlConnection connection)
 		{

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
@@ -68,7 +69,12 @@ namespace VivistaServer
 		{
 			if (routes.TryGetValue(new Route(request.Method, request.Path), out var del))
 			{
+				var watch = Stopwatch.StartNew();
+
 				await del.Invoke(context);
+
+				watch.Stop();
+				Console.WriteLine($"controller: {watch.Elapsed.TotalMilliseconds} ms");
 			}
 			else
 			{

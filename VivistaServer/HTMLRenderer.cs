@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
 using Fluid;
@@ -44,6 +45,7 @@ namespace VivistaServer
 		//TODO(Simon): Consider also caching last file write time, so we can auto update pages
 		public static async Task<string> Render(HttpContext httpContext, string templateName, TemplateContext context, BaseLayout layout = BaseLayout.Web)
 		{
+			var watch = Stopwatch.StartNew();
 			if (templateCache.TryGetValue(templateName, out var template))
 			{
 				var user = await UserSessions.GetLoggedInUser(httpContext);
@@ -72,6 +74,9 @@ namespace VivistaServer
 					content.LocalScope.SetValue("User", user);
 					result = await layoutCache[layout].RenderAsync(content);
 				}
+
+				watch.Stop();
+				Console.WriteLine($"rendering: {watch.Elapsed.TotalMilliseconds} ms");
 
 				return result;
 			}
