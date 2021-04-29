@@ -1,22 +1,57 @@
 <h1>My videos</h1>
 <div class="pure-g">
-	{% for video in videos %}
-		<div class="pure-u-1">
-			<div class="pure-g">
-				<div class="pure-u-1-8">
-					<img class="video-thumb pure-img" src="thumb.png">
-				</div>
-				<div class="pure-u-7-8">
-					<p>{{ video.title }}</p>
-					<p>{{ video.timestamp | date: "%e %b %Y"}}</p>
-				</div>
-			</div>
-		</div>
-	{% else %}
-		<div class="pure-u-1">
-			<p>No videos uploaded yet</p>
-		</div>
-	{% endfor %}
+	<div class="pure-u-1">
+		<table class="pure-table video-list">
+			<thead>
+				<th>Video</th>
+				<th>Date</th>
+				<th>Visibility</th>
+				<th>Views</th>
+				<th></th>
+			</thead>
+			<tbody>
+				{% for video in videos %}
+				
+					<tr>
+						<td>
+							<p>
+								<img width="200px" class="video-thumb" src="thumb.png">
+								{{ video.title }}
+							</p>
+						</td>
+						<td>
+							<p>{{ video.timestamp | date: "%e %b %Y"}}</p>
+						</td>
+						<td>
+							<form class="pure-form">
+								<select id="video-visibility-{{video.id}}">
+									<option value="Public">Public</option>
+									<option value="Organization">Organization</option>
+									<option value="Unlisted">Unlisted</option>
+									<option value="Private">Private</option>
+								</select>
+								<submit class="pure-button">Update</submit>
+							</form>
+						</td>
+						<td>
+							<p>{{video.views}}</p>
+						</td>
+						<td>
+							<a class="pure-button" href="/statistics?id={{video.id}}">Statistics</a>
+						</td>
+					</tr>
+				{% else %}
+				
+					<tr>
+						<td>
+							<p>No videos uploaded yet</p>
+						</td>
+					</tr>
+				
+				{% endfor %}
+			</tbody>
+		</table>
+	</div>
 	<div class="pure-u-1">
 		<p>Showing videos {{pagination.offset | plus: 1}} - {{pagination.offset | plus: pagination.count}} ({{pagination.totalCount}} total)</p>
 	</div>

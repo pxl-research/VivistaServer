@@ -11,6 +11,7 @@ html {
 	--footer-bg: hsl(200, 0%, 85%);
 	--footer-border: hsl(200, 0%, 80%);
 	--anchor-font: hsl(210, 100%, 50%);
+	--table-bg: hsl(0, 0%, 87.5%);
 
 	--toggle-bg: #aaa;
 	--toggle-bg-active: #eee;
@@ -31,6 +32,7 @@ html[data-theme='dark'] {
 	--footer-bg: hsl(200, 0%, 28%);
 	--footer-border: hsl(200, 0%, 40%);
 	--anchor-font: hsl(50, 100%, 50%);
+	--table-bg: hsl(200, 0%, 25%);
 
 	--toggle-fg: #000;
 }
@@ -49,6 +51,10 @@ a {
 
 .center {
 	justify-content: center;
+}
+
+.border { 
+	border: 1px solid var(--button-border);
 }
 
 .main-content {
@@ -74,6 +80,11 @@ a {
 
 .formerror {
 	color: red;
+}
+
+.pure-table thead { 
+	background-color: var(--table-bg);
+	color: var(--main-font);
 }
 
 
@@ -108,6 +119,23 @@ a {
 	text-decoration: none;
 }
 
+
+
+.video-list { 
+	width: 100%;
+}
+
+.video-list td { 
+	border-left: none;
+}
+
+.video-list .video-thumb { 
+	max-width: 100%;
+	height: auto;
+	display: inline;
+	vertical-align: middle;
+	padding-right: 1em;
+}
 
 
 
