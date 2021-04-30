@@ -1,22 +1,26 @@
 html {
-	--transparent: hsl(0, 0, 0, 0);
+	--transparant: hsl(0, 0, 0, 0);
 	--main-bg: hsl(0, 0%, 95%);
 	--main-font: hsl(0, 0%, 15%);
 	--muted-font: hsl(0, 0%, 35%);
 	--hover-font: hsl(0, 0%, 35%);
 	--button-neutral-bg-hover: hsl(0, 0%, 80%);
 	--button-neutral-bg-active: hsl(0, 0%, 70%);
+	--button-dangerous-bg: hsl(0, 80%, 50%);
+	--button-dangerous-bg-hover: hsl(0, 80%, 40%);
+	--button-dangerous-bg-active: hsl(0, 80%, 30%);
+	--button-safe-bg: hsl(120, 80%, 50%);
+	--button-safe-bg-hover: hsl(120, 80%, 40%);
+	--button-safe-bg-active: hsl(120, 80%, 30%);
 	--button-border: hsl(0, 0%, 15%);
 	--shadow: hsl(0, 0%, 75%);
 	--footer-bg: hsl(200, 0%, 85%);
 	--footer-border: hsl(200, 0%, 80%);
 	--anchor-font: hsl(210, 100%, 50%);
 	--table-bg: hsl(0, 0%, 87.5%);
-
 	--toggle-bg: #aaa;
 	--toggle-bg-active: #eee;
 	--toggle-fg: #fff;
-
 	height: 100%;
 }
 
@@ -27,6 +31,12 @@ html[data-theme='dark'] {
 	--hover-font: hsl(0, 0%, 75%);
 	--button-neutral-bg-hover: hsl(0, 0%, 30%);
 	--button-neutral-bg-active: hsl(0, 0%, 40%);
+	--button-dangerous-bg: hsl(0, 80%, 50%);
+	--button-dangerous-bg-hover: hsl(0, 80%, 60%);
+	--button-dangerous-bg-active: hsl(0, 80%, 70%);
+	--button-safe-bg: hsl(120, 80%, 50%);
+	--button-safe-bg-hover: hsl(120, 80%, 60%);
+	--button-safe-bg-active: hsl(120, 80%, 70%);
 	--button-border: hsl(0, 0%, 55%);
 	--shadow: hsl(0, 0%, 7.5%);
 	--footer-bg: hsl(200, 0%, 28%);
@@ -123,6 +133,7 @@ a {
 
 .video-list { 
 	width: 100%;
+	white-space: nowrap;
 }
 
 .video-list td { 
@@ -217,6 +228,38 @@ input.toggle + label:active:after {
 	background-color: var(--button-neutral-bg-active);
 }
 
+.pure-button.dangerous-button {
+	color: var(--button-dangerous-bg);
+	border-color: var(--button-dangerous-bg);
+}
+
+.pure-button.dangerous-button:hover {
+	color: var(--button-dangerous-bg-hover);
+	border-color: var(--button-dangerous-bg-hover);
+}
+
+.pure-button.dangerous-button:active {
+	color: var(--button-dangerous-bg-active);
+	border-color: var(--button-dangerous-bg-active);
+}
+
+.pure-button.safe-button {
+	color: var(--button-safe-bg);
+	border-color: var(--button-safe-bg);
+}
+
+.pure-button.safe-button:hover {
+	color: var(--button-safe-bg-hover);
+	border-color: var(--button-safe-bg-hover);
+}
+
+.pure-button.safe-button:active {
+	color: var(--button-safe-bg-active);
+	border-color: var(--button-safe-bg-active);
+}
+
+
+
 
 .home-menu {
 	background-color: var(--main-bg);
@@ -238,7 +281,7 @@ input.toggle + label:active:after {
 }
 
 .pure-menu-link:hover {
-	background-color: var(--transparent);
+	background-color: var(--transparant);
 }
 
 .pure-menu-children {

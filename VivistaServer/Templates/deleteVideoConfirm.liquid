@@ -1,0 +1,12 @@
+<div class="pure-g center">
+	<div class="pure-u-1 pure-u-md-1-2 pure-u-lg-1-3 pure-u-xl-1-4">
+		<h1>Delete video?</h1>
+		<p>Are you sure you want to permanently delete this video?</p>
+		<div class="video-tile pure-u-1">
+			<img class="pure-img" src="thumb.png">
+			<p>{{ video.title }}</p>
+		</div>
+		<a href="/delete_confirm?id={{ video.id }}" class="pure-button dangerous-button">Permanently delete video</a>
+		<a href="/my_videos" class="pure-button safe-button">Keep video</a>
+	</div>
+</div>
