@@ -467,9 +467,33 @@ namespace VivistaServer
 
 		}
 
-		[Route("POST", "/delete_video")]
-		private static async Task DeleteVideoPost(HttpContext context)
+		[Route("GET", "/delete_video_confirm")]
+		private static async Task DeleteVideoConfirmGet(HttpContext context)
 		{
+			CommonController.SetHTMLContentType(context);
+
+			var userTask = UserSessions.GetLoggedInUser(context);
+			using var connection = Database.OpenNewConnection();
+			var user = await userTask;
+
+			if (user != null && Guid.TryParse(context.Request.Query["id"], out var videoId))
+			{
+				var video = await GetVideo(videoId, connection);
+				if (UserOwnsVideo(video, user.userid))
+				{
+					await DeleteVideo(video.id, connection);
+
+					context.Response.Redirect("/my_videos");
+				}
+				else
+				{
+					await CommonController.Write404(context);
+				}
+			}
+			else
+			{
+				await CommonController.Write404(context);
+			}
 		}
 
 
@@ -553,6 +577,20 @@ namespace VivistaServer
 			catch (Exception e)
 			{
 				return null;
+			}
+		}
+
+		private static async Task<bool> DeleteVideo(Guid videoid, NpgsqlConnection connection)
+		{
+			try
+			{
+				var result = await connection.ExecuteAsync(@"delete from videos
+															where id=@videoid::uuid", new { videoid });
+				return result > 0;
+			}
+			catch (Exception e)
+			{
+				return false;
 			}
 		}
 

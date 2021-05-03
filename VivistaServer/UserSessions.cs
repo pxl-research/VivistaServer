@@ -52,13 +52,13 @@ namespace VivistaServer
 			}
 			else
 			{
-				var user = await GetLoggedInUserFromDb(sessionToken);
+				var user = await GetLoggedInUserSkipCache(sessionToken);
 				cache.Set(sessionToken, user, defaultPolicy);
 				return user;
 			}
 		}
 
-		public static async Task<User> GetLoggedInUserFromDb(string sessionToken)
+		public static async Task<User> GetLoggedInUserSkipCache(string sessionToken)
 		{
 			using var connection = Database.OpenNewConnection();
 			var session = await AuthenticateWithToken(sessionToken, connection);
