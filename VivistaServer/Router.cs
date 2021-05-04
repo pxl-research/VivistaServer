@@ -86,8 +86,8 @@ namespace VivistaServer
 		private static void Asserts()
 		{
 			var methods = Assembly.GetExecutingAssembly().GetTypes().
-						   SelectMany(t => t.GetMethods(BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance)).
-						   Where(m => m.GetCustomAttributes(typeof(RouteAttribute), false).Length > 0).ToList();
+							SelectMany(t => t.GetMethods(BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance)).
+							Where(m => m.GetCustomAttributes(typeof(RouteAttribute), false).Length > 0).ToList();
 
 			foreach (var method in methods)
 			{

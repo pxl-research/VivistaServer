@@ -17,15 +17,19 @@ namespace VivistaServer
 
 	public class HTMLRenderer
 	{
+		private static string templateDirectory = "Templates";
+
 		private static FluidParser parser = new FluidParser();
 		private static Dictionary<string, IFluidTemplate> templateCache = new Dictionary<string, IFluidTemplate>();
 		private static Dictionary<BaseLayout, IFluidTemplate> layoutCache = new Dictionary<BaseLayout, IFluidTemplate>();
 
 		private static UnsafeMemberAccessStrategy defaultAccessStrategy = new UnsafeMemberAccessStrategy();
 
+		private static FileSystemWatcher watcher = new FileSystemWatcher(templateDirectory, "*.liquid");
+
 		static HTMLRenderer()
 		{
-			var files = Directory.EnumerateFiles("Templates", "*.liquid", SearchOption.AllDirectories);
+			var files = Directory.EnumerateFiles(templateDirectory, "*.liquid", SearchOption.AllDirectories);
 
 			foreach (var file in files)
 			{
@@ -33,6 +37,8 @@ namespace VivistaServer
 				var template = parser.Parse(rawTemplate);
 				templateCache[file] = template;
 			}
+
+			InitWatcher();
 		}
 
 		public static void RegisterLayout(BaseLayout layout, string file)
@@ -85,5 +91,58 @@ namespace VivistaServer
 				throw new Exception($"Something went wrong while rendering {templateName}");
 			}
 		}
+
+		private static void InitWatcher()
+		{
+#if DEBUG
+			watcher.NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.CreationTime;
+
+			watcher.Changed += OnChange;
+			watcher.Created += OnCreate;
+			watcher.Renamed += OnRename;
+			watcher.Error += OnError;
+
+			watcher.EnableRaisingEvents = true;
+#endif
+		}
+
+		private static void OnError(object sender, ErrorEventArgs e)
+		{
+			Console.WriteLine(e);
+		}
+
+#if DEBUG
+		private static void OnRename(object sender, RenamedEventArgs e)
+		{
+			Console.WriteLine($"File Renamed: {e.OldFullPath} => {e.FullPath}");
+			templateCache.Remove(e.OldFullPath);
+			try
+			{
+				templateCache.TryAdd(e.FullPath, parser.Parse(File.ReadAllText(e.FullPath)));
+			}
+			catch { }
+		}
+
+		private static void OnCreate(object sender, FileSystemEventArgs e)
+		{
+			Console.WriteLine($"File Created: {e.FullPath}");
+			try
+			{
+				templateCache.TryAdd(e.FullPath, parser.Parse(File.ReadAllText(e.FullPath)));
+			}
+			catch { }
+		}
+
+		private static void OnChange(object sender, FileSystemEventArgs e)
+		{
+			Console.WriteLine($"File Change: {e.FullPath}");
+			try
+			{
+				string raw = File.ReadAllText(e.FullPath);
+				templateCache[e.FullPath] = parser.Parse(raw);
+			}
+			catch { }
+		}
+#endif
 	}
 }
