@@ -1,0 +1,18 @@
+<div class="pure-g center">
+	<div class="video-info-image pure-u-1">
+		<div class="download-message">
+			<button class="pure-button download-button"><span class="play-icon">▶</span> Play In Vivista</button>
+		</div>
+		<img class="pure-img" src="thumb.png">
+	</div>
+	<div class="video-info pure-u-1 pure-u-md-3-4"> 
+		<h1 class="title">{{ video.title }}</h1>
+		<p class="description">Test description{{ video.description }}</p>
+		<p>
+			<span class="tag">test tag</span>
+			{% for tag in video.tags %}
+			<span class="tag">{{ tag.name }}</span>
+			{% endfor %}
+		</p>
+	</div>
+</div>

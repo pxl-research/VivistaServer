@@ -1,5 +1,5 @@
 html {
-	--transparant: hsl(0, 0, 0, 0);
+	--transparant: hsla(0, 0, 0, 0);
 	--main-bg: hsl(0, 0%, 95%);
 	--main-font: hsl(0, 0%, 15%);
 	--muted-font: hsl(0, 0%, 35%);
@@ -12,6 +12,10 @@ html {
 	--button-safe-bg: hsl(120, 80%, 50%);
 	--button-safe-bg-hover: hsl(120, 80%, 40%);
 	--button-safe-bg-active: hsl(120, 80%, 30%);
+	--button-download-bg: hsl(50, 100%, 50%);
+	--button-download-bg-hover: hsl(50, 100%, 65%);
+	--button-download-bg-active: hsl(50, 100%, 80%);
+	--button-download-font: hsl(50, 100%, 10%);
 	--button-border: hsl(0, 0%, 15%);
 	--shadow: hsl(0, 0%, 75%);
 	--footer-bg: hsl(200, 0%, 85%);
@@ -21,6 +25,8 @@ html {
 	--toggle-bg: #aaa;
 	--toggle-bg-active: #eee;
 	--toggle-fg: #fff;
+
+
 	height: 100%;
 }
 
@@ -70,7 +76,7 @@ a {
 .main-content {
 	flex: 1 0 auto;
 	margin-top: 50px;
-	padding: 2em 2em 0em 2em;
+	padding: 2em 2em 0 2em;
 }
 
 .footer {
@@ -106,7 +112,11 @@ a {
 }
 
 .video-tile img {
-	box-shadow: 0px 1px 3px var(--shadow);
+	box-shadow: 0 1px 3px var(--shadow);
+}
+
+.video-tile img:hover {
+	filter: brightness(.7);
 }
 
 .video-tile .uploader {
@@ -150,6 +160,84 @@ a {
 
 
 
+.video-info {
+	border-bottom: 1px solid var(--button-border);
+}
+
+.video-info-image {
+	position: relative;
+	background-color: black;
+	margin: 0 -2em;
+	width: calc(100% + 4em);
+}
+
+.video-info-image img { 
+	width: 100%;
+	max-height: 60vh;
+	object-fit: contain;
+	filter: brightness(.4);
+}
+
+.video-info-image .download-message {
+	z-index: 1000;
+	float: left;
+	position: absolute;
+	left: 50%;
+	top: 50%;
+}
+
+.video-info-image .download-button {
+	background-color: var(--button-download-bg);
+	color: var(--button-download-font);
+	font-size: 2em;
+	transform: translate(-50%, -50%);
+	border: 5px solid var(--button-download-font);
+	box-shadow: hsla(0, 100%, 100%, .75) 0 0px 20px
+}
+
+.video-info-image .download-button:hover {
+	background-color: var(--button-download-bg-hover);
+	box-shadow: hsla(0, 100%, 100%, .95) 0 0px 20px
+}
+
+.video-info-image .download-button:focus {
+	background-color: var(--button-download-bg-hover);
+}
+
+.video-info-image .download-button:active {
+	background-color: var(--button-download-bg-active);
+}
+
+.video-info-image .play-icon {
+	line-height: 0;
+}
+
+.video-info .title { 
+	font-size: 1.5em;
+}
+
+.video-info .description { 
+	font-size: .8em;
+	color: var(--muted-font);
+}
+
+
+
+.tag {
+	/*background-color: var(--button-border);*/
+	border: 1px solid var(--button-border);
+	border-radius: 2em;
+	padding: .2em .5em;
+	margin-right: .5em;
+	line-height: 2em;
+}
+
+.tag:hover {
+	background-color: var(--button-border);
+	cursor: pointer;
+}
+
+
 
 input.toggle[type=checkbox]{
 	height: 0;
@@ -169,7 +257,7 @@ input.toggle + label {
 	position: relative;
 }
 
-input.toggle + label:after {
+input.toggle + label::after {
 	content: '';
 	position: absolute;
 	top: .15em;
@@ -185,12 +273,12 @@ input.toggle:checked + label {
 	background: var(--toggle-bg-active);
 }
 
-input.toggle:checked + label:after {
+input.toggle:checked + label::after {
 	left: calc(100% - .15em);
 	transform: translateX(-100%);
 }
 
-input.toggle + label:active:after {
+input.toggle + label:active::after {
 	width: 1.3em;
 }
 
@@ -263,7 +351,7 @@ input.toggle + label:active:after {
 
 .home-menu {
 	background-color: var(--main-bg);
-	box-shadow: 0px 1px 5px var(--shadow);
+	box-shadow: 0 1px 5px var(--shadow);
 	max-height: 50px;
 }
 
@@ -287,7 +375,7 @@ input.toggle + label:active:after {
 .pure-menu-children {
 	background-color: var(--main-bg);
 	border: 1px solid var(--button-border);
-	box-shadow: 0px 1px 5px var(--shadow);
+	box-shadow: 0 1px 5px var(--shadow);
 }
 
 .pure-menu-link.nohover:hover {

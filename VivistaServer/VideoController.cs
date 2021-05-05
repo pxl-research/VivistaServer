@@ -47,7 +47,7 @@ namespace VivistaServer
 
 		[Route("GET", "/api/videos")]
 		[Route("GET", "/api/v1/videos")]
-		private static async Task VideosGet(HttpContext context)
+		private static async Task VideosGetApi(HttpContext context)
 		{
 			var args = context.Request.Query;
 
@@ -111,7 +111,7 @@ namespace VivistaServer
 
 		[Route("GET", "/api/video")]
 		[Route("GET", "/api/v1/video")]
-		private static async Task VideoGet(HttpContext context)
+		private static async Task VideoGetApi(HttpContext context)
 		{
 			var args = context.Request.Query;
 
@@ -162,7 +162,7 @@ namespace VivistaServer
 
 		[Route("POST", "/api/video")]
 		[Route("POST", "/api/v1/video")]
-		private static async Task VideoPost(HttpContext context)
+		private static async Task VideoPostApi(HttpContext context)
 		{
 			context.Features.Get<IHttpMaxRequestBodySizeFeature>().MaxRequestBodySize = null;
 
@@ -228,7 +228,7 @@ namespace VivistaServer
 
 		[Route("GET", "/api/meta")]
 		[Route("GET", "/api/v1/meta")]
-		private static async Task MetaGet(HttpContext context)
+		private static async Task MetaGetApi(HttpContext context)
 		{
 			var args = context.Request.Query;
 			string id = args["videoid"].ToString();
@@ -246,7 +246,7 @@ namespace VivistaServer
 
 		[Route("GET", "/api/thumbnail")]
 		[Route("GET", "/api/v1/thumbnail")]
-		private static async Task ThumbnailGet(HttpContext context)
+		private static async Task ThumbnailGetApi(HttpContext context)
 		{
 			var args = context.Request.Query;
 			string id = args["id"];
@@ -264,7 +264,7 @@ namespace VivistaServer
 
 		[Route("GET", "/api/extra")]
 		[Route("GET", "/api/v1/extra")]
-		private static async Task ExtraGet(HttpContext context)
+		private static async Task ExtraGetApi(HttpContext context)
 		{
 			var args = context.Request.Query;
 			string videoId = args["videoid"];
@@ -289,7 +289,7 @@ namespace VivistaServer
 
 		[Route("GET", "/api/extras")]
 		[Route("GET", "/api/v1/extras")]
-		private static async Task ExtrasGet(HttpContext context)
+		private static async Task ExtrasGetApi(HttpContext context)
 		{
 			var args = context.Request.Query;
 			string idstring = args["videoid"];
@@ -320,7 +320,7 @@ namespace VivistaServer
 
 		[Route("POST", "/api/extras")]
 		[Route("POST", "/api/v1/extras")]
-		private static async Task ExtrasPost(HttpContext context)
+		private static async Task ExtrasPostApi(HttpContext context)
 		{
 			using var connection = Database.OpenNewConnection();
 
@@ -401,6 +401,32 @@ namespace VivistaServer
 			var templateContext = new TemplateContext(new { videos });
 
 			await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\index.liquid", templateContext));
+		}
+
+		[Route("GET", "/video")]
+		private static async Task VideoGet(HttpContext context)
+		{
+			CommonController.SetHTMLContentType(context);
+
+			if (Guid.TryParse(context.Request.Query["id"], out var videoId))
+			{
+				using var connection = Database.OpenNewConnection();
+				var video = await GetVideo(videoId, connection);
+
+				if (video != null)
+				{
+					var templateContext = new TemplateContext(new { video });
+					await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\video.liquid", templateContext));
+				}
+				else
+				{
+					await CommonController.Write404(context);
+				}
+			}
+			else
+			{
+				await CommonController.Write404(context);
+			}
 		}
 
 		[Route("GET", "/my_videos")]
