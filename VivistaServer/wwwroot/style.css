@@ -162,12 +162,14 @@ a {
 
 .video-info {
 	border-bottom: 1px solid var(--button-border);
+	height: max-content;
+	margin-right: 10px;
 }
 
 .video-info-image {
 	position: relative;
 	background-color: black;
-	margin: 0 -2em;
+	margin: -2em -2em 0 -2em;
 	width: calc(100% + 4em);
 }
 
@@ -223,8 +225,44 @@ a {
 
 
 
+.related-videos {
+	min-width: 300px;
+	max-width: 100%;
+	width: 400px;
+	display: inline-block;
+	letter-spacing: normal;
+	word-spacing: normal;
+	text-rendering: auto;
+}
+
+.related-videos h1 {
+	color: var(--muted-font);
+	font-size: 1em;
+	line-height: 2em;
+}
+
+.related-videos .video {
+	margin-bottom: 10px;
+}
+
+.related-videos .video .title {
+	font-size: .8em;
+	margin: 0;
+	line-height: 1.5;
+	margin-left: 10px;
+}
+
+.related-videos .video .uploader {
+	margin: 0;
+	color: var(--muted-font);
+	font-size: .6em;
+	line-height: 1.5;
+	margin-left: 10px;
+}
+
+
+
 .tag {
-	/*background-color: var(--button-border);*/
 	border: 1px solid var(--button-border);
 	border-radius: 2em;
 	padding: .2em .5em;
@@ -350,6 +388,7 @@ input.toggle + label:active::after {
 
 
 .home-menu {
+	z-index: 9999;
 	background-color: var(--main-bg);
 	box-shadow: 0 1px 5px var(--shadow);
 	max-height: 50px;

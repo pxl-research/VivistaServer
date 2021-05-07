@@ -120,7 +120,7 @@ namespace VivistaServer
 			{
 				templateCache.TryAdd(e.FullPath, parser.Parse(File.ReadAllText(e.FullPath)));
 			}
-			catch { }
+			catch { Debug.WriteLine("Error updating template: " + e);}
 		}
 
 		private static void OnCreate(object sender, FileSystemEventArgs e)
@@ -130,7 +130,7 @@ namespace VivistaServer
 			{
 				templateCache.TryAdd(e.FullPath, parser.Parse(File.ReadAllText(e.FullPath)));
 			}
-			catch { }
+			catch { Debug.WriteLine("Error updating template: " + e);}
 		}
 
 		private static void OnChange(object sender, FileSystemEventArgs e)
@@ -141,7 +141,7 @@ namespace VivistaServer
 				string raw = File.ReadAllText(e.FullPath);
 				templateCache[e.FullPath] = parser.Parse(raw);
 			}
-			catch { }
+			catch { Debug.WriteLine("Error updating template: " + e);}
 		}
 #endif
 	}
