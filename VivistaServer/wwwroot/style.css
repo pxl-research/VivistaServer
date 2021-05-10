@@ -197,6 +197,16 @@ a {
 	box-shadow: hsla(0, 100%, 100%, .75) 0 0px 20px
 }
 
+.video-info-image .install-message {
+	margin-top: .5em;
+	margin-bottom: 0em;
+	font-size: .6em;
+}
+
+.video-info-image .install-message a {
+	color: var(--button-download-font);
+}
+
 .video-info-image .download-button:hover {
 	background-color: var(--button-download-bg-hover);
 	box-shadow: hsla(0, 100%, 100%, .95) 0 0px 20px

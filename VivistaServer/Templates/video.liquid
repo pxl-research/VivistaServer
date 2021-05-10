@@ -1,9 +1,10 @@
 <div class="pure-g center">
 	<div class="video-info-image pure-u-1">
 		<div class="download-message">
-			<a href="vivista://{{video.id}}" class="pure-button download-button">
+			<button data-uri="vivista://{{video.id}}" class="pure-button download-button">
 				<span class="play-icon">▶</span> Play In Vivista
-			</a>
+				<p class="hidden install-message">Don't have Vivista installed? <a href="/install" target="_blank">Download now</a></p>
+			</button>
 		</div>
 		<img class="pure-img" src="thumb.png">
 	</div>
