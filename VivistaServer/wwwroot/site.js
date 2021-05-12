@@ -35,7 +35,6 @@ function InitPlayButton()
 {
 	var button = document.getElementsByClassName("download-button")[0];
 
-
 	button.addEventListener("click", function()
 	{
 		var message = document.getElementsByClassName("install-message")[0];

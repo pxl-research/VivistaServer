@@ -40,6 +40,7 @@ namespace VivistaServer
 				CommonController.baseURL = "https://vivista.net";
 			}
 
+			CommonController.wwwroot = env.WebRootPath;
 			app.UseStaticFiles();
 
 			Task.Run(PeriodicFunction);

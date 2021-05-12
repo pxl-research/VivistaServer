@@ -16,7 +16,12 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Folder Include="wwwroot\" />
+    <Folder Include="wwwroot\Installers\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="wwwroot\Installers\Editor\VivistaEditor-0.9.16.exe" />
+    <None Include="wwwroot\Installers\Player\VivistaPlayer-0.9.16.exe" />
   </ItemGroup>
 
   <ItemGroup>

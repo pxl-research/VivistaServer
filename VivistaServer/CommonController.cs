@@ -57,6 +57,7 @@ namespace VivistaServer
 		private const int fileBufferSize = 16 * kb;
 
 		public static string baseURL;
+		public static string wwwroot;
 
 		public static async Task WriteFile(HttpContext context, string filename, string contentType, string responseFileName)
 		{
