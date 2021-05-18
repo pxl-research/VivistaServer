@@ -1,8 +1,7 @@
 ﻿using System.IO;
 using System.Linq;
-using System.Security.Policy;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Hosting;
+using Fluid;
 using Microsoft.AspNetCore.Http;
 
 namespace VivistaServer
@@ -15,8 +14,13 @@ namespace VivistaServer
 		[Route("GET", "/install")]
 		private static async Task InstallGet(HttpContext context)
 		{
-			var playerPath = GetLatestPlayerInstallerURL();
-			var editorPath = GetLatestEditorInstallerURL();
+			CommonController.SetHTMLContentType(context);
+			var playerURL = GetLatestPlayerInstallerURL();
+			var editorURL = GetLatestEditorInstallerURL();
+
+			var templateContext = new TemplateContext(new { playerURL, editorURL });
+			await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\install.liquid", templateContext));
+
 		}
 
 		[Route("GET", "/install/latest")]

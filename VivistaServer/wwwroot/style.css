@@ -16,6 +16,7 @@ html {
 	--button-download-bg-hover: hsl(50, 100%, 65%);
 	--button-download-bg-active: hsl(50, 100%, 80%);
 	--button-download-font: hsl(50, 100%, 10%);
+	--button-download-font-hover: hsl(50, 100%, 20%);
 	--button-border: hsl(0, 0%, 15%);
 	--shadow: hsl(0, 0%, 75%);
 	--footer-bg: hsl(200, 0%, 85%);
@@ -205,6 +206,11 @@ a {
 
 .video-info-image .install-message a {
 	color: var(--button-download-font);
+}
+
+.video-info-image .install-message a:hover {
+	color: var(--button-download-font-hover);
+	text-decoration: none;
 }
 
 .video-info-image .download-button:hover {
@@ -409,8 +415,12 @@ input.toggle + label:active::after {
 	color: var(--main-font);
 }
 
-.pure-menu-heading:hover, .pure-menu-link:hover {
+.pure-menu-heading:hover, .pure-menu-link:hover{
 	color: var(--hover-font);
+}
+
+.pure-menu-heading:focus, .pure-menu-link:focus {
+	background-color: var(--main-bg);
 }
 
 .pure-menu-image-link {
