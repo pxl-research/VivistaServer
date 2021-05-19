@@ -45,6 +45,14 @@ namespace VivistaServer
 			public int length;
 		}
 
+		private enum IndexTab
+		{
+			New,
+			Popular,
+			MostWatched
+		}
+
+
 		[Route("GET", "/api/videos")]
 		[Route("GET", "/api/v1/videos")]
 		private static async Task VideosGetApi(HttpContext context)
@@ -386,6 +394,13 @@ namespace VivistaServer
 		private static async Task IndexGet(HttpContext context)
 		{
 			CommonController.SetHTMLContentType(context);
+			var tabString = context.Request.Query["tab"].ToString();
+			var tab = tabString switch
+			{
+				"new" => IndexTab.New,
+				"popular" => IndexTab.Popular,
+				_ => IndexTab.MostWatched
+			};
 
 			int count = 10;
 			int offset = 0;
@@ -398,7 +413,7 @@ namespace VivistaServer
 								limit @count
 								offset @offset", new { count, offset });
 
-			var templateContext = new TemplateContext(new { videos });
+			var templateContext = new TemplateContext(new { videos, tab = tab.ToString() });
 
 			await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\index.liquid", templateContext));
 		}
