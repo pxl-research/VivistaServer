@@ -407,11 +407,31 @@ namespace VivistaServer
 
 			using var connection = Database.OpenNewConnection();
 
-			var videos = await connection.QueryAsync<Video>(@"select v.id, v.userid, u.username, v.timestamp, v.downloadsize, v.title, v.description, v.length from videos v
+			IEnumerable<Video> videos = null;
+			if (tab == IndexTab.New)
+			{
+				videos = await connection.QueryAsync<Video>(@"select v.id, v.userid, u.username, v.timestamp, v.downloadsize, v.title, v.description, v.length from videos v
 								inner join users u on v.userid = u.userid
 								order by v.timestamp desc
 								limit @count
+								offset @offset", new {count, offset});
+			}
+			else if (tab == IndexTab.MostWatched)
+			{
+				videos = await connection.QueryAsync<Video>(@"select v.id, v.userid, u.username, v.timestamp, v.downloadsize, v.title, v.description, v.length from videos v
+								inner join users u on v.userid = u.userid
+								order by v.views desc
+								limit @count
 								offset @offset", new { count, offset });
+			}
+			else if (tab == IndexTab.Popular)
+			{
+				videos = await connection.QueryAsync<Video>(@"select v.id, v.userid, u.username, v.timestamp, v.downloadsize, v.title, v.description, v.length from videos v
+								inner join users u on v.userid = u.userid
+								order by v.views desc
+								limit @count
+								offset @offset", new { count, offset });
+			}
 
 			var templateContext = new TemplateContext(new { videos, tab = tab.ToString() });
 
