@@ -1,8 +1,9 @@
 html {
 	--transparant: hsla(0, 0, 0, 0);
 	--main-bg: hsl(0, 0%, 95%);
-	--main-font: hsl(0, 0%, 15%);
+	--main-font: hsl(0, 0%, 20%);
 	--muted-font: hsl(0, 0%, 35%);
+	--muted-bg: hsl(0, 0%, 90%);
 	--hover-font: hsl(0, 0%, 35%);
 	--button-neutral-bg-hover: hsl(0, 0%, 80%);
 	--button-neutral-bg-active: hsl(0, 0%, 70%);
@@ -20,7 +21,7 @@ html {
 	--button-border: hsl(0, 0%, 15%);
 	--shadow: hsl(0, 0%, 75%);
 	--footer-bg: hsl(200, 0%, 85%);
-	--footer-border: hsl(200, 0%, 80%);
+	--main-border: hsl(200, 0%, 80%);
 	--anchor-font: hsl(210, 100%, 50%);
 	--table-bg: hsl(0, 0%, 87.5%);
 	--toggle-bg: #aaa;
@@ -35,6 +36,7 @@ html[data-theme='dark'] {
 	--main-bg: hsl(200, 0%, 18%);
 	--main-font: hsl(0, 0%, 95%);
 	--muted-font: hsl(0, 0%, 75%);
+	--muted-bg: hsl(0, 0%, 23%);
 	--hover-font: hsl(0, 0%, 75%);
 	--button-neutral-bg-hover: hsl(0, 0%, 30%);
 	--button-neutral-bg-active: hsl(0, 0%, 40%);
@@ -47,7 +49,7 @@ html[data-theme='dark'] {
 	--button-border: hsl(0, 0%, 55%);
 	--shadow: hsl(0, 0%, 7.5%);
 	--footer-bg: hsl(200, 0%, 28%);
-	--footer-border: hsl(200, 0%, 40%);
+	--main-border: hsl(200, 0%, 40%);
 	--anchor-font: hsl(50, 100%, 50%);
 	--table-bg: hsl(200, 0%, 25%);
 
@@ -83,7 +85,7 @@ a {
 .footer {
 	margin-top: 5em;
 	padding: 1em 2em;
-	border-top: 1px solid var(--footer-border);
+	border-top: 1px solid var(--main-border);
 	background-color: var(--footer-bg);
 }
 
@@ -157,6 +159,19 @@ a {
 	display: inline;
 	vertical-align: middle;
 	padding-right: 1em;
+}
+
+
+
+.user-header {
+	padding: 1em 2em;
+	margin-top: -2em;
+	margin-bottom: 2em;
+	background-color: var(--muted-bg);
+	border-left: 1px solid var(--main-border);
+	border-right: 1px solid var(--main-border);
+	border-bottom: 1px solid var(--main-border);
+	border-radius: 0 0 2px 2px;
 }
 
 
@@ -425,6 +440,10 @@ input.toggle + label:active::after {
 
 .pure-menu-image-link {
 	padding: 0 2em;
+}
+
+.pure-menu-image-link:hover, .pure-menu-image-link:focus {
+	background-color: var(--transparant);
 }
 
 .pure-menu-link:hover {

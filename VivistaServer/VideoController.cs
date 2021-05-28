@@ -78,7 +78,7 @@ namespace VivistaServer
 			//TODO(Simon): Fuzzy search for username
 			if (!String.IsNullOrEmpty(author))
 			{
-				userid = await UserController.GetUserIdFromUsername(author, connection);
+				userid = await UserController.UserIdFromUsername(author, connection);
 			}
 
 			if (!Int32.TryParse(args["agedays"].ToString(), out int daysOld) || daysOld < 0)
@@ -473,17 +473,17 @@ namespace VivistaServer
 			using var connection = Database.OpenNewConnection();
 			var user = await userTask;
 
-			const int countPerPage = 20;
-			int page = 1;
-			if (context.Request.Query.ContainsKey("page"))
-			{
-				Int32.TryParse(context.Request.Query["page"], out page);
-			}
-
-			int offset = (page - 1) * countPerPage;
-
 			if (user != null)
 			{
+				const int countPerPage = 20;
+				int page = 1;
+				if (context.Request.Query.ContainsKey("page"))
+				{
+					Int32.TryParse(context.Request.Query["page"], out page);
+				}
+
+				int offset = (page - 1) * countPerPage;
+
 				var numVideos = await NumVideosForUser(user.userid, connection);
 				var VideosTask = VideosForUser(user.userid, countPerPage, offset, connection);
 
@@ -498,6 +498,50 @@ namespace VivistaServer
 				await CommonController.Write404(context);
 			}
 		}
+
+		[Route("GET", "/user")]
+		private static async Task UserGet(HttpContext context)
+		{
+			CommonController.SetHTMLContentType(context);
+
+			var username = context.Request.Query["name"].ToString();
+
+			if (!String.IsNullOrEmpty(username))
+			{
+				using var connection = Database.OpenNewConnection();
+				var user = await UserController.UserFromUsername(username, connection);
+
+				if (user != null)
+				{
+					const int countPerPage = 20;
+					int page = 1;
+					if (context.Request.Query.ContainsKey("page"))
+					{
+						Int32.TryParse(context.Request.Query["page"], out page);
+					}
+
+					int offset = (page - 1) * countPerPage;
+				
+					var numVideos = await NumPublicVideosForUser(user.userid, connection);
+					var VideosTask = PublicVideosForUser(user.userid, countPerPage, offset, connection);
+
+					var pagination = new Pagination(numVideos, countPerPage, offset);
+
+					var templateContext = new TemplateContext(new {videos = await VideosTask, user, pagination});
+
+					await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\user.liquid", templateContext));
+				}
+				else
+				{
+					await CommonController.Write404(context);
+				}
+			}
+			else
+			{
+				await CommonController.Write404(context);
+			}
+		}
+
 
 		[Route("GET", "/delete_video")]
 		private static async Task DeleteVideoGet(HttpContext context)
@@ -558,8 +602,7 @@ namespace VivistaServer
 		}
 
 
-
-		private static async Task<IEnumerable<Video>> VideosForUser(int userid, int count, int offset, NpgsqlConnection connection)
+		public static async Task<IEnumerable<Video>> VideosForUser(int userid, int count, int offset, NpgsqlConnection connection)
 		{
 			try
 			{
@@ -577,7 +620,41 @@ namespace VivistaServer
 			}
 		}
 
+		//TODO(Simon): Filter on public videos
+		public static async Task<IEnumerable<Video>> PublicVideosForUser(int userid, int count, int offset, NpgsqlConnection connection)
+		{
+			try
+			{
+				var videos = await connection.QueryAsync<Video>(@"select id, timestamp, downloadsize, title, description, length from videos
+																where userid=@userid
+																order by timestamp desc
+																limit @count
+																offset @offset", new { userid, count, offset });
+
+				return videos;
+			}
+			catch (Exception e)
+			{
+				return new List<Video>();
+			}
+		}
+
 		private static async Task<int> NumVideosForUser(int userid, NpgsqlConnection connection)
+		{
+			try
+			{
+				int totalcount = await connection.QuerySingleAsync<int>(@"select count(*) from videos
+																		where userid=@userid", new { userid });
+				return totalcount;
+			}
+			catch (Exception e)
+			{
+				return 0;
+			}
+		}
+
+		//TODO(Simon): Filter on public videos
+		public static async Task<int> NumPublicVideosForUser(int userid, NpgsqlConnection connection)
 		{
 			try
 			{

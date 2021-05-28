@@ -29,7 +29,7 @@
 				<img class="video-thumb pure-img" src="thumb.png">
 			</a>
 			<p><a href="/video?id={{ video.id }}">{{ video.title }}</a></p>
-			<a class="uploader" href="#">{{ video.username }}</a>
+			<a class="uploader" href="/user?name={{ video.username }}">{{ video.username }}</a>
 		</div>
 	{% endfor %}
 </div>

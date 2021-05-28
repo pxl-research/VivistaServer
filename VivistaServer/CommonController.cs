@@ -28,6 +28,8 @@ namespace VivistaServer
 
 		public void Update()
 		{
+			pageNumbers.Clear();
+
 			page = offset / countPerPage + 1;
 			pageCount = (int)MathF.Ceiling(totalCount / (float)countPerPage);
 			count = page < pageCount ? countPerPage : totalCount - (pageCount - 1) * countPerPage;
