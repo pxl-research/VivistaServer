@@ -97,6 +97,13 @@ a {
 	vertical-align: middle;
 }
 
+.profile-picture-large {
+	max-width: 80px;
+	max-height: 80px;
+	padding: 5px;
+	border-radius: 50% 50%;
+}
+
 .formerror {
 	color: red;
 }
@@ -172,8 +179,31 @@ a {
 	border-right: 1px solid var(--main-border);
 	border-bottom: 1px solid var(--main-border);
 	border-radius: 0 0 2px 2px;
+	display: flex;
 }
 
+.user-header h1 {
+	font-size: 1.5em;
+	margin-top: .55em;
+}
+
+.user-header p {
+	font-size: .8em;
+	color: var(--muted-font);
+}
+
+.user-header .profile-picture {
+	flex: 0 0 80px;
+	display: flex;
+}
+
+.user-header .profile-picture .profile-picture-large {
+	align-self: center;
+}
+
+.user-header .profile-info {
+	flex: 1 0 120px;
+}
 
 
 .video-info {
