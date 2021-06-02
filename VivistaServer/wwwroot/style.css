@@ -108,6 +108,11 @@ a {
 	color: red;
 }
 
+.formsuccess {
+	color: green;
+}
+
+
 .pure-table thead { 
 	background-color: var(--table-bg);
 	color: var(--main-font);

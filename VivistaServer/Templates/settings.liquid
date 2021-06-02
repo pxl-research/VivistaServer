@@ -1,0 +1,21 @@
+<div class="pure-g">
+	<div class="pure-u-1">
+		<h1>Change Password</h1>
+		<form class="pure-form pure-form-stacked" method="post" action="/update_password">
+			{% if success %}
+				<p class="formsuccess">Your password has been updated</p>
+			{% else %}
+				<p class="formerror">{{ message }}</p>
+			{% endif %}
+			<label for="current-password">Current password</label>
+			<input name="current-password" type="password"/>
+
+			<label for="new-password">New password</label>
+			<input name="new-password" type="password"/>
+
+			<label for="password-confirmation">Repeat new password</label>
+			<input name="password-confirmation" type="password"/>
+			<button type="submit" class="pure-button">Change password</button>
+		</form>
+	</div>
+</div>

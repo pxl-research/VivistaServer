@@ -51,7 +51,7 @@ namespace VivistaServer
 			SetHTMLContentType(context);
 
 			string result;
-			int code;
+			bool success;
 
 			var model = new RegisterModel
 			{
@@ -62,7 +62,7 @@ namespace VivistaServer
 
 			try
 			{
-				(result, code) = await RegisterWithForm(context);
+				(success, result) = await RegisterWithForm(context);
 			}
 			catch (Exception e)
 			{
@@ -72,7 +72,7 @@ namespace VivistaServer
 				return;
 			}
 
-			if (code != StatusCodes.Status200OK)
+			if (!success)
 			{
 				model.error = result;
 				var templateContext = new TemplateContext(model);
@@ -90,11 +90,11 @@ namespace VivistaServer
 		private static async Task RegisterPostApi(HttpContext context)
 		{
 			string result;
-			int code;
+			bool success;
 
 			try
 			{
-				(result, code) = await RegisterWithForm(context);
+				(success, result) = await RegisterWithForm(context);
 			}
 			catch (Exception e)
 			{
@@ -102,9 +102,9 @@ namespace VivistaServer
 				return;
 			}
 
-			if (code != StatusCodes.Status200OK)
+			if (!success)
 			{
-				await WriteError(context, result, code);
+				await WriteError(context, result, StatusCodes.Status400BadRequest);
 			}
 			else
 			{
@@ -126,7 +126,7 @@ namespace VivistaServer
 			SetHTMLContentType(context);
 
 			string result;
-			int code;
+			bool success;
 
 			var model = new LoginModel
 			{
@@ -135,7 +135,7 @@ namespace VivistaServer
 
 			try
 			{
-				(result, code) = await LoginWithForm(context);
+				(success, result) = await LoginWithForm(context);
 			}
 			catch (Exception e)
 			{
@@ -145,7 +145,7 @@ namespace VivistaServer
 				return;
 			}
 
-			if (code != StatusCodes.Status200OK)
+			if (!success)
 			{
 				model.error = result;
 				var templateContext = new TemplateContext(model);
@@ -177,11 +177,11 @@ namespace VivistaServer
 		private static async Task LoginPostApi(HttpContext context)
 		{
 			string result;
-			int code;
+			bool success;
 
 			try
 			{
-				(result, code) = await LoginWithForm(context);
+				(success, result) = await LoginWithForm(context);
 			}
 			catch (Exception e)
 			{
@@ -189,7 +189,7 @@ namespace VivistaServer
 				return;
 			}
 
-			if (code != StatusCodes.Status200OK)
+			if (!success)
 			{
 				await WriteError(context, "{}", StatusCodes.Status401Unauthorized);
 			}
@@ -288,17 +288,10 @@ namespace VivistaServer
 
 			if (await AuthenticatePasswordResetToken(userid, model.token, connection))
 			{
-				if (password != confirmPassword)
+				var (success, result) = ValidatePassword(password, confirmPassword);
+				if (!success)
 				{
-					model.error = "Passwords do not match";
-					var templateContext = new TemplateContext(model);
-					await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\resetPasswordFinish.liquid", templateContext));
-					return;
-				}
-
-				if (password.Length < minPassLength)
-				{
-					model.error = "Password too short";
+					model.error = result;
 					var templateContext = new TemplateContext(model);
 					await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\resetPasswordFinish.liquid", templateContext));
 					return;
@@ -325,11 +318,60 @@ namespace VivistaServer
 			}
 		}
 
+		[Route("GET", "/settings")]
+		private static async Task SettingsGet(HttpContext context)
+		{
+			SetHTMLContentType(context);
+
+			await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\settings.liquid", null));
+		}
+
+		[Route("POST", "/update_password")]
+		private static async Task UpdatePasswordPost(HttpContext context)
+		{
+			SetHTMLContentType(context);
+
+			string currentPassword = context.Request.Form["current-password"];
+			string password = context.Request.Form["new-password"];
+			string passwordConfirmation = context.Request.Form["password-confirmation"];
+
+			var (success, result) = ValidatePassword(password, passwordConfirmation);
+
+			if (!success)
+			{
+				var templateContext = new TemplateContext(new { success = false, message = result });
+				await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\settings.liquid", templateContext));
+			}
+			else
+			{
+				using var connection = Database.OpenNewConnection();
+				var user = await UserSessions.GetLoggedInUser(context);
+				var currentPassCorrect = await AuthenticateUser(user.email, currentPassword, connection);
+
+				if (currentPassCorrect)
+				{
+					if (await UpdatePassword(user.email, password, connection))
+					{
+						var templateContext = new TemplateContext(new {success = true, message = ""});
+						await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\settings.liquid", templateContext));
+					}
+					else
+					{
+						var templateContext = new TemplateContext(new { success = false, message = "Something went wrong while updating password. Please try again later" });
+						await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\settings.liquid", templateContext));
+					}
+				}
+				else
+				{
+					var templateContext = new TemplateContext(new { success = false, message = "Current password is wrong" });
+					await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\settings.liquid", templateContext));
+				}
+			}
+		}
 
 
 
-		//NOTE(Simon): If return int == 200, string == session token. If return int != 200, string == error description
-		private static async Task<(string, int)> RegisterWithForm(HttpContext context)
+		private static async Task<(bool success, string result)> RegisterWithForm(HttpContext context)
 		{
 			if (context.Request.HasFormContentType)
 			{
@@ -337,37 +379,39 @@ namespace VivistaServer
 
 				string username = form["username"].ToString().Trim();
 				string password = form["password"].ToString();
+				string passwordConfirmation = form["password-confirmation"].ToString();
 				string email = form["email"].ToString().NormalizeEmail();
 
 				if (username.Length < 3)
 				{
-					return ("Username too short", StatusCodes.Status400BadRequest);
+					return (false, "Username too short");
 				}
 
-				if (password.Length < minPassLength)
+				var (success, result) = ValidatePassword(password, passwordConfirmation);
+				if (!success)
 				{
-					return ("Password too short", StatusCodes.Status400BadRequest);
+					return (false, result);
 				}
 
 				//NOTE(Simon): Shortest possible is a@a.a
 				if (email.Length < 5)
 				{
-					return ("Email too short", StatusCodes.Status400BadRequest);
+					return (false, "Email too short");
 				}
 
 				using var connection = Database.OpenNewConnection();
 
-				var userExists = await UserExists(email, connection);
-				var hashedPassword = BCrypt.Net.BCrypt.HashPassword(password, bcryptWorkFactor);
+				bool userExists = await UserExists(email, connection);
+				string hashedPassword = BCrypt.Net.BCrypt.HashPassword(password, bcryptWorkFactor);
 
 				if (!userExists)
 				{
 					string verificationToken = Tokens.NewVerifyEmailToken();
-					int success = await connection.ExecuteAsync(@"insert into users (username, email, pass, verification_token)
+					int querySuccess = await connection.ExecuteAsync(@"insert into users (username, email, pass, verification_token)
 																	values (@username, @email, @hashedPassword, @verificationToken)",
 																new { username, email, hashedPassword, verificationToken });
 
-					if (success == 0)
+					if (querySuccess == 0)
 					{
 						throw new Exception("Something went wrong while writing new user to db");
 					}
@@ -376,25 +420,24 @@ namespace VivistaServer
 				}
 				else
 				{
-					return ("This user already exists", StatusCodes.Status409Conflict);
+					return (false, "This user already exists");
 				}
 
 				//NOTE(Simon): Create session token to immediately log user in.
 				{
-					var userid = await UserIdFromEmail(email, connection);
-					var token = await UserSessions.CreateNewSession(userid, connection);
+					int userid = await UserIdFromEmail(email, connection);
+					string token = await UserSessions.CreateNewSession(userid, connection);
 
-					return (token, StatusCodes.Status200OK);
+					return (true, token);
 				}
 			}
 			else
 			{
-				return ("Request did not contain a form", StatusCodes.Status400BadRequest);
+				return (false, "Request did not contain a form");
 			}
 		}
 
-		//NOTE(Simon): If return int == 200, string == session token. If return int != 200, string == error description
-		private static async Task<(string, int)> LoginWithForm(HttpContext context)
+		private static async Task<(bool success, string result)> LoginWithForm(HttpContext context)
 		{
 			using var connection = Database.OpenNewConnection();
 
@@ -409,12 +452,27 @@ namespace VivistaServer
 				var token = await UserSessions.CreateNewSession(userid, connection);
 
 				//TODO(Simon): Wrap in JSON. Look for other occurrences in file
-				return (token, StatusCodes.Status200OK);
+				return (true, token);
 			}
 			else
 			{
-				return ("This combination of email and password was not found", StatusCodes.Status401Unauthorized);
+				return (false, "This combination of email and password was not found");
 			}
+		}
+
+		private static (bool success, string result) ValidatePassword(string password, string confirmation)
+		{
+			if (password != confirmation)
+			{
+				return (false, "Passwords do not match");
+			}
+
+			if (string.IsNullOrEmpty(password) || password.Length < minPassLength)
+			{
+				return (false, "Password too short");
+			}
+
+			return (true, "");
 		}
 
 		public static async Task<User> UserFromId(int userid, NpgsqlConnection connection)
@@ -476,7 +534,7 @@ namespace VivistaServer
 
 			try
 			{
-				rows = await connection.ExecuteAsync("update users set pass = @hashedPassword where email = @email", new {email, hashedPassword});
+				rows = await connection.ExecuteAsync("update users set pass = @hashedPassword where email = @email", new { email, hashedPassword });
 			}
 			catch
 			{

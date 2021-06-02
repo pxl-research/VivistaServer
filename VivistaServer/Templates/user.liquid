@@ -23,9 +23,9 @@
 		<div class="pure-u-1">
 			{% for i in pagination.pageNumbers %}
 				{% if i == pagination.page %}
-					<a href="?user={{user.username}}&page={{i}}" class="pure-button pure-button-active">{{i}}</a>
+					<a href="?name={{user.username}}&page={{i}}" class="pure-button pure-button-active">{{i}}</a>
 				{% else %}
-					<a href="?user={{user.username}}&page={{i}}" class="pure-button">{{i}}</a>
+					<a href="?name={{user.username}}&page={{i}}" class="pure-button">{{i}}</a>
 				{% endif %}
 			{% endfor %}
 		</div>
