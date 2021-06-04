@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
 using Fluid;
+using Fluid.Values;
 using Microsoft.AspNetCore.Http;
 
 namespace VivistaServer
@@ -48,6 +49,22 @@ namespace VivistaServer
 			layoutCache[layout] = template;
 		}
 
+		public static FluidValue GuidBase64(FluidValue input, FilterArguments arguments, TemplateContext context)
+		{
+			if (input.Type != FluidValues.Object)
+			{
+				throw new ArgumentException("Value should be of Guid Type");
+			}
+
+			var objValue = input.ToObjectValue();
+			if (objValue is Guid guid)
+			{
+				return new StringValue(guid.Encode());
+			}
+
+			throw new ArgumentException("Value should be of Guid Type");
+		}
+
 		//TODO(Simon): Consider also caching last file write time, so we can auto update pages
 		public static async Task<string> Render(HttpContext httpContext, string templateName, TemplateContext context, BaseLayout layout = BaseLayout.Web)
 		{
@@ -62,6 +79,8 @@ namespace VivistaServer
 					context = new TemplateContext();
 					context.MemberAccessStrategy = defaultAccessStrategy;
 					context.LocalScope.SetValue("User", user);
+					context.Filters.AddFilter("guidbase64", GuidBase64);
+
 					result = await template.RenderAsync();
 				}
 				else
@@ -70,6 +89,8 @@ namespace VivistaServer
 					//NOTE(cont.): This block prevents having to do it manually.
 					context.MemberAccessStrategy = defaultAccessStrategy;
 					context.LocalScope.SetValue("User", user);
+					context.Filters.AddFilter("guidbase64", GuidBase64);
+
 					result = await template.RenderAsync(context);
 				}
 
@@ -78,6 +99,8 @@ namespace VivistaServer
 					var content = new TemplateContext(new { content = result });
 					content.MemberAccessStrategy = defaultAccessStrategy;
 					content.LocalScope.SetValue("User", user);
+					context.Filters.AddFilter("guidbase64", GuidBase64);
+
 					result = await layoutCache[layout].RenderAsync(content);
 				}
 

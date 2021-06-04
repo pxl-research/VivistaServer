@@ -443,7 +443,7 @@ namespace VivistaServer
 		{
 			CommonController.SetHTMLContentType(context);
 
-			if (Guid.TryParse(context.Request.Query["id"], out var videoId))
+			if (GuidHelpers.TryDecode(context.Request.Query["id"], out var videoId))
 			{
 				using var connection = Database.OpenNewConnection();
 				var video = await GetVideo(videoId, connection);
@@ -552,7 +552,7 @@ namespace VivistaServer
 			using var connection = Database.OpenNewConnection();
 			var user = await userTask;
 
-			if (user != null && Guid.TryParse(context.Request.Query["id"], out var videoId))
+			if (user != null && GuidHelpers.TryDecode(context.Request.Query["id"], out var videoId))
 			{
 				var video = await GetVideo(videoId, connection);
 				if (UserOwnsVideo(video, user.userid))
@@ -581,7 +581,7 @@ namespace VivistaServer
 			using var connection = Database.OpenNewConnection();
 			var user = await userTask;
 
-			if (user != null && Guid.TryParse(context.Request.Query["id"], out var videoId))
+			if (user != null && GuidHelpers.TryDecode(context.Request.Query["id"], out var videoId))
 			{
 				var video = await GetVideo(videoId, connection);
 				if (UserOwnsVideo(video, user.userid))
@@ -740,7 +740,7 @@ namespace VivistaServer
 			try
 			{
 				_ = GetNextMetaValue(ref raw);
-				meta.guid = Guid.Parse((ReadOnlySpan<char>) GetNextMetaValue(ref raw));
+				meta.guid = Guid.Parse(GetNextMetaValue(ref raw));
 				meta.title = GetNextMetaValue(ref raw).ToString();
 				meta.description = GetNextMetaValue(ref raw).ToString();
 				meta.length = (int)float.Parse(GetNextMetaValue(ref raw));

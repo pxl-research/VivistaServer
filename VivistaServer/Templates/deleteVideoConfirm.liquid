@@ -6,7 +6,7 @@
 			<img class="pure-img" src="thumb.png">
 			<p>{{ video.title }}</p>
 		</div>
-		<a href="/delete_video_confirm?id={{ video.id }}" class="pure-button dangerous-button">Permanently delete video</a>
+		<a href="/delete_video_confirm?id={{ video.id | guidbase64 }}" class="pure-button dangerous-button">Permanently delete video</a>
 		<a href="/my_videos" class="pure-button safe-button">Keep video</a>
 	</div> 
 </div>

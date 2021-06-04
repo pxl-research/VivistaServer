@@ -10,11 +10,11 @@
 	</div>
 	{% for video in videos %}
 		<div class="video-tile pure-u-1 pure-u-sm-1-2 pure-u-md-1-3 pure-u-lg-1-4 pure-u-xl-1-6">
-			<a href="/video?id={{ video.id }}">
+			<a href="/video?id={{ video.id | guidbase64 }}">
 				<img class="video-thumb pure-img" src="thumb.png">
 			</a>
 			<p>
-				<a href="/video?id={{ video.id }}">{{ video.title }}</a>
+				<a href="/video?id={{ video.id | guidbase64 }}">{{ video.title }}</a>
 			</p>
 		</div>
 	{% endfor %}
