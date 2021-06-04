@@ -10,6 +10,7 @@
 	</div>
 	<div class="video-info pure-u-1 pure-u-md-1-2">
 		<h1 class="title">{{ video.title }}</h1>
+		<p class="view-stats">{{ video.views | format_number: "N0" }} views • {{ video.downloads | format_number: "N0" }} downloads</p>
 		<p class="description">Test description{{ video.description }}</p>
 		<p>
 			<span class="tag">test tag</span>

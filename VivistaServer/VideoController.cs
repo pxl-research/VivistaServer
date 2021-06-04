@@ -23,6 +23,8 @@ namespace VivistaServer
 			public string username;
 			public DateTime timestamp;
 			public int downloadsize;
+			public int views;
+			public int downloads;
 
 			public string title;
 			public string description;
@@ -390,6 +392,8 @@ namespace VivistaServer
 			}
 		}
 
+
+
 		[Route("GET", "/")]
 		private static async Task IndexGet(HttpContext context)
 		{
@@ -402,36 +406,12 @@ namespace VivistaServer
 				_ => IndexTab.MostWatched
 			};
 
-			int count = 10;
+			int count = 20;
 			int offset = 0;
 
 			using var connection = Database.OpenNewConnection();
 
-			IEnumerable<Video> videos = null;
-			if (tab == IndexTab.New)
-			{
-				videos = await connection.QueryAsync<Video>(@"select v.id, v.userid, u.username, v.timestamp, v.downloadsize, v.title, v.description, v.length from videos v
-								inner join users u on v.userid = u.userid
-								order by v.timestamp desc
-								limit @count
-								offset @offset", new {count, offset});
-			}
-			else if (tab == IndexTab.MostWatched)
-			{
-				videos = await connection.QueryAsync<Video>(@"select v.id, v.userid, u.username, v.timestamp, v.downloadsize, v.title, v.description, v.length from videos v
-								inner join users u on v.userid = u.userid
-								order by v.views desc
-								limit @count
-								offset @offset", new { count, offset });
-			}
-			else if (tab == IndexTab.Popular)
-			{
-				videos = await connection.QueryAsync<Video>(@"select v.id, v.userid, u.username, v.timestamp, v.downloadsize, v.title, v.description, v.length from videos v
-								inner join users u on v.userid = u.userid
-								order by v.views desc
-								limit @count
-								offset @offset", new { count, offset });
-			}
+			var videos = await GetVideos(tab, count, offset, connection);
 
 			var templateContext = new TemplateContext(new { videos, tab = tab.ToString() });
 
@@ -452,6 +432,7 @@ namespace VivistaServer
 				{
 					var templateContext = new TemplateContext(new { video });
 					await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\video.liquid", templateContext));
+					await AddVideoView(video.id, connection);
 				}
 				else
 				{
@@ -542,7 +523,6 @@ namespace VivistaServer
 			}
 		}
 
-
 		[Route("GET", "/delete_video")]
 		private static async Task DeleteVideoGet(HttpContext context)
 		{
@@ -606,7 +586,7 @@ namespace VivistaServer
 		{
 			try
 			{
-				var videos = await connection.QueryAsync<Video>(@"select id, timestamp, downloadsize, title, description, length from videos
+				var videos = await connection.QueryAsync<Video>(@"select * from videos
 																where userid=@userid
 																order by timestamp desc
 																limit @count
@@ -625,7 +605,7 @@ namespace VivistaServer
 		{
 			try
 			{
-				var videos = await connection.QueryAsync<Video>(@"select id, timestamp, downloadsize, title, description, length from videos
+				var videos = await connection.QueryAsync<Video>(@"select * from videos
 																where userid=@userid
 																order by timestamp desc
 																limit @count
@@ -673,7 +653,7 @@ namespace VivistaServer
 			int count;
 			try
 			{
-				count = await connection.QuerySingleAsync<int>("select count(*) from videos where id=@guid and userid=@userid", new { guid, userId });
+				count = await connection.QuerySingleAsync<int>(@"select count(*) from videos where id=@guid and userid=@userid", new { guid, userId });
 			}
 			catch
 			{
@@ -693,7 +673,7 @@ namespace VivistaServer
 			int count;
 			try
 			{
-				count = await connection.QuerySingleAsync<int>("select count(*) from videos where id=$1", new { guid });
+				count = await connection.QuerySingleAsync<int>(@"select count(*) from videos where id=@guid", new { guid });
 			}
 			catch
 			{
@@ -707,7 +687,7 @@ namespace VivistaServer
 		{
 			try
 			{
-				var video = await connection.QuerySingleAsync<Video>(@"select v.id, v.userid, u.username, v.title, v.description, v.timestamp, v.downloadsize from videos v
+				var video = await connection.QuerySingleAsync<Video>(@"select v.*, u.username from videos v
 													inner join users u on v.userid = u.userid
 													where v.id=@videoid::uuid", new {videoid});
 				return video;
@@ -715,6 +695,86 @@ namespace VivistaServer
 			catch (Exception e)
 			{
 				return null;
+			}
+		}
+
+		private static async Task<IEnumerable<Video>> GetVideos(IndexTab tab, int count, int offset, NpgsqlConnection connection)
+		{
+			if (tab == IndexTab.New)
+			{
+				return await connection.QueryAsync<Video>(@"select v.*, u.username from videos v
+								inner join users u on v.userid = u.userid
+								order by v.timestamp desc
+								limit @count
+								offset @offset", new { count, offset });
+			}
+
+			if (tab == IndexTab.MostWatched)
+			{
+				return await connection.QueryAsync<Video>(@"select v.*, u.username from videos v
+								inner join users u on v.userid = u.userid
+								order by v.views desc
+								limit @count
+								offset @offset", new { count, offset });
+			}
+
+			if (tab == IndexTab.Popular)
+			{
+				return await connection.QueryAsync<Video>(@"select v.*, u.username from videos v
+								inner join users u on v.userid = u.userid
+								order by v.views desc
+								limit @count
+								offset @offset", new { count, offset });
+			}
+
+			return null;
+		}
+
+		private static async Task<bool> SetVideoPrivacy(Guid videoid, VideoPrivacy privacy, NpgsqlConnection connection)
+		{
+			try
+			{
+				var success = await connection.ExecuteAsync(@"update videos
+															set privacy = 
+															where id=@videoid:uuid", new { videoid });
+
+				return success > 0;
+			}
+			catch (Exception e)
+			{
+				return false;
+			}
+		}
+
+		private static async Task<bool> AddVideoView(Guid videoid, NpgsqlConnection connection)
+		{
+			try
+			{
+				var success = await connection.ExecuteAsync(@"update videos
+															set views = views + 1
+															where id=@videoid::uuid", new { videoid });
+
+				return success > 0;
+			}
+			catch (Exception e)
+			{
+				return false;
+			}
+		}
+
+		private static async Task<bool> AddVideoDownload(Guid videoid, NpgsqlConnection connection)
+		{
+			try
+			{
+				var success = await connection.ExecuteAsync(@"update videos
+															set downloads = downloads + 1
+															where id=@videoid:uuid", new { videoid });
+
+				return success > 0;
+			}
+			catch (Exception e)
+			{
+				return false;
 			}
 		}
 

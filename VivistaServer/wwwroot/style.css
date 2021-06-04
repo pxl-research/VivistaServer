@@ -289,6 +289,11 @@ a {
 	color: var(--muted-font);
 }
 
+.video-info .view-stats {
+	font-size: .75em;
+	font-variant: small-caps;
+	color: var(--muted-font);
+}
 
 
 .related-videos {
@@ -331,9 +336,10 @@ a {
 .tag {
 	border: 1px solid var(--button-border);
 	border-radius: 2em;
-	padding: .2em .5em;
+	padding: .1em .5em .2em .5em;
 	margin-right: .5em;
 	line-height: 2em;
+	font-variant: small-caps;
 }
 
 .tag:hover {
