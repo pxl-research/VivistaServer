@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.Caching;
 using System.Threading.Tasks;
 using Dapper;
 using Fluid;
@@ -15,6 +16,9 @@ namespace VivistaServer
 	{
 		private const int indexCountDefault = 10;
 		private const string baseFilePath = @"C:\VivistaServerData\";
+
+		private static MemoryCache viewHistoryCache = new MemoryCache(CACHE_NAME);
+		private const string CACHE_NAME = "viewHistoryCache";
 
 		public class Video
 		{
@@ -432,7 +436,7 @@ namespace VivistaServer
 				{
 					var templateContext = new TemplateContext(new { video });
 					await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\video.liquid", templateContext));
-					await AddVideoView(video.id, connection);
+					await AddVideoView(video.id, context, connection);
 				}
 				else
 				{
@@ -746,20 +750,31 @@ namespace VivistaServer
 			}
 		}
 
-		private static async Task<bool> AddVideoView(Guid videoid, NpgsqlConnection connection)
+		private static async Task<bool> AddVideoView(Guid videoid, HttpContext context, NpgsqlConnection connection)
 		{
-			try
-			{
-				var success = await connection.ExecuteAsync(@"update videos
-															set views = views + 1
-															where id=@videoid::uuid", new { videoid });
+			var ip = context.Connection.RemoteIpAddress;
 
-				return success > 0;
-			}
-			catch (Exception e)
+			bool inCache = viewHistoryCache.Get(ip.ToString()) != null;
+
+			if (!inCache)
 			{
-				return false;
+				try
+				{
+					var success = await connection.ExecuteAsync(@"update videos
+															set views = views + 1
+															where id=@videoid::uuid", new {videoid});
+
+					viewHistoryCache.Add(ip.ToString(), new object(), DateTimeOffset.Now.AddMinutes(5));
+
+					return success > 0;
+				}
+				catch (Exception e)
+				{
+					return false;
+				}
 			}
+
+			return true;
 		}
 
 		private static async Task<bool> AddVideoDownload(Guid videoid, NpgsqlConnection connection)
