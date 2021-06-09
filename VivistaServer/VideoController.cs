@@ -29,6 +29,7 @@ namespace VivistaServer
 			public int downloadsize;
 			public int views;
 			public int downloads;
+			public VideoPrivacy privacy;
 
 			public string title;
 			public string description;
@@ -56,6 +57,15 @@ namespace VivistaServer
 			New,
 			Popular,
 			MostWatched
+		}
+
+		//NOTE(Simon): DO NOT remove or reorder. Adding is allowed
+		public enum VideoPrivacy
+		{
+			Public,
+			Organization,
+			Unlisted,
+			Private,
 		}
 
 
@@ -585,6 +595,30 @@ namespace VivistaServer
 			}
 		}
 
+		[Route("POST", "/update_video_privacy")]
+		private static async Task UpdateVideoPrivacyPost(HttpContext context)
+		{
+			CommonController.SetHTMLContentType(context);
+
+			var userTask = UserSessions.GetLoggedInUser(context);
+			using var connection = Database.OpenNewConnection();
+			var user = await userTask;
+
+			if (user != null && GuidHelpers.TryDecode(context.Request.Query["id"], out var videoid))
+			{
+				var video = await GetVideo(videoid, connection);
+				if (UserOwnsVideo(video, user.userid))
+				{
+					if (Int32.TryParse(context.Request.Form["video-privacy"], out int privacy))
+					{
+						await SetVideoPrivacy(video.id, (VideoPrivacy)privacy, connection);
+					}
+				}
+			}
+
+			context.Response.Redirect("/my_videos");
+		}
+
 
 		public static async Task<IEnumerable<Video>> VideosForUser(int userid, int count, int offset, NpgsqlConnection connection)
 		{
@@ -739,8 +773,8 @@ namespace VivistaServer
 			try
 			{
 				var success = await connection.ExecuteAsync(@"update videos
-															set privacy = 
-															where id=@videoid:uuid", new { videoid });
+															set privacy=@privacy
+															where id=@videoid::uuid", new { videoid, privacy = (int)privacy });
 
 				return success > 0;
 			}
