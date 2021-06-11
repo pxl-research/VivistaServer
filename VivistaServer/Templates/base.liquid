@@ -9,8 +9,8 @@
 	<meta name="description" content="Educational VR tool">
 	<meta name="author" content="Vivista">
 
-	<link rel="stylesheet" href="https://unpkg.com/purecss@2.0.5/build/pure-min.css">
-	<link rel="stylesheet" href="https://unpkg.com/purecss@2.0.5/build/grids-responsive-min.css" />
+	<link rel="stylesheet" href="https://unpkg.com/purecss@2.0.5/build/pure-min.css" onerror="this.onerror=null;this.href='pure-min.css';">
+	<link rel="stylesheet" href="https://unpkg.com/purecss@2.0.5/build/grids-responsive-min.css" onerror="this.onerror=null;this.href='grids-responsive-min.css';"/>
 	<link rel="stylesheet" href="style.css?v=1.0">
 
 	<link rel="icon" type="image/png" href="favicon.png"/>
@@ -31,34 +31,34 @@
 				<li class="pure-menu-item">
 					<a class="pure-menu-link" href="/install">Install Vivista</a>
 				</li>
-			{% if User %}
-				<li class="pure-menu-item pure-menu-has-children pure-menu-allow-hover">
-					<a href="#" class="pure-menu-link pure-menu-image-link">
-						<img class="profile-picture-small" src="profile.png">
-					</a>
-					<ul class="pure-menu-children">
-						<li class="pure-menu-item">
-							<a href="/user?name={{ User.username }}" class="pure-menu-link">{{ User.username }}</a>
-						</li>
-						<li class="pure-menu-item">
-							<a href="/my_videos" class="pure-menu-link">My videos</a>
-						</li>
-						<li class="pure-menu-item">
-							<a href="/settings" class="pure-menu-link">Settings</a>
-						</li>
-						<li class="pure-menu-item">
-							<span class="pure-menu-link nohover">
-								Dark Mode <input type="checkbox" class="toggle dark-mode-toggle" id="dark-mode-toggle-nav">
-								<label for="dark-mode-toggle-nav"> </label>
-							</span>
-						</li>
-						<li class="pure-menu-item">
-							<a href="/logout" class="pure-menu-link">Log out</a>
-						</li>
-					</ul>
-				</li>
-			{% else %}
-				<li class="pure-menu-item"><a href="/login" class="pure-menu-link">Login</a></li>
+				{% if User %}
+					<li class="pure-menu-item pure-menu-has-children pure-menu-allow-hover">
+						<a href="#" class="pure-menu-link pure-menu-image-link">
+							<img class="profile-picture-small" src="profile.png">
+						</a>
+						<ul class="pure-menu-children">
+							<li class="pure-menu-item">
+								<a href="/user?name={{ User.username }}" class="pure-menu-link">{{ User.username }}</a>
+							</li>
+							<li class="pure-menu-item">
+								<a href="/my_videos" class="pure-menu-link">My videos</a>
+							</li>
+							<li class="pure-menu-item">
+								<a href="/settings" class="pure-menu-link">Settings</a>
+							</li>
+							<li class="pure-menu-item">
+								<span class="pure-menu-link nohover">
+									Dark Mode <input type="checkbox" class="toggle dark-mode-toggle" id="dark-mode-toggle-nav">
+									<label for="dark-mode-toggle-nav"> </label>
+								</span>
+							</li>
+							<li class="pure-menu-item">
+								<a href="/logout" class="pure-menu-link">Log out</a>
+							</li>
+						</ul>
+					</li>
+				{% else %}
+					<li class="pure-menu-item"><a href="/login" class="pure-menu-link">Login</a></li>
 					<li class="pure-menu-item"><a href="/register" class="pure-button">Register</a></li>
 				{% endif %}
 			</ul>
