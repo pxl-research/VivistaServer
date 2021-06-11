@@ -17,13 +17,20 @@
 </head>
 
 <body>
-	<header class="home-menu pure-menu pure-menu-horizontal pure-menu-fixed">
-		<a href="/" class="pure-menu-heading pure-menu-image-link"><img src="logo.png"></a>
-
-		<ul id="menu-right" class="pure-menu-list">
-			<li class="pure-menu-item">
-				<a class="pure-menu-link" href="/install">Install Vivista</a>
-			</li>
+	<header class="home-menu pure-menu-horizontal">
+		<div class="left">
+			<a href="/" class="pure-menu-heading pure-menu-image-link"><img src="logo.png"></a>
+		</div>
+		<div class="middle">
+			<div class="search-bar">
+				<input id="search-input" class="search-input" /><button class="pure-button search-button">Search</button>
+			</div>
+		</div>
+		<div class="right">
+			<ul class="pure-menu-list">
+				<li class="pure-menu-item">
+					<a class="pure-menu-link" href="/install">Install Vivista</a>
+				</li>
 			{% if User %}
 				<li class="pure-menu-item pure-menu-has-children pure-menu-allow-hover">
 					<a href="#" class="pure-menu-link pure-menu-image-link">
@@ -52,10 +59,12 @@
 				</li>
 			{% else %}
 				<li class="pure-menu-item"><a href="/login" class="pure-menu-link">Login</a></li>
-				<li class="pure-menu-item"><a href="/register" class="pure-button">Register</a></li>
-			{% endif %}
-		</ul>
+					<li class="pure-menu-item"><a href="/register" class="pure-button">Register</a></li>
+				{% endif %}
+			</ul>
+		</div>
 	</header>
+
 	<div class="main-content">
 		{{ content | raw }}
 	</div>
