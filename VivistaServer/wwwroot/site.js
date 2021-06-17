@@ -1,6 +1,7 @@
 window.onload = function () {
 	InitDarkModeToggles();
 	InitPlayButton();
+	InitSearch();
 }
 
 function UpdateDarkModeToggles() {
@@ -10,8 +11,7 @@ function UpdateDarkModeToggles() {
 	}
 }
 
-function InitDarkModeToggles()
-{
+function InitDarkModeToggles() {
 	var data = document.documentElement.dataset;
 	data.theme = localStorage.getItem("theme");
 
@@ -23,7 +23,7 @@ function InitDarkModeToggles()
 	var els = document.getElementsByClassName("dark-mode-toggle");
 	for (var i = 0; i < els.length; i++) {
 		let el = els[i];
-		el.addEventListener("change", function() {
+		el.addEventListener("change", function () {
 			data.theme = el.checked ? "dark" : "";
 			localStorage.setItem("theme", data.theme);
 			UpdateDarkModeToggles();
@@ -31,15 +31,28 @@ function InitDarkModeToggles()
 	};
 }
 
-function InitPlayButton()
-{
+function InitPlayButton() {
 	var button = document.getElementsByClassName("download-button")[0];
 
-	button.addEventListener("click", function()
-	{
-		var message = document.getElementsByClassName("install-message")[0];
-		message.classList.remove("hidden");
-		window.location = button.dataset.uri;
-	});
+	if (button != undefined) {
+		button.addEventListener("click", function () {
+			var message = document.getElementsByClassName("install-message")[0];
+			message.classList.remove("hidden");
+			window.location = button.dataset.uri;
+		});
+	}
+}
 
+function InitSearch() {
+	var searchInput = document.getElementById("search-input");
+	var searchButton = document.getElementById("search-button");
+
+	if (searchInput != undefined && searchButton != undefined) {
+		searchButton.addEventListener("click", function () {
+			var text = searchInput.value;
+			if (text != undefined && text.length > 0) {
+				location.href = "/search?q=" + text;
+			}
+		});
+	}
 }

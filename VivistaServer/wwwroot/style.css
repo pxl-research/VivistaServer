@@ -357,7 +357,7 @@ a {
 	width: 100%;
 }
 
-.search-bar .search-input {
+.search-bar #search-input {
 	background-color: var(--muted-bg);
 	border: 1px solid var(--button-border);
 	border-radius: 5px 0 0 5px;
@@ -373,7 +373,7 @@ a {
 	outline: none;
 }
 
-.search-bar .search-button {
+.search-bar #search-button {
 	border-radius: 0 5px 5px 0;
 	border-left: none;
 }

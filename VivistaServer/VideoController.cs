@@ -619,6 +619,29 @@ namespace VivistaServer
 			context.Response.Redirect("/my_videos");
 		}
 
+		[Route("GET", "/search")]
+		private static async Task SearchPost(HttpContext context)
+		{
+			CommonController.SetHTMLContentType(context);
+
+			var searchQuery = context.Request.Query["q"].ToString();
+
+			if (!String.IsNullOrEmpty(searchQuery))
+			{
+				var normalizedQuery = searchQuery.NormalizeForSearch();
+
+
+
+				var templateContext = new TemplateContext(new {  });
+				await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\search.liquid", templateContext));
+			}
+			else
+			{
+				await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\search.liquid", null));
+			}
+		}
+
+
 
 		public static async Task<IEnumerable<Video>> VideosForUser(int userid, int count, int offset, NpgsqlConnection connection)
 		{
