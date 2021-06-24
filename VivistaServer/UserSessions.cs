@@ -21,6 +21,7 @@ namespace VivistaServer
 		public int userid;
 		public string username;
 		public string email;
+		public string pictureId;
 	}
 
 	public class UserSessions
@@ -64,7 +65,7 @@ namespace VivistaServer
 			var session = await AuthenticateWithToken(sessionToken, connection);
 			if (session.IsValid)
 			{
-				return await connection.QuerySingleAsync<User>("select userid, username, email from users where userid=@userid", new { session.userid });
+				return await connection.QuerySingleAsync<User>("select userid, username, email, pictureid from users where userid=@userid", new { session.userid });
 			}
 			else
 			{

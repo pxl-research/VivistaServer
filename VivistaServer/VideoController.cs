@@ -628,11 +628,16 @@ namespace VivistaServer
 
 			if (!String.IsNullOrEmpty(searchQuery))
 			{
+				using var connection = Database.OpenNewConnection();
+
 				var normalizedQuery = searchQuery.NormalizeForSearch();
 
+				var channels = await FindUsersFuzzy(normalizedQuery, 3, connection);
+				var videos  = await FindVideosFuzzy(normalizedQuery, 20, connection);
 
+				bool hasResults = channels.Any() || videos.Any();
 
-				var templateContext = new TemplateContext(new {  });
+				var templateContext = new TemplateContext(new { channels, videos, searchQuery, hasResults });
 				await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\search.liquid", templateContext));
 			}
 			else
@@ -861,6 +866,44 @@ namespace VivistaServer
 			catch (Exception e)
 			{
 				return false;
+			}
+		}
+
+		//NOTE(Simon): Perform a fuzzy search for user, based on a trigram index on usernames
+		private static async Task<IEnumerable<User>> FindUsersFuzzy(string query, int count, NpgsqlConnection connection)
+		{
+			try
+			{
+				var result = await connection.QueryAsync<User>(@"SELECT *
+															  from users
+															  where username % @query
+															  order by similarity(username, @query) desc, username
+															  limit @count", new { query, count });
+
+				return result;
+			}
+			catch (Exception e)
+			{
+				return new List<User>();
+			}
+		}
+
+		//NOTE(Simon): Perform a fuzzy search for videos, based on a trigram index
+		private static async Task<IEnumerable<Video>> FindVideosFuzzy(string query, int count, NpgsqlConnection connection)
+		{
+			try
+			{
+				var result = await connection.QueryAsync<Video>(@"select ts_rank(search, websearch_to_tsquery('english', @query)) as rank, v.*, u.username
+																from videos v
+																inner join users u on v.userid = u.userid
+																where search @@ to_tsquery('english', @query)
+																order by rank
+																limit @count", new {query, count});
+				return result;
+			}
+			catch (Exception e)
+			{
+				return new List<Video>();
 			}
 		}
 

@@ -333,6 +333,84 @@ a {
 
 
 
+.search-results {
+	width: 600px;
+	letter-spacing: normal;
+	word-spacing: normal;
+	text-rendering: auto;
+}
+
+.search-results a {
+	text-decoration: none;
+	color: inherit;
+}
+
+.search-videos {
+	padding-top: 2em;
+}
+
+.search-videos .video {
+	margin-bottom: 10px;
+}
+
+.search-videos .video:hover {
+	background-color: var(--muted-bg);
+}
+
+.search-videos .video .text {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	padding-left: 15px;
+	line-height: 1.5;
+	box-sizing: border-box;
+}
+
+.search-videos .video .title {
+	margin: 0;
+}
+
+.search-videos .video .uploader {
+	margin: 0;
+	color: var(--muted-font);
+	font-size: .8em;
+	padding-bottom: 1em;
+}
+
+.search-videos .video .description {
+	margin: 0;
+	color: var(--muted-font);
+	font-size: .7em;
+}
+
+.search-channels {
+	border-bottom: 1px solid var(--muted-bg);
+	padding-bottom: 2em;
+}
+
+.search-channels .channel {
+	margin-bottom: 10px;
+}
+
+.search-channels .channel:hover {
+	background-color: var(--muted-bg);
+}
+
+.search-channels .channel .text {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+}
+
+.search-channels .channel .picture {
+	text-align: center;
+}
+
+.search-channels .username {
+	line-height: 2em;
+}
+
+
 .tag {
 	border: 1px solid var(--button-border);
 	border-radius: 2em;
@@ -550,8 +628,8 @@ input.toggle + label:active::after {
 
 .pure-menu-children {
 	background-color: var(--main-bg);
-	border: 1px solid var(--button-border);
-	box-shadow: 0 1px 5px var(--shadow);
+	border: 1px solid var(--muted-bg);
+	box-shadow: 0 5px 5px var(--shadow);
 }
 
 .pure-menu-link.nohover:hover {

@@ -48,11 +48,18 @@ function InitSearch() {
 	var searchButton = document.getElementById("search-button");
 
 	if (searchInput != undefined && searchButton != undefined) {
-		searchButton.addEventListener("click", function () {
-			var text = searchInput.value;
-			if (text != undefined && text.length > 0) {
-				location.href = "/search?q=" + text;
+		searchButton.addEventListener("click", submit);
+		searchInput.addEventListener("keydown", function (e) {
+			if (e.keyCode == 13) {
+				submit();
 			}
 		});
+	}
+
+	function submit() {
+		var text = searchInput.value;
+		if (text != undefined && text.length > 0) {
+			location.href = "/search?q=" + text;
+		}
 	}
 }

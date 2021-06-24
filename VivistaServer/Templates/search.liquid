@@ -1,0 +1,47 @@
+<div class="pure-g center">
+	<div class="search-results">
+		{% if searchQuery %}
+			<p><i>Search results for: </i><b>{{ searchQuery }}</b></p>
+			
+			{% if hasResults %}
+				<div class="search-channels">
+					{% for channel in channels %}
+						<a href="/user?name={{ channel.username }}">
+							<div class="channel pure-g">
+								<div class="pure-u-3-8 picture">
+									<img class="profile-picture-large" src="/profile_pictures/{{channel.pictureId}}" />
+								</div>
+								<div class="pure-u-5-8 text">
+									<p class="username">{{ channel.username }}</p>
+								</div>
+							</div>
+						</a>
+					{% endfor %}
+				</div>
+
+				<div class="search-videos">
+					{% for video in videos %}
+						<a href="/video?id={{ video.id | guidbase64 }}">
+							<div class="video pure-g">
+								<div class="pure-u-3-8">
+									<img class="pure-img" src="thumb.png">
+								</div>
+								<div class="pure-u-5-8 text">
+									<p class="title">{{ video.title }}</p>
+									<p class="uploader">{{ video.username }}</p>
+									<br />
+									<p class="description">{{ video.description | truncate: 103}}</p>
+								</div>
+							</div>
+						</a>
+					{% endfor %}
+				</div>
+			{% else %}
+				<p><i>No results found</i></p>
+			{% endif %}
+			
+		{% else %}
+			<p><i>No results found</i></p>
+		{% endif %}
+	</div> 
+</div>
