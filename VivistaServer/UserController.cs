@@ -108,7 +108,7 @@ namespace VivistaServer
 			}
 			else
 			{
-				await context.Response.Body.WriteAsync(Utf8Json.JsonSerializer.SerializeUnsafe(new { token = result }));
+				await context.Response.Body.WriteAsync(Utf8Json.JsonSerializer.SerializeUnsafe(new { session = result }));
 			}
 		}
 
@@ -191,11 +191,11 @@ namespace VivistaServer
 
 			if (!success)
 			{
-				await WriteError(context, "{}", StatusCodes.Status401Unauthorized);
+				await WriteError(context, result, StatusCodes.Status401Unauthorized);
 			}
 			else
 			{
-				await context.Response.Body.WriteAsync(Utf8Json.JsonSerializer.SerializeUnsafe(new { token = result }));
+				await context.Response.Body.WriteAsync(Utf8Json.JsonSerializer.SerializeUnsafe(new { session = result }));
 			}
 		}
 
