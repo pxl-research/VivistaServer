@@ -469,7 +469,7 @@ namespace VivistaServer
 
 			if (string.IsNullOrEmpty(password) || password.Length < minPassLength)
 			{
-				return (false, "Password too short");
+				return (false, $"Password should be at least {minPassLength} characters long");
 			}
 
 			return (true, "");
