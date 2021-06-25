@@ -184,6 +184,8 @@ namespace VivistaServer
 			}
 		}
 
+		//TODO(Simon): generate thumbnail when finished
+		//TODO(Simon): transcode to smaller dimensions when finished
 		[Route("POST", "/api/video")]
 		[Route("POST", "/api/v1/video")]
 		private static async Task VideoPostApi(HttpContext context)
@@ -201,47 +203,53 @@ namespace VivistaServer
 				string basePath = Path.Combine(baseFilePath, guid.ToString());
 				string videoPath = Path.Combine(basePath, "main.mp4");
 				string metaPath = Path.Combine(basePath, "meta.json");
-				string thumbPath = Path.Combine(basePath, "thumb.jpg");
 
-				try
+				bool exists = await VideoExists(guid, connection);
+				bool owns = await UserOwnsVideo(guid, user.userid, connection);
+
+				if (exists && owns || !exists)
 				{
-					Directory.CreateDirectory(basePath);
-					using (var videoStream = new FileStream(videoPath, FileMode.OpenOrCreate))
-					using (var metaStream = new FileStream(metaPath, FileMode.OpenOrCreate))
-					using (var thumbStream = new FileStream(thumbPath, FileMode.OpenOrCreate))
+					try
 					{
-						var videoCopyOp = form.Files["video"].CopyToAsync(videoStream);
-						var metaCopyOp = form.Files["meta"].CopyToAsync(metaStream);
-						var thumbCopyOp = form.Files["thumb"].CopyToAsync(thumbStream);
-						await Task.WhenAll(videoCopyOp, metaCopyOp, thumbCopyOp);
-					}
+						Directory.CreateDirectory(basePath);
+						using (var videoStream = new FileStream(videoPath, FileMode.OpenOrCreate))
+						using (var metaStream = new FileStream(metaPath, FileMode.OpenOrCreate))
+						{
+							var videoCopyOp = form.Files["video"].CopyToAsync(videoStream);
+							var metaCopyOp = form.Files["meta"].CopyToAsync(metaStream);
+							await Task.WhenAll(videoCopyOp, metaCopyOp);
+						}
 
-					//TODO(Simon): Move all the file-reading and database code somewhere else. So that users don't have to reupload if database insert fails
-					var meta = await Task.Run(() => ReadMetaFile(metaPath));
+						var meta = await Task.Run(() => ReadMetaFile(metaPath));
 
-					if (await UserOwnsVideo(guid, user.userid, connection))
-					{
-						var timestamp = DateTime.UtcNow;
-						await connection.ExecuteAsync(@"update videos set (title, description, length, timestamp)
+						if (exists)
+						{
+							var timestamp = DateTime.UtcNow;
+							await connection.ExecuteAsync(@"update videos set (title, description, length, timestamp)
 													= (@title, @description, @length, @timestamp)
 													where id = @guid",
-													new { guid, meta.title, meta.description, meta.length, timestamp });
-					}
-					else
-					{
-						await connection.ExecuteAsync(@"insert into videos (id, userid, title, description, length)
+								new {guid, meta.title, meta.description, meta.length, timestamp});
+						}
+						else
+						{
+							await connection.ExecuteAsync(@"insert into videos (id, userid, title, description, length)
 													values (@guid, @userid, @title, @description, @length)",
-													new { guid, user.userid, meta.title, meta.description, meta.length });
-					}
+								new {guid, user.userid, meta.title, meta.description, meta.length});
+						}
 
-					await context.Response.WriteAsync("{}");
+						await context.Response.WriteAsync("{}");
+					}
+					catch (Exception e)
+					{
+						//NOTE(Simon): If upload fails, just delete everything so we can start fresh next time.
+						//TODO(Simon): Look into supporting partial uploads
+						Directory.Delete(basePath, true);
+						await CommonController.WriteError(context, "Something went wrong while uploading this file", StatusCodes.Status500InternalServerError, e);
+					}
 				}
-				catch (Exception e)
+				else
 				{
-					//NOTE(Simon): If upload fails, just delete everything so we can start fresh next time.
-					//TODO(Simon): Look into supporting partial uploads
-					Directory.Delete(basePath, true);
-					await CommonController.WriteError(context, "Something went wrong while uploading this file", StatusCodes.Status500InternalServerError, e);
+					await CommonController.WriteError(context, "User does not have permission to upload this video", StatusCodes.Status401Unauthorized);
 				}
 			}
 			else
