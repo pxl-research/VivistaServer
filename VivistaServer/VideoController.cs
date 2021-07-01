@@ -192,17 +192,19 @@ namespace VivistaServer
 		{
 			context.Features.Get<IHttpMaxRequestBodySizeFeature>().MaxRequestBodySize = null;
 
-			using var connection = Database.OpenNewConnection();
-
 			var form = context.Request.Form;
 			var user = await UserSessions.GetLoggedInUser(context);
 
 			if (user != null)
 			{
+				using var connection = Database.OpenNewConnection();
+
 				var guid = new Guid(form["uuid"]);
 				string basePath = Path.Combine(baseFilePath, guid.ToString());
 				string videoPath = Path.Combine(basePath, "main.mp4");
 				string metaPath = Path.Combine(basePath, "meta.json");
+				string chaptersPath = Path.Combine(basePath, "chapters.json");
+				string tagsPath = Path.Combine(basePath, "tags.json");
 
 				bool exists = await VideoExists(guid, connection);
 				bool owns = await UserOwnsVideo(guid, user.userid, connection);
@@ -214,10 +216,14 @@ namespace VivistaServer
 						Directory.CreateDirectory(basePath);
 						using (var videoStream = new FileStream(videoPath, FileMode.OpenOrCreate))
 						using (var metaStream = new FileStream(metaPath, FileMode.OpenOrCreate))
+						using (var chaptersStream = new FileStream(chaptersPath, FileMode.OpenOrCreate))
+						using (var tagsStream = new FileStream(tagsPath, FileMode.OpenOrCreate))
 						{
 							var videoCopyOp = form.Files["video"].CopyToAsync(videoStream);
 							var metaCopyOp = form.Files["meta"].CopyToAsync(metaStream);
-							await Task.WhenAll(videoCopyOp, metaCopyOp);
+							var chaptersCopyOp = form.Files["chapters"].CopyToAsync(chaptersStream);
+							var tagsCopyOp = form.Files["tags"].CopyToAsync(tagsStream);
+							await Task.WhenAll(videoCopyOp, metaCopyOp, chaptersCopyOp, tagsCopyOp);
 						}
 
 						var meta = await Task.Run(() => ReadMetaFile(metaPath));
@@ -354,12 +360,12 @@ namespace VivistaServer
 		[Route("POST", "/api/v1/extras")]
 		private static async Task ExtrasPostApi(HttpContext context)
 		{
-			using var connection = Database.OpenNewConnection();
+			context.Features.Get<IHttpMaxRequestBodySizeFeature>().MaxRequestBodySize = null;
 
 			var form = context.Request.Form;
 			string videoGuid = form["videoguid"];
 			string rawExtraGuids = form["extraguids"];
-			var extraGuids = rawExtraGuids.Split(',');
+			var extraguids = rawExtraGuids.Split(',');
 
 			if (await UserSessions.GetLoggedInUser(context) != null)
 			{
@@ -367,6 +373,8 @@ namespace VivistaServer
 				string extraPath = Path.Combine(basePath, "extra");
 				try
 				{
+					using var connection = Database.OpenNewConnection();
+
 					Directory.CreateDirectory(extraPath);
 
 					foreach (var file in form.Files)
@@ -386,7 +394,7 @@ namespace VivistaServer
 
 					param.Clear();
 
-					foreach (var id in extraGuids)
+					foreach (var id in extraguids)
 					{
 						param.Add(new { video_id = videoGuid, guid = id });
 					}
@@ -396,7 +404,7 @@ namespace VivistaServer
 					await clearTask;
 					await connection.ExecuteAsync("insert into extra_files (video_id, guid) values (@video_id::uuid, @guid::uuid)", param);
 					long downloadSize = await downloadSizeTask;
-					await connection.ExecuteAsync("update videos set (downloadsize) = (@downloadSize) where id = @videoGuid::uuid", new { videoGuid, downloadsize = downloadSize });
+					await connection.ExecuteAsync("update videos set downloadsize = @downloadSize where id = @videoGuid::uuid", new { videoGuid, downloadSize });
 
 					await context.Response.WriteAsync("{}");
 				}
