@@ -137,6 +137,40 @@ namespace VivistaServer
 		[Route("GET", "/api/v1/video")]
 		private static async Task VideoGetApi(HttpContext context)
 		{
+			var query = context.Request.Query;
+
+			if (!Guid.TryParse(query["id"], out var videoid))
+			{
+				await CommonController.Write404(context);
+				return;
+			}
+
+			using var connection = Database.OpenNewConnection();
+
+			Video video;
+			try
+			{
+				video = await GetVideo(videoid, connection);
+
+				if (video == null)
+				{
+					await CommonController.Write404(context);
+					return;
+				}
+			}
+			catch (Exception e)
+			{
+				await CommonController.WriteError(context, "Something went wrong while processing this request", StatusCodes.Status500InternalServerError, e);
+				return;
+			}
+
+			await context.Response.Body.WriteAsync(Utf8Json.JsonSerializer.SerializeUnsafe(video));
+		}
+
+		[Route("GET", "/api/download_video")]
+		[Route("GET", "/api/v1/download_video")]
+		private static async Task VideoDownloadGetApi(HttpContext context)
+		{
 			var args = context.Request.Query;
 
 			if (!Guid.TryParse(args["videoid"], out var videoid))
