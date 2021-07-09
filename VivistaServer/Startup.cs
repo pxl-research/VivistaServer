@@ -8,6 +8,10 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using tusdotnet;
+using tusdotnet.Models;
+using tusdotnet.Models.Configuration;
+using tusdotnet.Stores;
 using static VivistaServer.CommonController;
 
 namespace VivistaServer
@@ -18,7 +22,7 @@ namespace VivistaServer
 
 		public void ConfigureServices(IServiceCollection services)
 		{
-			services.Configure<FormOptions>(config => { config.MultipartBodyLengthLimit = long.MaxValue; });
+			services.Configure<FormOptions>(config => { config.MultipartBodyLengthLimit = long.MaxValue;});
 
 			router = new Router();
 
@@ -42,8 +46,28 @@ namespace VivistaServer
 
 			CommonController.wwwroot = env.WebRootPath;
 			app.UseStaticFiles();
+			app.UseTus(context =>
+			{
+				if (!context.Request.Path.StartsWithSegments(new PathString("/api/file")))
+				{
+					return null;
+				}
+				var guid = new Guid(context.Request.Headers["guid"]);
+				return new DefaultTusConfiguration
+				{
+					Store = new TusDiskStore(Path.Combine(VideoController.baseFilePath, guid.ToString())),
+					UrlPath = "/api/file",
+					Events = new Events
+					{
+						OnAuthorizeAsync = VideoController.AuthorizeUploadTus,
+						//NOTE(Simon): Do not allow deleting by someone trying to exploit the protocol
+						OnBeforeDeleteAsync = async deleteContext => deleteContext.FailRequest(""),
+						OnFileCompleteAsync = VideoController.ProcessUploadTus,
+					}
+				};
+			});
 
-			Task.Run(PeriodicFunction);
+			//Task.Run(PeriodicFunction);
 
 			app.Run(async (context) =>
 			{

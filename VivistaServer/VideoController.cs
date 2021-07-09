@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.Caching;
@@ -9,16 +10,20 @@ using Fluid;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Npgsql;
+using tusdotnet.Interfaces;
+using tusdotnet.Models.Configuration;
 
 namespace VivistaServer
 {
 	public class VideoController
 	{
 		private const int indexCountDefault = 10;
-		private const string baseFilePath = @"C:\VivistaServerData\";
+		public const string baseFilePath = @"C:\VivistaServerData\";
 
-		private static MemoryCache viewHistoryCache = new MemoryCache(CACHE_NAME);
-		private const string CACHE_NAME = "viewHistoryCache";
+		private static MemoryCache uploadAuthorisationCache = new MemoryCache(UPLOAD_AUTHORISATION_CACHE_NAME);
+		private static MemoryCache viewHistoryCache = new MemoryCache(VIEWHISTORY_CACHE_NAME);
+		private const string VIEWHISTORY_CACHE_NAME = "viewHistoryCache";
+		private const string UPLOAD_AUTHORISATION_CACHE_NAME = "viewHistoryCache";
 
 		public class Video
 		{
@@ -34,6 +39,9 @@ namespace VivistaServer
 			public string title;
 			public string description;
 			public int length;
+
+			public bool isPublic => privacy == VideoPrivacy.Public;
+			public bool isPrivate => privacy == VideoPrivacy.Private;
 		}
 
 		public class VideoResponse
@@ -52,6 +60,16 @@ namespace VivistaServer
 			public int length;
 		}
 
+		public enum UploadFileType
+		{
+			Video,
+			Meta,
+			Tags,
+			Chapters,
+			Extra,
+			Miniature
+		}
+
 		private enum IndexTab
 		{
 			New,
@@ -59,7 +77,7 @@ namespace VivistaServer
 			MostWatched
 		}
 
-		//NOTE(Simon): DO NOT remove or reorder. Adding is allowed
+		//NOTE(Simon): DO NOT remove or reorder items. Adding is allowed
 		public enum VideoPrivacy
 		{
 			Public,
@@ -152,7 +170,7 @@ namespace VivistaServer
 			{
 				video = await GetVideo(videoid, connection);
 
-				if (video == null)
+				if (video == null || video.isPrivate)
 				{
 					await CommonController.Write404(context);
 					return;
@@ -186,7 +204,7 @@ namespace VivistaServer
 			{
 				video = await GetVideo(videoid, connection);
 
-				if (video == null)
+				if (video == null || video.isPrivate)
 				{
 					await CommonController.Write404(context);
 					return;
@@ -232,19 +250,19 @@ namespace VivistaServer
 			if (user != null)
 			{
 				using var connection = Database.OpenNewConnection();
-
 				var guid = new Guid(form["uuid"]);
-				string basePath = Path.Combine(baseFilePath, guid.ToString());
-				string videoPath = Path.Combine(basePath, "main.mp4");
-				string metaPath = Path.Combine(basePath, "meta.json");
-				string chaptersPath = Path.Combine(basePath, "chapters.json");
-				string tagsPath = Path.Combine(basePath, "tags.json");
 
 				bool exists = await VideoExists(guid, connection);
 				bool owns = await UserOwnsVideo(guid, user.userid, connection);
 
 				if (exists && owns || !exists)
 				{
+					string basePath = Path.Combine(baseFilePath, guid.ToString());
+					string videoPath = Path.Combine(basePath, "main.mp4");
+					string metaPath = Path.Combine(basePath, "meta.json");
+					string chaptersPath = Path.Combine(basePath, "chapters.json");
+					string tagsPath = Path.Combine(basePath, "tags.json");
+
 					try
 					{
 						Directory.CreateDirectory(basePath);
@@ -309,6 +327,42 @@ namespace VivistaServer
 			{
 				string filename = Path.Combine(baseFilePath, id, "meta.json");
 				await CommonController.WriteFile(context, filename, "application/json", "meta.json");
+			}
+			else
+			{
+				await CommonController.Write404(context);
+			}
+		}
+
+		[Route("GET", "/api/tags")]
+		[Route("GET", "/api/v1/tags")]
+		private static async Task TagsGetApi(HttpContext context)
+		{
+			var args = context.Request.Query;
+			string id = args["videoid"].ToString();
+
+			if (Guid.TryParse(id, out _))
+			{
+				string filename = Path.Combine(baseFilePath, id, "tags.json");
+				await CommonController.WriteFile(context, filename, "application/json", "tags.json");
+			}
+			else
+			{
+				await CommonController.Write404(context);
+			}
+		}
+
+		[Route("GET", "/api/chapters")]
+		[Route("GET", "/api/v1/chapters")]
+		private static async Task ChaptersGetApi(HttpContext context)
+		{
+			var args = context.Request.Query;
+			string id = args["videoid"].ToString();
+
+			if (Guid.TryParse(id, out _))
+			{
+				string filename = Path.Combine(baseFilePath, id, "chapters.json");
+				await CommonController.WriteFile(context, filename, "application/json", "chapters.json");
 			}
 			else
 			{
@@ -492,7 +546,7 @@ namespace VivistaServer
 				using var connection = Database.OpenNewConnection();
 				var video = await GetVideo(videoId, connection);
 
-				if (video != null)
+				if (video != null && !video.isPrivate)
 				{
 					var templateContext = new TemplateContext(new { video });
 					await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\video.liquid", templateContext));
@@ -696,6 +750,95 @@ namespace VivistaServer
 			}
 		}
 
+		public static async Task AuthorizeUploadTus(AuthorizeContext arg)
+		{
+			var stopwatch = Stopwatch.StartNew();
+			var user = await UserSessions.GetLoggedInUser(arg.HttpContext);
+			if (user != null)
+			{
+				var guid = new Guid(arg.HttpContext.Request.Headers["guid"]);
+				var cachedOwner = (User) uploadAuthorisationCache[guid.ToString()];
+				bool exists;
+				bool owns;
+
+				if (cachedOwner == null)
+				{
+					using var connection = Database.OpenNewConnection();
+					exists = await VideoExists(guid, connection);
+					owns = await UserOwnsVideo(guid, user.userid, connection);
+				}
+				else if (cachedOwner.userid == user.userid)
+				{
+					exists = true;
+					owns = true;
+				}
+				else
+				{
+					arg.FailRequest("This user is not authorized to update this video");
+					return;
+				}
+
+				if (exists && owns || !exists)
+				{
+					uploadAuthorisationCache.Add(guid.ToString(), user, DateTimeOffset.Now.AddMinutes(5));
+
+					stopwatch.Stop();
+					Console.WriteLine($"Authorisation for {arg.FileId}. {stopwatch.Elapsed.TotalMilliseconds} ms");
+					return;
+				}
+			}
+
+			arg.FailRequest("This user is not authorized to update this video");
+		}
+
+		public static async Task ProcessUploadTus(FileCompleteContext arg)
+		{
+			var context = arg.HttpContext;
+			var headers = context.Request.Headers;
+
+			if (Enum.TryParse<UploadFileType>(headers["type"].ToString(), out var type))
+			{
+				if (Guid.TryParse(headers["guid"], out var guid))
+				{
+					var newFilename = headers["filename"];
+
+					//NOTE(Simon): Check if provided filename is a guid
+					if (!String.IsNullOrEmpty(newFilename))
+					{
+						var path = Path.Combine(baseFilePath, guid.ToString());
+						var tusFilePath = Path.Combine(path, arg.FileId);
+						string newFilePath;
+
+						switch (type)
+						{
+							case UploadFileType.Video:
+							case UploadFileType.Meta:
+							case UploadFileType.Tags:
+							case UploadFileType.Chapters:
+								newFilePath = Path.Combine(path, newFilename);
+								break;
+							case UploadFileType.Extra:
+								newFilePath = Path.Combine(path, "extra", newFilename);
+								break;
+							case UploadFileType.Miniature:
+								newFilePath = Path.Combine(path, "areaMiniatures", newFilename);
+								break;
+							default:
+								await CommonController.WriteError(context, "Unknown file type", StatusCodes.Status400BadRequest);
+								return;
+						}
+
+						Directory.CreateDirectory(Path.GetDirectoryName(newFilePath));
+						File.Move(tusFilePath, newFilePath, true);
+						await ((ITusTerminationStore)arg.Store).DeleteFileAsync(arg.FileId, arg.CancellationToken);
+					}
+					else
+					{
+					}
+				}
+			}
+		}
+
 
 
 		public static async Task<IEnumerable<Video>> VideosForUser(int userid, int count, int offset, NpgsqlConnection connection)
@@ -769,7 +912,7 @@ namespace VivistaServer
 			int count;
 			try
 			{
-				count = await connection.QuerySingleAsync<int>(@"select count(*) from videos where id=@guid and userid=@userid", new { guid, userId });
+				count = await connection.QuerySingleAsync<int>(@"select count(*) from videos where id=@guid and userid=@userId", new { guid, userId });
 			}
 			catch
 			{
@@ -806,6 +949,7 @@ namespace VivistaServer
 				var video = await connection.QuerySingleAsync<Video>(@"select v.*, u.username from videos v
 													inner join users u on v.userid = u.userid
 													where v.id=@videoid::uuid", new {videoid});
+
 				return video;
 			}
 			catch (Exception e)
@@ -1007,5 +1151,6 @@ namespace VivistaServer
 			}
 			return size;
 		}
+
 	}
 }
