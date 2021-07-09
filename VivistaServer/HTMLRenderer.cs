@@ -49,7 +49,7 @@ namespace VivistaServer
 			layoutCache[layout] = template;
 		}
 
-		public static FluidValue GuidBase64(FluidValue input, FilterArguments arguments, TemplateContext context)
+		public static ValueTask<FluidValue> GuidBase64(FluidValue input, FilterArguments arguments, TemplateContext context)
 		{
 			if (input.Type != FluidValues.Object)
 			{
@@ -77,9 +77,9 @@ namespace VivistaServer
 				if (context == null)
 				{
 					context = new TemplateContext();
-					context.MemberAccessStrategy = defaultAccessStrategy;
-					context.LocalScope.SetValue("User", user);
-					context.Filters.AddFilter("guidbase64", GuidBase64);
+					context.Options.MemberAccessStrategy = defaultAccessStrategy;
+					context.Options.Scope.SetValue("User", FluidValue.Create(user, context.Options));
+					context.Options.Filters.AddFilter("guidbase64", GuidBase64);
 
 					result = await template.RenderAsync();
 				}
@@ -87,9 +87,9 @@ namespace VivistaServer
 				{
 					//NOTE(Simon): This lib requires users to register all used models by their type name.
 					//NOTE(cont.): This block prevents having to do it manually.
-					context.MemberAccessStrategy = defaultAccessStrategy;
-					context.LocalScope.SetValue("User", user);
-					context.Filters.AddFilter("guidbase64", GuidBase64);
+					context.Options.MemberAccessStrategy = defaultAccessStrategy;
+					context.Options.Scope.SetValue("User", FluidValue.Create(user, context.Options));
+					context.Options.Filters.AddFilter("guidbase64", GuidBase64);
 
 					result = await template.RenderAsync(context);
 				}
@@ -97,9 +97,9 @@ namespace VivistaServer
 				if (layout != BaseLayout.None)
 				{
 					var content = new TemplateContext(new { content = result });
-					content.MemberAccessStrategy = defaultAccessStrategy;
-					content.LocalScope.SetValue("User", user);
-					context.Filters.AddFilter("guidbase64", GuidBase64);
+					context.Options.MemberAccessStrategy = defaultAccessStrategy;
+					content.Options.Scope.SetValue("User", FluidValue.Create(user, context.Options));
+					context.Options.Filters.AddFilter("guidbase64", GuidBase64);
 
 					result = await layoutCache[layout].RenderAsync(content);
 				}
