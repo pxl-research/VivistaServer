@@ -85,6 +85,7 @@ namespace VivistaServer
 			Organization,
 			Unlisted,
 			Private,
+			Processing
 		}
 
 
@@ -466,48 +467,44 @@ namespace VivistaServer
 
 					Directory.CreateDirectory(extraPath);
 
-					foreach (var file in form.Files)
-					{
-						using (var stream = new FileStream(Path.Combine(extraPath, file.Name), FileMode.OpenOrCreate))
-						{
-							await file.CopyToAsync(stream);
-						}
-					}
+		[Route("POST", "/api/finish_upload")]
+		[Route("POST", "/api/v1/finish_upload")]
+		private static async Task FinishUploadApi(HttpContext context)
+		{
+			var form = context.Request.Form;
+			if (Guid.TryParse(form["id"], out var guid))
+			{
+				var user = UserSessions.GetLoggedInUser(context);
 
-					var clearTask = connection.ExecuteAsync("delete from extra_files where video_id = @videoGuid::uuid", new { videoGuid });
+				using var connection = Database.OpenNewConnection();
 
-					var param = new[]
-					{
-						new { video_id = "", guid = "" }
-					}.ToList();
-
-					param.Clear();
-
-					foreach (var id in extraguids)
-					{
-						param.Add(new { video_id = videoGuid, guid = id });
-					}
-
-					var downloadSizeTask = Task.Run(() => GetDirectorySize(new DirectoryInfo(basePath)));
-
-					await clearTask;
-					await connection.ExecuteAsync("insert into extra_files (video_id, guid) values (@video_id::uuid, @guid::uuid)", param);
-					long downloadSize = await downloadSizeTask;
-					await connection.ExecuteAsync("update videos set downloadsize = @downloadSize where id = @videoGuid::uuid", new { videoGuid, downloadSize });
-
-					await context.Response.WriteAsync("{}");
-				}
-				catch (Exception e)
+				if (user != null && await UserOwnsVideo(guid, user.Id, connection))
 				{
-					//NOTE(Simon): If upload fails, just delete everything so we can start fresh next time.
-					//TODO(Simon): Look into supporting partial uploads
-					Directory.Delete(basePath, true);
-					await CommonController.WriteError(context, "Something went wrong while uploading this file", StatusCodes.Status500InternalServerError, e);
+
+					var videoPath = Path.Combine(baseFilePath, guid.ToString(), "main.mp4");
+
+					if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+					{
+						Process.Start("/bin/bash", $"ffmpeg -ss 00:00:005 -i {videoPath} -vframes 1 -q:v 3 thumb.jpg");
+						//Process.Start("/bin/bash", $"ffmpeg -i {videoPath} -vf \"select=eq(n\\,29)\" -vframes 1 thumb.jpg");
+					}
+					else if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+					{
+						var process =Process.Start("/bin/bash", $"/C ffmpeg -ss 00:00:005 -i {videoPath} -vframes 1 -q:v 3 thumb.jpg");
+						//Process.Start("cmd.exe", $"/C ffmpeg -i {videoPath} -vf 'select=eq(n\\,29)' -vframes 1 thumb.jpg");
+
+						process.Start();
+						await process.WaitForExitAsync();
+					}
+				}
+				else
+				{
+					await CommonController.WriteError(context, "{}", StatusCodes.Status401Unauthorized);
 				}
 			}
 			else
 			{
-				await CommonController.WriteError(context, "{}", StatusCodes.Status401Unauthorized);
+				await CommonController.WriteError(context, "{}", StatusCodes.Status400BadRequest);
 			}
 		}
 
@@ -757,17 +754,24 @@ namespace VivistaServer
 			var user = await UserSessions.GetLoggedInUser(arg.HttpContext);
 			if (user != null)
 			{
-				var guid = new Guid(arg.HttpContext.Request.Headers["guid"]);
-				var cachedOwner = (User) uploadAuthorisationCache[guid.ToString()];
+				var video = new Video
+				{
+					id = new Guid(arg.HttpContext.Request.Headers["guid"]),
+					userid = user.userid,
+				};
+
+				var cachedOwner = (User)uploadAuthorisationCache[video.id.ToString()];
 				bool exists;
 				bool owns;
 
 				if (cachedOwner == null)
 				{
 					using var connection = Database.OpenNewConnection();
-					exists = await VideoExists(guid, connection);
-					owns = await UserOwnsVideo(guid, user.userid, connection);
+					exists = await VideoExists(video.id, connection);
+					owns = await UserOwnsVideo(video.id, user.userid, connection);
+					await AddOrUpdateVideo(video, connection);
 				}
+				//NOTE(Simon): At this point the video has definitely been created, so it exists and is owned by the cached user
 				else if (cachedOwner.userid == user.userid)
 				{
 					exists = true;
@@ -781,7 +785,7 @@ namespace VivistaServer
 
 				if (exists && owns || !exists)
 				{
-					uploadAuthorisationCache.Add(guid.ToString(), user, DateTimeOffset.Now.AddMinutes(5));
+					uploadAuthorisationCache.Add(video.id.ToString(), user, new CacheItemPolicy { SlidingExpiration = TimeSpan.FromMinutes(10) });
 
 					stopwatch.Stop();
 					Console.WriteLine($"Authorisation for {arg.FileId}. {stopwatch.Elapsed.TotalMilliseconds} ms");
@@ -835,6 +839,7 @@ namespace VivistaServer
 					}
 					else
 					{
+						await CommonController.WriteError(arg.HttpContext, "The project being uploaded is corrupted", StatusCodes.Status400BadRequest);
 					}
 				}
 			}
@@ -989,6 +994,25 @@ namespace VivistaServer
 			}
 
 			return null;
+		}
+
+		private static async Task<bool> AddOrUpdateVideo(Video video, NpgsqlConnection connection)
+		{
+			try
+			{
+				var timestamp = DateTime.UtcNow;
+				await connection.ExecuteAsync(@"INSERT INTO videos (id, userid, title, description, length, timestamp, privacy)
+												VALUES (@guid::uuid, @userid, @title, @description, @length, @timestamp, @privacy)
+												ON CONFLICT(id) DO UPDATE
+												SET title=@title, description=@description, length=@length",
+												new {guid = video.id, video.userid, video.title, video.description, video.length, timestamp, VideoPrivacy.Processing});
+
+				return true;
+			}
+			catch (Exception e)
+			{
+				return false;
+			}
 		}
 
 		private static async Task<bool> SetVideoPrivacy(Guid videoid, VideoPrivacy privacy, NpgsqlConnection connection)
