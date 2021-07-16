@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.Caching;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Dapper;
 using Fluid;
@@ -18,7 +19,7 @@ namespace VivistaServer
 	public class VideoController
 	{
 		private const int indexCountDefault = 10;
-		public const string baseFilePath = @"C:\VivistaServerData\";
+		public static readonly string baseFilePath = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"C:\VivistaData\" : "/srv/www/vivistadata/";
 
 		private static MemoryCache uploadAuthorisationCache = new MemoryCache(UPLOAD_AUTHORISATION_CACHE_NAME);
 		private static MemoryCache viewHistoryCache = new MemoryCache(VIEWHISTORY_CACHE_NAME);
