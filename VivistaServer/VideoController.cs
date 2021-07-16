@@ -134,14 +134,14 @@ namespace VivistaServer
 				videos.totalcount = await connection.QuerySingleAsync<int>(@"select count(*) from videos v
 								inner join users u on v.userid = u.userid
 								where (@userid::int is NULL or v.userid=@userid)
-								and (@uploadDate::timestamp is NULL or v.timestamp>=@uploadDate)", new { userid, uploadDate });
+								and (@uploadDate::timestamp is NULL or v.timestamp>=@uploadDate)", new {userid, uploadDate});
 				videos.videos = await connection.QueryAsync<Video>(@"select v.id, v.userid, u.username, v.timestamp, v.downloadsize, v.title, v.description, v.length from videos v
 								inner join users u on v.userid = u.userid
 								where (@userid::int is NULL or v.userid=@userid)
 								and (@uploadDate::timestamp is NULL or v.timestamp>=@uploadDate)
 								order by v.timestamp desc
 								limit @count
-								offset @offset", new { userid, uploadDate, count, offset });
+								offset @offset", new {userid, uploadDate, count, offset});
 
 				videos.count = videos.videos.AsList().Count;
 				videos.page = videos.totalcount > 0 ? offset / videos.totalcount + 1 : 1;
@@ -187,191 +187,6 @@ namespace VivistaServer
 			await context.Response.Body.WriteAsync(Utf8Json.JsonSerializer.SerializeUnsafe(video));
 		}
 
-		[Route("GET", "/api/download_video")]
-		[Route("GET", "/api/v1/download_video")]
-		private static async Task VideoDownloadGetApi(HttpContext context)
-		{
-			var args = context.Request.Query;
-
-			if (!Guid.TryParse(args["videoid"], out var videoid))
-			{
-				await CommonController.Write404(context);
-				return;
-			}
-
-			using var connection = Database.OpenNewConnection();
-
-			Video video;
-			try
-			{
-				video = await GetVideo(videoid, connection);
-
-				if (video == null || video.isPrivate)
-				{
-					await CommonController.Write404(context);
-					return;
-				}
-			}
-			catch (Exception e)
-			{
-				await CommonController.WriteError(context, "Something went wrong while processing this request", StatusCodes.Status500InternalServerError, e);
-				return;
-			}
-
-			var videoPath = $"{baseFilePath}{video.id}\\main.mp4";
-
-			if (File.Exists(videoPath))
-			{
-				context.Response.ContentType = "video/mp4";
-				try
-				{
-					await context.Response.SendFileAsync(videoPath);
-				}
-				catch (Exception e)
-				{
-					await CommonController.WriteError(context, "Something went wrong while sending this file", StatusCodes.Status500InternalServerError, e);
-				}
-			}
-			else
-			{
-				await CommonController.Write404(context);
-			}
-		}
-
-		//TODO(Simon): generate thumbnail when finished
-		//TODO(Simon): transcode to smaller dimensions when finished
-		[Route("POST", "/api/video")]
-		[Route("POST", "/api/v1/video")]
-		private static async Task VideoPostApi(HttpContext context)
-		{
-			context.Features.Get<IHttpMaxRequestBodySizeFeature>().MaxRequestBodySize = null;
-
-			var form = context.Request.Form;
-			var user = await UserSessions.GetLoggedInUser(context);
-
-			if (user != null)
-			{
-				using var connection = Database.OpenNewConnection();
-				var guid = new Guid(form["uuid"]);
-
-				bool exists = await VideoExists(guid, connection);
-				bool owns = await UserOwnsVideo(guid, user.userid, connection);
-
-				if (exists && owns || !exists)
-				{
-					string basePath = Path.Combine(baseFilePath, guid.ToString());
-					string videoPath = Path.Combine(basePath, "main.mp4");
-					string metaPath = Path.Combine(basePath, "meta.json");
-					string chaptersPath = Path.Combine(basePath, "chapters.json");
-					string tagsPath = Path.Combine(basePath, "tags.json");
-
-					try
-					{
-						Directory.CreateDirectory(basePath);
-						using (var videoStream = new FileStream(videoPath, FileMode.OpenOrCreate))
-						using (var metaStream = new FileStream(metaPath, FileMode.OpenOrCreate))
-						using (var chaptersStream = new FileStream(chaptersPath, FileMode.OpenOrCreate))
-						using (var tagsStream = new FileStream(tagsPath, FileMode.OpenOrCreate))
-						{
-							var videoCopyOp = form.Files["video"].CopyToAsync(videoStream);
-							var metaCopyOp = form.Files["meta"].CopyToAsync(metaStream);
-							var chaptersCopyOp = form.Files["chapters"].CopyToAsync(chaptersStream);
-							var tagsCopyOp = form.Files["tags"].CopyToAsync(tagsStream);
-							await Task.WhenAll(videoCopyOp, metaCopyOp, chaptersCopyOp, tagsCopyOp);
-						}
-
-						var meta = await Task.Run(() => ReadMetaFile(metaPath));
-
-						if (exists)
-						{
-							var timestamp = DateTime.UtcNow;
-							await connection.ExecuteAsync(@"update videos set (title, description, length, timestamp)
-													= (@title, @description, @length, @timestamp)
-													where id = @guid",
-								new {guid, meta.title, meta.description, meta.length, timestamp});
-						}
-						else
-						{
-							await connection.ExecuteAsync(@"insert into videos (id, userid, title, description, length)
-													values (@guid, @userid, @title, @description, @length)",
-								new {guid, user.userid, meta.title, meta.description, meta.length});
-						}
-
-						await context.Response.WriteAsync("{}");
-					}
-					catch (Exception e)
-					{
-						//NOTE(Simon): If upload fails, just delete everything so we can start fresh next time.
-						//TODO(Simon): Look into supporting partial uploads
-						Directory.Delete(basePath, true);
-						await CommonController.WriteError(context, "Something went wrong while uploading this file", StatusCodes.Status500InternalServerError, e);
-					}
-				}
-				else
-				{
-					await CommonController.WriteError(context, "User does not have permission to upload this video", StatusCodes.Status401Unauthorized);
-				}
-			}
-			else
-			{
-				await CommonController.WriteError(context, "{}", StatusCodes.Status401Unauthorized);
-			}
-		}
-
-		[Route("GET", "/api/meta")]
-		[Route("GET", "/api/v1/meta")]
-		private static async Task MetaGetApi(HttpContext context)
-		{
-			var args = context.Request.Query;
-			string id = args["videoid"].ToString();
-
-			if (Guid.TryParse(id, out _))
-			{
-				string filename = Path.Combine(baseFilePath, id, "meta.json");
-				await CommonController.WriteFile(context, filename, "application/json", "meta.json");
-			}
-			else
-			{
-				await CommonController.Write404(context);
-			}
-		}
-
-		[Route("GET", "/api/tags")]
-		[Route("GET", "/api/v1/tags")]
-		private static async Task TagsGetApi(HttpContext context)
-		{
-			var args = context.Request.Query;
-			string id = args["videoid"].ToString();
-
-			if (Guid.TryParse(id, out _))
-			{
-				string filename = Path.Combine(baseFilePath, id, "tags.json");
-				await CommonController.WriteFile(context, filename, "application/json", "tags.json");
-			}
-			else
-			{
-				await CommonController.Write404(context);
-			}
-		}
-
-		[Route("GET", "/api/chapters")]
-		[Route("GET", "/api/v1/chapters")]
-		private static async Task ChaptersGetApi(HttpContext context)
-		{
-			var args = context.Request.Query;
-			string id = args["videoid"].ToString();
-
-			if (Guid.TryParse(id, out _))
-			{
-				string filename = Path.Combine(baseFilePath, id, "chapters.json");
-				await CommonController.WriteFile(context, filename, "application/json", "chapters.json");
-			}
-			else
-			{
-				await CommonController.Write404(context);
-			}
-		}
-
 		[Route("GET", "/api/thumbnail")]
 		[Route("GET", "/api/v1/thumbnail")]
 		private static async Task ThumbnailGetApi(HttpContext context)
@@ -392,22 +207,33 @@ namespace VivistaServer
 
 		[Route("GET", "/api/extra")]
 		[Route("GET", "/api/v1/extra")]
-		private static async Task ExtraGetApi(HttpContext context)
+		private static async Task FileGetApi(HttpContext context)
 		{
 			var args = context.Request.Query;
 			string videoId = args["videoid"];
-			string extraId = args["extraid"];
+			string filename = args["filename"];
 
-			if (String.IsNullOrEmpty(videoId) || String.IsNullOrEmpty(extraId))
+			if (String.IsNullOrEmpty(videoId) || String.IsNullOrEmpty(filename))
 			{
 				await CommonController.Write404(context);
 				return;
 			}
 
-			if (Guid.TryParse(videoId, out _) && Guid.TryParse(extraId, out _))
+			if (Guid.TryParse(videoId, out var guid))
 			{
-				string filename = Path.Combine(baseFilePath, videoId, "extra", extraId);
-				await CommonController.WriteFile(context, filename, "application/octet-stream", "");
+				using var connection = Database.OpenNewConnection();
+
+				var video = await GetVideo(guid, connection);
+
+				if (video.isPublic)
+				{
+					string path = Path.Combine(baseFilePath, videoId, "extra", filename);
+					await CommonController.WriteFile(context, path, "application/octet-stream", "");
+				}
+				else
+				{
+					await CommonController.Write404(context);
+				}
 			}
 			else
 			{
@@ -417,55 +243,42 @@ namespace VivistaServer
 
 		[Route("GET", "/api/extras")]
 		[Route("GET", "/api/v1/extras")]
-		private static async Task ExtrasGetApi(HttpContext context)
+		private static async Task FilesGetApi(HttpContext context)
 		{
 			var args = context.Request.Query;
-			string idstring = args["videoid"];
+			string videoid = args["videoid"];
 
-			if (String.IsNullOrEmpty(idstring))
+			if (String.IsNullOrEmpty(videoid))
 			{
 				await CommonController.Write404(context);
 				return;
 			}
 
-			using var connection = Database.OpenNewConnection();
-
-			if (Guid.TryParse(idstring, out var videoId))
+			if (Guid.TryParse(videoid, out var guid))
 			{
-				try
+				using var connection = Database.OpenNewConnection();
+
+				var video = await GetVideo(guid, connection);
+
+				if (video.isPublic)
 				{
-					var ids = await connection.QueryAsync<Guid>(@"select guid from extra_files where video_id = @videoId", new { videoId });
-					var stringIds = new List<string>();
-					foreach (var id in ids) { stringIds.Add(id.ToString().Replace("-", "")); }
-					await context.Response.Body.WriteAsync(Utf8Json.JsonSerializer.SerializeUnsafe(stringIds));
-				}
-				catch (Exception e)
-				{
-					await CommonController.WriteError(context, "Something went wrong while processing this request", StatusCodes.Status500InternalServerError, e);
+					try
+					{
+						string path = Path.Combine(baseFilePath, guid.ToString());
+						var filenames = Directory.GetFiles(path, "", SearchOption.AllDirectories);
+						await context.Response.Body.WriteAsync(Utf8Json.JsonSerializer.SerializeUnsafe(filenames));
+					}
+					catch (Exception e)
+					{
+						await CommonController.WriteError(context, "Something went wrong while processing this request", StatusCodes.Status500InternalServerError, e);
+					}
 				}
 			}
-		}
-
-		[Route("POST", "/api/extras")]
-		[Route("POST", "/api/v1/extras")]
-		private static async Task ExtrasPostApi(HttpContext context)
-		{
-			context.Features.Get<IHttpMaxRequestBodySizeFeature>().MaxRequestBodySize = null;
-
-			var form = context.Request.Form;
-			string videoGuid = form["videoguid"];
-			string rawExtraGuids = form["extraguids"];
-			var extraguids = rawExtraGuids.Split(',');
-
-			if (await UserSessions.GetLoggedInUser(context) != null)
+			else
 			{
-				string basePath = Path.Combine(baseFilePath, videoGuid);
-				string extraPath = Path.Combine(basePath, "extra");
-				try
-				{
-					using var connection = Database.OpenNewConnection();
-
-					Directory.CreateDirectory(extraPath);
+				await CommonController.Write404(context);
+			}
+		}
 
 		[Route("POST", "/api/finish_upload")]
 		[Route("POST", "/api/v1/finish_upload")]
