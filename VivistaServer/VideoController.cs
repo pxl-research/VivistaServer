@@ -287,27 +287,38 @@ namespace VivistaServer
 			var form = context.Request.Form;
 			if (Guid.TryParse(form["id"], out var guid))
 			{
-				var user = UserSessions.GetLoggedInUser(context);
+				var userTask = UserSessions.GetLoggedInUser(context);
 
 				using var connection = Database.OpenNewConnection();
 
-				if (user != null && await UserOwnsVideo(guid, user.Id, connection))
-				{
+				var user = await userTask;
 
-					var videoPath = Path.Combine(baseFilePath, guid.ToString(), "main.mp4");
+				if (user != null && await UserOwnsVideo(guid, user.userid, connection))
+				{
+					var directoryPath = Path.Combine(baseFilePath, guid.ToString());
+					var videoPath = Path.Combine(directoryPath, "main.mp4");
+
+					Process process = null;
+
+					string ffmpegArgs = $"-y -ss 00:00:05 -i {videoPath} -frames:v 1 -q:v 3 -s 720x360 {directoryPath}\\thumb.jpg";
 
 					if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
 					{
-						Process.Start("/bin/bash", $"ffmpeg -ss 00:00:005 -i {videoPath} -vframes 1 -q:v 3 thumb.jpg");
-						//Process.Start("/bin/bash", $"ffmpeg -i {videoPath} -vf \"select=eq(n\\,29)\" -vframes 1 thumb.jpg");
+						process = Process.Start("/bin/bash", $"ffmpeg {ffmpegArgs}");
 					}
 					else if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
 					{
-						var process =Process.Start("/bin/bash", $"/C ffmpeg -ss 00:00:005 -i {videoPath} -vframes 1 -q:v 3 thumb.jpg");
-						//Process.Start("cmd.exe", $"/C ffmpeg -i {videoPath} -vf 'select=eq(n\\,29)' -vframes 1 thumb.jpg");
+						process = Process.Start("cmd.exe", $"/C ffmpeg.exe {ffmpegArgs}");
+					}
 
-						process.Start();
-						await process.WaitForExitAsync();
+					await process.WaitForExitAsync();
+					if (process.ExitCode == 0)
+					{
+						await context.Response.WriteAsJsonAsync(new {success = true});
+					}
+					else
+					{
+						await CommonController.WriteError(context, "{}", StatusCodes.Status500InternalServerError);
 					}
 				}
 				else
@@ -340,7 +351,7 @@ namespace VivistaServer
 
 			using var connection = Database.OpenNewConnection();
 
-			var videos = await GetVideos(tab, count, offset, connection);
+			var videos = await GetIndexVideos(tab, count, offset, connection);
 
 			var templateContext = new TemplateContext(new { videos, tab = tab.ToString() });
 
@@ -777,7 +788,8 @@ namespace VivistaServer
 			}
 		}
 
-		private static async Task<IEnumerable<Video>> GetVideos(IndexTab tab, int count, int offset, NpgsqlConnection connection)
+		//TODO(Simon): Filter on public videos
+		private static async Task<IEnumerable<Video>> GetIndexVideos(IndexTab tab, int count, int offset, NpgsqlConnection connection)
 		{
 			if (tab == IndexTab.New)
 			{

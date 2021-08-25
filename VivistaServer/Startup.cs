@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -29,6 +30,17 @@ namespace VivistaServer
 			EmailClient.InitCredentials();
 
 			HTMLRenderer.RegisterLayout(BaseLayout.Web, "Templates/base.liquid");
+
+			CheckForFfmpeg();
+		}
+
+		public void CheckForFfmpeg()
+		{
+			if (String.IsNullOrEmpty(Path.GetFullPath("ffmpeg")))
+			{
+				Console.WriteLine("ffmpeg executable not found in PATH");
+				Environment.Exit(-1);
+			}
 		}
 
 		public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
