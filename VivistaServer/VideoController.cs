@@ -32,7 +32,7 @@ namespace VivistaServer
 			public int userid;
 			public string username;
 			public DateTime timestamp;
-			public int downloadsize;
+			public long downloadsize;
 			public int views;
 			public int downloads;
 			public VideoPrivacy privacy;
@@ -596,7 +596,6 @@ namespace VivistaServer
 
 		public static async Task AuthorizeUploadTus(AuthorizeContext arg)
 		{
-			var stopwatch = Stopwatch.StartNew();
 			var user = await UserSessions.GetLoggedInUser(arg.HttpContext);
 			if (user != null)
 			{
@@ -604,6 +603,7 @@ namespace VivistaServer
 				{
 					id = new Guid(arg.HttpContext.Request.Headers["guid"]),
 					userid = user.userid,
+					privacy = VideoPrivacy.Processing,
 				};
 
 				var cachedOwner = (User)uploadAuthorisationCache[video.id.ToString()];
@@ -632,9 +632,6 @@ namespace VivistaServer
 				if (exists && owns || !exists)
 				{
 					uploadAuthorisationCache.Add(video.id.ToString(), user, new CacheItemPolicy { SlidingExpiration = TimeSpan.FromMinutes(10) });
-
-					stopwatch.Stop();
-					Console.WriteLine($"Authorisation for {arg.FileId}. {stopwatch.Elapsed.TotalMilliseconds} ms");
 					return;
 				}
 			}
@@ -849,10 +846,10 @@ namespace VivistaServer
 			{
 				var timestamp = DateTime.UtcNow;
 				await connection.ExecuteAsync(@"INSERT INTO videos (id, userid, title, description, length, timestamp, privacy)
-												VALUES (@guid::uuid, @userid, @title, @description, @length, @timestamp, @privacy)
+												VALUES (@id::uuid, @userid, @title, @description, @length, @timestamp, @privacy)
 												ON CONFLICT(id) DO UPDATE
 												SET title=@title, description=@description, length=@length",
-												new {guid = video.id, video.userid, video.title, video.description, video.length, timestamp, VideoPrivacy.Processing});
+												new {video.id, video.userid, video.title, video.description, video.length, timestamp, video.privacy});
 
 				return true;
 			}
