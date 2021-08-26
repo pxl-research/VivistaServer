@@ -60,7 +60,7 @@ namespace VivistaServer
 			app.UseStaticFiles();
 			app.UseTus(context =>
 			{
-				if (!context.Request.Path.StartsWithSegments(new PathString("/api/file")))
+				if (!context.Request.Path.StartsWithSegments(new PathString("/api/file")) || context.Request.Method == "GET")
 				{
 					return null;
 				}

@@ -205,8 +205,8 @@ namespace VivistaServer
 			}
 		}
 
-		[Route("GET", "/api/extra")]
-		[Route("GET", "/api/v1/extra")]
+		[Route("GET", "/api/file")]
+		[Route("GET", "/api/v1/file")]
 		private static async Task FileGetApi(HttpContext context)
 		{
 			var args = context.Request.Query;
@@ -227,8 +227,8 @@ namespace VivistaServer
 
 				if (video.isPublic)
 				{
-					string path = Path.Combine(baseFilePath, videoId, "extra", filename);
-					await CommonController.WriteFile(context, path, "application/octet-stream", "");
+					string path = Path.Combine(baseFilePath, videoId, filename);
+					await CommonController.WriteFile(context, path, "application/octet-stream", filename);
 				}
 				else
 				{
@@ -241,8 +241,8 @@ namespace VivistaServer
 			}
 		}
 
-		[Route("GET", "/api/extras")]
-		[Route("GET", "/api/v1/extras")]
+		[Route("GET", "/api/files")]
+		[Route("GET", "/api/v1/files")]
 		private static async Task FilesGetApi(HttpContext context)
 		{
 			var args = context.Request.Query;
@@ -272,6 +272,10 @@ namespace VivistaServer
 					{
 						await CommonController.WriteError(context, "Something went wrong while processing this request", StatusCodes.Status500InternalServerError, e);
 					}
+				}
+				else
+				{
+					await CommonController.Write404(context);
 				}
 			}
 			else
@@ -330,6 +334,11 @@ namespace VivistaServer
 							await context.Response.WriteAsJsonAsync(new {success = true});
 						}
 						else
+					{
+						await CommonController.WriteError(context, "{}", StatusCodes.Status500InternalServerError);
+					}
+					}
+					else
 					{
 						await CommonController.WriteError(context, "{}", StatusCodes.Status500InternalServerError);
 					}
