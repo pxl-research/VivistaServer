@@ -334,9 +334,9 @@ namespace VivistaServer
 							await context.Response.WriteAsJsonAsync(new {success = true});
 						}
 						else
-					{
-						await CommonController.WriteError(context, "{}", StatusCodes.Status500InternalServerError);
-					}
+						{
+							await CommonController.WriteError(context, "{}", StatusCodes.Status500InternalServerError);
+						}
 					}
 					else
 					{
@@ -708,16 +708,15 @@ namespace VivistaServer
 			}
 		}
 
-		//TODO(Simon): Filter on public videos
 		public static async Task<IEnumerable<Video>> PublicVideosForUser(int userid, int count, int offset, NpgsqlConnection connection)
 		{
 			try
 			{
 				var videos = await connection.QueryAsync<Video>(@"select * from videos
-																where userid=@userid
+																where userid=@userid and privacy=@privacy
 																order by timestamp desc
 																limit @count
-																offset @offset", new { userid, count, offset });
+																offset @offset", new { userid, count, offset, privacy = VideoPrivacy.Public });
 
 				return videos;
 			}
@@ -741,13 +740,13 @@ namespace VivistaServer
 			}
 		}
 
-		//TODO(Simon): Filter on public videos
 		public static async Task<int> NumPublicVideosForUser(int userid, NpgsqlConnection connection)
 		{
 			try
 			{
 				int totalcount = await connection.QuerySingleAsync<int>(@"select count(*) from videos
-																		where userid=@userid", new { userid });
+																		where userid=@userid and privacy=@privacy", 
+																		new { userid, privacy = VideoPrivacy.Public });
 				return totalcount;
 			}
 			catch (Exception e)
@@ -807,34 +806,36 @@ namespace VivistaServer
 			}
 		}
 
-		//TODO(Simon): Filter on public videos
 		private static async Task<IEnumerable<Video>> GetIndexVideos(IndexTab tab, int count, int offset, NpgsqlConnection connection)
 		{
 			if (tab == IndexTab.New)
 			{
 				return await connection.QueryAsync<Video>(@"select v.*, u.username from videos v
 								inner join users u on v.userid = u.userid
+								where privacy=@privacy
 								order by v.timestamp desc
 								limit @count
-								offset @offset", new { count, offset });
+								offset @offset", new { count, offset, privacy = VideoPrivacy.Public });
 			}
 
 			if (tab == IndexTab.MostWatched)
 			{
 				return await connection.QueryAsync<Video>(@"select v.*, u.username from videos v
 								inner join users u on v.userid = u.userid
+								where privacy=@privacy
 								order by v.views desc
 								limit @count
-								offset @offset", new { count, offset });
+								offset @offset", new { count, offset, privacy = VideoPrivacy.Public });
 			}
 
 			if (tab == IndexTab.Popular)
 			{
 				return await connection.QueryAsync<Video>(@"select v.*, u.username from videos v
 								inner join users u on v.userid = u.userid
+								where privacy=@privacy
 								order by v.views desc
 								limit @count
-								offset @offset", new { count, offset });
+								offset @offset", new { count, offset, privacy = VideoPrivacy.Public });
 			}
 
 			return null;
