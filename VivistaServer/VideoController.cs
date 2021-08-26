@@ -292,31 +292,44 @@ namespace VivistaServer
 				using var connection = Database.OpenNewConnection();
 
 				var user = await userTask;
+				var video = await GetVideo(guid, connection);
 
 				if (user != null && await UserOwnsVideo(guid, user.userid, connection))
 				{
 					var directoryPath = Path.Combine(baseFilePath, guid.ToString());
 					var videoPath = Path.Combine(directoryPath, "main.mp4");
 
-					Process process = null;
+					var process = new Process();
+					process.StartInfo.UseShellExecute = false;
+					process.StartInfo.RedirectStandardOutput = true;
+					process.StartInfo.RedirectStandardError = true;
 
-					string ffmpegArgs = $"-y -ss 00:00:05 -i {videoPath} -frames:v 1 -q:v 3 -s 720x360 {directoryPath}\\thumb.jpg";
+					string ffmpegArgs = $"-hide_banner -loglevel error -y -ss 00:00:05 -i {videoPath} -frames:v 1 -q:v 3 -s 720x360 {directoryPath}\\thumb.jpg";
 
 					if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
 					{
-						process = Process.Start("/bin/bash", $"ffmpeg {ffmpegArgs}");
+						process.StartInfo.FileName = "/bin/bash";
+						process.StartInfo.Arguments = $"ffmpeg {ffmpegArgs}";
 					}
 					else if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
 					{
-						process = Process.Start("cmd.exe", $"/C ffmpeg.exe {ffmpegArgs}");
+						process.StartInfo.FileName = "cmd.exe";
+						process.StartInfo.Arguments = $"/C ffmpeg.exe {ffmpegArgs}";
 					}
+
+					process.Start();
 
 					await process.WaitForExitAsync();
 					if (process.ExitCode == 0)
 					{
-						await context.Response.WriteAsJsonAsync(new {success = true});
-					}
-					else
+						video.privacy = VideoPrivacy.Public;
+						video.downloadsize = (int)GetDirectorySize(new DirectoryInfo(directoryPath));
+
+						if (await AddOrUpdateVideo(video, connection))
+						{
+							await context.Response.WriteAsJsonAsync(new {success = true});
+						}
+						else
 					{
 						await CommonController.WriteError(context, "{}", StatusCodes.Status500InternalServerError);
 					}
