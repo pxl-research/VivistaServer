@@ -135,13 +135,7 @@ namespace VivistaServer
 								inner join users u on v.userid = u.userid
 								where (@userid::int is NULL or v.userid=@userid)
 								and (@uploadDate::timestamp is NULL or v.timestamp>=@uploadDate)", new {userid, uploadDate});
-				videos.videos = await connection.QueryAsync<Video>(@"select v.id, v.userid, u.username, v.timestamp, v.downloadsize, v.title, v.description, v.length from videos v
-								inner join users u on v.userid = u.userid
-								where (@userid::int is NULL or v.userid=@userid)
-								and (@uploadDate::timestamp is NULL or v.timestamp>=@uploadDate)
-								order by v.timestamp desc
-								limit @count
-								offset @offset", new {userid, uploadDate, count, offset});
+				videos.videos = await GetIndexVideos(IndexTab.MostWatched, count, offset, connection);
 
 				videos.count = videos.videos.AsList().Count;
 				videos.page = videos.totalcount > 0 ? offset / videos.totalcount + 1 : 1;
@@ -265,8 +259,10 @@ namespace VivistaServer
 					try
 					{
 						string path = Path.Combine(baseFilePath, guid.ToString());
-						var filenames = Directory.GetFiles(path, "", SearchOption.AllDirectories);
-						await context.Response.Body.WriteAsync(Utf8Json.JsonSerializer.SerializeUnsafe(filenames));
+						var di = new DirectoryInfo(path);
+						var files = di.GetFiles("", SearchOption.AllDirectories);
+						var filenames = files.Select(x => x.FullName.Substring(path.Length + 1));
+						await context.Response.Body.WriteAsync(Utf8Json.JsonSerializer.SerializeUnsafe(new { array = filenames }));
 						await AddVideoDownload(guid, connection);
 					}
 					catch (Exception e)
@@ -466,7 +462,7 @@ namespace VivistaServer
 					}
 
 					int offset = (page - 1) * countPerPage;
-				
+
 					var numVideos = await NumPublicVideosForUser(user.userid, connection);
 					var VideosTask = PublicVideosForUser(user.userid, countPerPage, offset, connection);
 
@@ -701,7 +697,7 @@ namespace VivistaServer
 																order by timestamp desc
 																limit @count
 																offset @offset", new { userid, count, offset });
-				
+
 				return videos;
 			}
 			catch (Exception e)
@@ -747,7 +743,7 @@ namespace VivistaServer
 			try
 			{
 				int totalcount = await connection.QuerySingleAsync<int>(@"select count(*) from videos
-																		where userid=@userid and privacy=@privacy", 
+																		where userid=@userid and privacy=@privacy",
 																		new { userid, privacy = VideoPrivacy.Public });
 				return totalcount;
 			}
