@@ -267,6 +267,7 @@ namespace VivistaServer
 						string path = Path.Combine(baseFilePath, guid.ToString());
 						var filenames = Directory.GetFiles(path, "", SearchOption.AllDirectories);
 						await context.Response.Body.WriteAsync(Utf8Json.JsonSerializer.SerializeUnsafe(filenames));
+						await AddVideoDownload(guid, connection);
 					}
 					catch (Exception e)
 					{
@@ -380,6 +381,7 @@ namespace VivistaServer
 			await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\index.liquid", templateContext));
 		}
 
+		//TODO(Simon): Related videos, tags
 		[Route("GET", "/video")]
 		private static async Task VideoGet(HttpContext context)
 		{
