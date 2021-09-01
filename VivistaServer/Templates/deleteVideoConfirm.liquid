@@ -3,7 +3,7 @@
 		<h1>Delete video?</h1>
 		<p>Are you sure you want to permanently delete this video?</p>
 		<div class="video-tile pure-u-1">
-			<img class="pure-img" src="thumb.png">
+			<img class="pure-img" src="/api/thumbnail?id={{ video.id }}">
 			<p>{{ video.title }}</p>
 		</div>
 		<a href="/delete_video_confirm?id={{ video.id | guidbase64 }}" class="pure-button dangerous-button">Permanently delete video</a>

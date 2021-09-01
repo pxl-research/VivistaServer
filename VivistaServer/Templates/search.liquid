@@ -24,7 +24,7 @@
 						<a href="/video?id={{ video.id | guidbase64 }}">
 							<div class="video pure-g">
 								<div class="pure-u-3-8">
-									<img class="pure-img" src="thumb.png">
+									<img class="pure-img" src="/api/thumbnail?id={{ video.id }}">
 								</div>
 								<div class="pure-u-5-8 text">
 									<p class="title">{{ video.title }}</p>
