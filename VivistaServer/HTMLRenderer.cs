@@ -65,7 +65,6 @@ namespace VivistaServer
 			throw new ArgumentException("Value should be of Guid Type");
 		}
 
-		//TODO(Simon): Consider also caching last file write time, so we can auto update pages
 		public static async Task<string> Render(HttpContext httpContext, string templateName, TemplateContext context, BaseLayout layout = BaseLayout.Web)
 		{
 			var watch = Stopwatch.StartNew();

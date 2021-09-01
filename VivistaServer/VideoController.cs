@@ -325,6 +325,7 @@ namespace VivistaServer
 					{
 						video.privacy = VideoPrivacy.Public;
 						video.downloadsize = (int)GetDirectorySize(new DirectoryInfo(directoryPath));
+						video.length = await FfmpegGetVideoLength(videoPath);
 
 						if (await AddOrUpdateVideo(video, connection))
 						{
@@ -1020,5 +1021,35 @@ namespace VivistaServer
 			return size;
 		}
 
+		private static async Task<int> FfmpegGetVideoLength(string videoPath)
+		{
+			var process = new Process();
+			process.StartInfo.UseShellExecute = false;
+			process.StartInfo.RedirectStandardOutput = true;
+			process.StartInfo.RedirectStandardError = true;
+
+			string ffmpegArgs = $"-v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 {videoPath}";
+
+			if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+			{
+				process.StartInfo.FileName = "/bin/bash";
+				process.StartInfo.Arguments = $"ffprobe {ffmpegArgs}";
+			}
+			else if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+			{
+				process.StartInfo.FileName = "cmd.exe";
+				process.StartInfo.Arguments = $"/C ffprobe.exe {ffmpegArgs}";
+			}
+
+			process.Start();
+
+			await process.WaitForExitAsync();
+			if (process.ExitCode == 0)
+			{
+				return (int)float.Parse(process.StandardOutput.ReadLine());
+			}
+
+			return 0;
+		}
 	}
 }

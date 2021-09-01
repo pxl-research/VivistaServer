@@ -451,7 +451,6 @@ namespace VivistaServer
 				var userid = await UserIdFromEmail(email, connection);
 				var token = await UserSessions.CreateNewSession(userid, connection);
 
-				//TODO(Simon): Wrap in JSON. Look for other occurrences in file
 				return (true, token);
 			}
 			else
