@@ -65,6 +65,39 @@ namespace VivistaServer
 			throw new ArgumentException("Value should be of Guid Type");
 		}
 
+		public static ValueTask<FluidValue> FormatBytes(FluidValue input, FilterArguments arguments, TemplateContext context)
+		{
+			if (input.Type != FluidValues.Number)
+			{
+				throw new ArgumentException("Value should be of Number Type");
+			}
+
+			decimal numValue = input.ToNumberValue();
+			string formatted = FormatHelpers.BytesToString(numValue);
+
+			return new StringValue(formatted);
+		}
+
+		public static ValueTask<FluidValue> FormatTime(FluidValue input, FilterArguments arguments, TemplateContext context)
+		{
+			if (input.Type != FluidValues.Number)
+			{
+				throw new ArgumentException("Value should be of Number Type");
+			}
+
+			decimal numValue = input.ToNumberValue();
+			string formatted = FormatHelpers.FormatSecondsToString(numValue);
+
+			return new StringValue(formatted);
+		}
+
+		private static void AddDefaultFilters(TemplateContext context)
+		{
+			context.Options.Filters.AddFilter("guidbase64", GuidBase64);
+			context.Options.Filters.AddFilter("format_seconds", FormatTime);
+			context.Options.Filters.AddFilter("format_bytes", FormatBytes);
+		}
+
 		public static async Task<string> Render(HttpContext httpContext, string templateName, TemplateContext context, BaseLayout layout = BaseLayout.Web)
 		{
 			var watch = Stopwatch.StartNew();
@@ -78,7 +111,7 @@ namespace VivistaServer
 					context = new TemplateContext();
 					context.Options.MemberAccessStrategy = defaultAccessStrategy;
 					context.Options.Scope.SetValue("User", FluidValue.Create(user, context.Options));
-					context.Options.Filters.AddFilter("guidbase64", GuidBase64);
+					AddDefaultFilters(context);
 
 					result = await template.RenderAsync();
 				}
@@ -88,7 +121,7 @@ namespace VivistaServer
 					//NOTE(cont.): This block prevents having to do it manually.
 					context.Options.MemberAccessStrategy = defaultAccessStrategy;
 					context.Options.Scope.SetValue("User", FluidValue.Create(user, context.Options));
-					context.Options.Filters.AddFilter("guidbase64", GuidBase64);
+					AddDefaultFilters(context);
 
 					result = await template.RenderAsync(context);
 				}
@@ -98,7 +131,7 @@ namespace VivistaServer
 					var content = new TemplateContext(new { content = result });
 					context.Options.MemberAccessStrategy = defaultAccessStrategy;
 					content.Options.Scope.SetValue("User", FluidValue.Create(user, context.Options));
-					context.Options.Filters.AddFilter("guidbase64", GuidBase64);
+					AddDefaultFilters(context);
 
 					result = await layoutCache[layout].RenderAsync(content);
 				}

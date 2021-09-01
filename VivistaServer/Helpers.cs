@@ -54,4 +54,50 @@ namespace VivistaServer
 			}
 		}
 	}
+
+	public static class FormatHelpers
+	{
+		public static String FormatBytesToString(long rawBytes)
+		{
+			string[] suf = { "B", "KB", "MB", "GB", "TB", "PB", "EB" }; //Longs run out around EB
+			if (rawBytes == 0)
+			{
+				return $"0{suf[0]}";
+			}
+
+			long bytes = Math.Abs(rawBytes);
+			int place = Convert.ToInt32(Math.Floor(Math.Log(bytes, 1024)));
+			double num = Math.Round(bytes / Math.Pow(1024, place), 1);
+			return $"{Math.Sign(rawBytes) * num}{suf[place]}";
+		}
+
+		public static String BytesToString(decimal rawBytes)
+		{
+			return FormatBytesToString((long)rawBytes);
+		}
+
+		public static String FormatSecondsToString(int time)
+		{
+			int hours = time / (60 * 60);
+			time -= hours * 60 * 60;
+			int minutes = time / 60;
+			time -= minutes * 60;
+			int seconds = time;
+
+			string formatted = "";
+			if (hours > 0)
+			{
+				formatted += $"{hours}:";
+			}
+
+			formatted += $"{minutes:D2}:{seconds:D2}";
+
+			return formatted;
+		}
+
+		public static String FormatSecondsToString(decimal seconds)
+		{
+			return FormatSecondsToString((int)seconds);
+		}
+	}
 }

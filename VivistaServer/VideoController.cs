@@ -393,7 +393,9 @@ namespace VivistaServer
 
 				if (video != null && !video.isPrivate)
 				{
-					var templateContext = new TemplateContext(new { video });
+					var relatedVideos = new List<Video>();
+
+					var templateContext = new TemplateContext(new { video, relatedVideos});
 					await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\video.liquid", templateContext));
 					await AddVideoView(video.id, context, connection);
 				}
