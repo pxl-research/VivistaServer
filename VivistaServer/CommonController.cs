@@ -4,6 +4,7 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Net.Http.Headers;
 
 namespace VivistaServer
 {
@@ -69,7 +70,6 @@ namespace VivistaServer
 			try
 			{
 				context.Response.ContentType = contentType;
-				context.Response.Headers["Content-Disposition"] = "attachment; filename=" + responseFileName;
 				context.Response.ContentLength = new FileInfo(filename).Length;
 
 				using (var stream = File.OpenRead(filename))

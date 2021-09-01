@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 using Dapper;
 using Fluid;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Http.Features;
+using Microsoft.Net.Http.Headers;
 using Npgsql;
 using tusdotnet.Interfaces;
 using tusdotnet.Models.Configuration;
@@ -191,6 +191,8 @@ namespace VivistaServer
 			if (Guid.TryParse(id, out _))
 			{
 				string filename = Path.Combine(baseFilePath, id, "thumb.jpg");
+
+				context.Response.Headers.Add(HeaderNames.CacheControl, $"max-age={24 * 60 * 60}");
 				await CommonController.WriteFile(context, filename, "image/jpg", "thumb.jpg");
 			}
 			else
