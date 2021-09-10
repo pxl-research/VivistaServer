@@ -34,9 +34,16 @@ namespace VivistaServer
 
 			foreach (var file in files)
 			{
+				var normalizedFile = file.Replace('/', '\\');
 				var rawTemplate = File.ReadAllText(file);
 				var template = parser.Parse(rawTemplate);
-				templateCache[file] = template;
+				templateCache[normalizedFile] = template;
+			}
+
+			Console.WriteLine("Templates found:");
+			foreach (var file in templateCache)
+			{
+				Console.WriteLine($"\t{file.Key}");
 			}
 
 			InitWatcher();
@@ -100,9 +107,11 @@ namespace VivistaServer
 
 		public static async Task<string> Render(HttpContext httpContext, string templateName, TemplateContext context, BaseLayout layout = BaseLayout.Web)
 		{
+			Console.WriteLine($"Begin Rendering {templateName}");
 			var watch = Stopwatch.StartNew();
 			if (templateCache.TryGetValue(templateName, out var template))
 			{
+				Console.WriteLine("Template found");
 				var user = await UserSessions.GetLoggedInUser(httpContext);
 				string result;
 
@@ -143,6 +152,7 @@ namespace VivistaServer
 			}
 			else
 			{
+				Console.WriteLine("Template not found");
 				throw new Exception($"Something went wrong while rendering {templateName}");
 			}
 		}

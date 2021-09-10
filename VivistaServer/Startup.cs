@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
@@ -32,6 +33,10 @@ namespace VivistaServer
 			HTMLRenderer.RegisterLayout(BaseLayout.Web, "Templates/base.liquid");
 
 			CheckForFfmpeg();
+
+			CreateDataDirectoryIfNeeded();
+
+			RegisterGlobalExceptionLogger();
 		}
 
 		public void CheckForFfmpeg()
@@ -43,6 +48,24 @@ namespace VivistaServer
 			}
 		}
 
+		public void CreateDataDirectoryIfNeeded()
+		{
+			Directory.CreateDirectory(VideoController.baseFilePath);
+		}
+
+		public void RegisterGlobalExceptionLogger()
+		{
+#if DEBUG
+			AppDomain.CurrentDomain.FirstChanceException += ExceptionLogger;
+
+			void ExceptionLogger(object source, FirstChanceExceptionEventArgs e)
+			{
+				Console.WriteLine(e.Exception.Message);
+				Console.WriteLine(e.Exception.StackTrace);
+			}
+#endif
+		}
+
 		public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
 		{
 			if (env.IsDevelopment())
@@ -52,6 +75,7 @@ namespace VivistaServer
 			}
 			else
 			{
+				app.UseDeveloperExceptionPage();
 				app.UseHsts();
 				CommonController.baseURL = "https://vivista.net";
 			}
@@ -65,13 +89,15 @@ namespace VivistaServer
 					return null;
 				}
 				var guid = new Guid(context.Request.Headers["guid"]);
+				string path = Path.Combine(VideoController.baseFilePath, guid.ToString());
 				return new DefaultTusConfiguration
 				{
-					Store = new TusDiskStore(Path.Combine(VideoController.baseFilePath, guid.ToString())),
+					Store = new TusDiskStore(path),
 					UrlPath = "/api/file",
 					Events = new Events
 					{
 						OnAuthorizeAsync = VideoController.AuthorizeUploadTus,
+						OnBeforeCreateAsync = async createContext => Directory.CreateDirectory(path),
 						//NOTE(Simon): Do not allow deleting by someone trying to exploit the protocol
 						OnBeforeDeleteAsync = async deleteContext => deleteContext.FailRequest(""),
 						OnFileCompleteAsync = VideoController.ProcessUploadTus,

@@ -22,30 +22,29 @@ namespace VivistaServer
 			message.From.Add(noreplyAddress);
 			message.To.Add(new MailboxAddress(receiver, receiver));
 			message.Subject = "Vivista password reset code";
-			message.Body = new TextPart("plain"){Text = $@"A password reset has been requested for {receiver}. 
-														Click or copy and paste the following link to reset your password. 
 
-														{url}
+			var builder = new BodyBuilder();
 
-														If you did not request a password reset, you can safely ignore this email. 
-														The password reset link will remain valid for one hour."};
+			builder.HtmlBody = $"<p>A password reset has been requested for {receiver}. \n Click or copy and paste the following link to reset your password. \n\n <a href=\"{ url }\">{url}</a> \n\n If you did not request a password reset, you can safely ignore this email. \n The password reset link will remain valid for one hour.</p>";
+			message.Body = builder.ToMessageBody();
 
 			return await SendMail(message);
 		}
 
 		public static async Task<bool> SendEmailConfirmationMail(string receiver, string token)
 		{
-			var url = $"{CommonController.baseURL}/verify_email?email={receiver}&token={WebUtility.UrlEncode(token)}";
-			url = WebUtility.UrlEncode(url);
+			var url = $"{CommonController.baseURL}/verify_email?email={WebUtility.UrlEncode(receiver)}&token={WebUtility.UrlEncode(token)}";
 
 			var message = new MimeMessage();
 			message.From.Add(noreplyAddress);
 			message.To.Add(new MailboxAddress(receiver, receiver));
 			message.Subject = "Confirm email address";
-			message.Body = new TextPart("plain") { Text = $@"Thank you for creating an account on Vivista! 
-														Click or copy and paste the following link to verify your email address. 
 
-														{url}"};
+			var builder = new BodyBuilder();
+
+			builder.HtmlBody = $"<p>Thank you for creating an account on Vivista! \n Click or copy and paste the following link to verify your email address. \n\n <a href=\"{ url }\">{url}</a></p>";
+
+			message.Body = builder.ToMessageBody();
 
 			return await SendMail(message);
 		}

@@ -22,4 +22,8 @@ VivistaServer/bin/
 
 VivistaServer/obj/
 
+VivistaServer/publish/
+
+VivistaServer/Properties/PublishProfiles/FolderProfile.pubxml.user
+
 VivistaServer\.sln\.DotSettings\.user

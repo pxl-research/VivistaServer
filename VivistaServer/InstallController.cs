@@ -8,8 +8,8 @@ namespace VivistaServer
 {
 	public class InstallController
 	{
-		private static string playerFolder = CommonController.wwwroot + "\\Installers\\Player";
-		private static string editorFolder = CommonController.wwwroot + "\\Installers\\Editor";
+		private static string playerFolder = Path.Combine(CommonController.wwwroot, "Installers", "Player");
+		private static string editorFolder = Path.Combine(CommonController.wwwroot, "Installers", "Editor");
 
 		[Route("GET", "/install")]
 		private static async Task InstallGet(HttpContext context)

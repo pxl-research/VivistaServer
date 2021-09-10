@@ -16,6 +16,18 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Content Include="Templates\**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+	
+	<ItemGroup>
+		<Content Include="Migrations\**">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</Content>
+	</ItemGroup>
+
+	<ItemGroup>
     <Folder Include="wwwroot\Installers\" />
   </ItemGroup>
 

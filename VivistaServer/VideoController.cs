@@ -19,7 +19,7 @@ namespace VivistaServer
 	public class VideoController
 	{
 		private const int indexCountDefault = 10;
-		public static readonly string baseFilePath = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"C:\VivistaData\" : "/srv/www/vivistadata/";
+		public static readonly string baseFilePath = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? @"C:\VivistaData\" : "/srv/vivistadata/";
 
 		private static MemoryCache uploadAuthorisationCache = new MemoryCache(UPLOAD_AUTHORISATION_CACHE_NAME);
 		private static MemoryCache viewHistoryCache = new MemoryCache(VIEWHISTORY_CACHE_NAME);
@@ -301,50 +301,72 @@ namespace VivistaServer
 				{
 					var directoryPath = Path.Combine(baseFilePath, guid.ToString());
 					var videoPath = Path.Combine(directoryPath, "main.mp4");
+					var thumbPath = Path.Combine(directoryPath, "thumb.jpg");
 
 					var process = new Process();
 					process.StartInfo.UseShellExecute = false;
 					process.StartInfo.RedirectStandardOutput = true;
 					process.StartInfo.RedirectStandardError = true;
 
-					string ffmpegArgs = $"-hide_banner -loglevel error -y -ss 00:00:05 -i {videoPath} -frames:v 1 -q:v 3 -s 720x360 {directoryPath}\\thumb.jpg";
+					string ffmpegArgs = $"-hide_banner -loglevel error -y -ss 00:00:05 -i {videoPath} -frames:v 1 -q:v 3 -s 720x360 {thumbPath}";
 
 					if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
 					{
-						process.StartInfo.FileName = "/bin/bash";
-						process.StartInfo.Arguments = $"ffmpeg {ffmpegArgs}";
+						//process.StartInfo.FileName = @"\bin\ffmpeg.exe";
+						process.StartInfo.FileName = "/usr/bin/ffmpeg";
+						process.StartInfo.Arguments = $"{ffmpegArgs}";
+						//process.StartInfo.Arguments = $"-c ffmpeg {ffmpegArgs}";
+						Console.WriteLine($"Running following command: {process.StartInfo.Arguments}");
 					}
 					else if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
 					{
 						process.StartInfo.FileName = "cmd.exe";
 						process.StartInfo.Arguments = $"/C ffmpeg.exe {ffmpegArgs}";
+						Console.WriteLine($"Running following command: {process.StartInfo.Arguments}");
 					}
 
 					process.Start();
 
 					await process.WaitForExitAsync();
+					Console.WriteLine($"Ffmpeg exit code: {process.ExitCode}");
 					if (process.ExitCode == 0)
 					{
+						Console.WriteLine("Thumbnail generated succesfully");
 						video.privacy = VideoPrivacy.Public;
 						video.downloadsize = (int)GetDirectorySize(new DirectoryInfo(directoryPath));
 						video.length = await FfmpegGetVideoLength(videoPath);
 
+						var meta = ReadMetaFile(Path.Combine(directoryPath, "meta.json"));
+
+						video.title = meta.title;
+						video.description = meta.description;
+						
+						Console.WriteLine($"Video Privacy: {video.privacy}");
+						Console.WriteLine($"Video Size: {video.downloadsize}");
+						Console.WriteLine($"Video length: {video.length}");
+
 						if (await AddOrUpdateVideo(video, connection))
 						{
-							await context.Response.WriteAsJsonAsync(new {success = true});
+							Console.WriteLine("Database row updated succesfully");
+							await context.Response.WriteAsJsonAsync(new { success = true});
 						}
 						else
 						{
+							Console.WriteLine("Error while updating database row for video");
 							await CommonController.WriteError(context, "{}", StatusCodes.Status500InternalServerError);
 						}
 					}
 					else
 					{
+						Console.WriteLine("Error while generating thumbnail");
+						Console.WriteLine($"\t {process.StandardOutput.ReadToEnd()}");
+						Console.WriteLine($"\t {process.StandardError.ReadToEnd()}");
 						await CommonController.WriteError(context, "{}", StatusCodes.Status500InternalServerError);
 					}
 				}
 				else
-				{
+				{ 
+					Console.WriteLine("User does not own video");
 					await CommonController.WriteError(context, "{}", StatusCodes.Status401Unauthorized);
 				}
 			}
@@ -599,6 +621,7 @@ namespace VivistaServer
 
 		public static async Task AuthorizeUploadTus(AuthorizeContext arg)
 		{
+			Console.WriteLine("Authorizing upload request");
 			var user = await UserSessions.GetLoggedInUser(arg.HttpContext);
 			if (user != null)
 			{
@@ -609,12 +632,19 @@ namespace VivistaServer
 					privacy = VideoPrivacy.Processing,
 				};
 
+				Console.WriteLine("Video metadata:");
+				Console.WriteLine($"\t id: {video.id}");
+				Console.WriteLine($"\t userid: {video.userid}");
+				Console.WriteLine($"\t privacy: {video.privacy}");
+
+
 				var cachedOwner = (User)uploadAuthorisationCache[video.id.ToString()];
 				bool exists;
 				bool owns;
 
 				if (cachedOwner == null)
 				{
+					Console.WriteLine("No owner found in cache");
 					using var connection = Database.OpenNewConnection();
 					exists = await VideoExists(video.id, connection);
 					owns = await UserOwnsVideo(video.id, user.userid, connection);
@@ -623,27 +653,32 @@ namespace VivistaServer
 				//NOTE(Simon): At this point the video has definitely been created, so it exists and is owned by the cached user
 				else if (cachedOwner.userid == user.userid)
 				{
+					Console.WriteLine("User is owner of video. allow upload");
 					exists = true;
 					owns = true;
 				}
 				else
 				{
+					Console.WriteLine("User not authorized to update this video");
 					arg.FailRequest("This user is not authorized to update this video");
 					return;
 				}
 
 				if (exists && owns || !exists)
 				{
+					Console.WriteLine("Adding user to cache");
 					uploadAuthorisationCache.Add(video.id.ToString(), user, new CacheItemPolicy { SlidingExpiration = TimeSpan.FromMinutes(10) });
 					return;
 				}
 			}
 
 			arg.FailRequest("This user is not authorized to update this video");
+			Console.WriteLine("User not authorized to upload videos");
 		}
 
 		public static async Task ProcessUploadTus(FileCompleteContext arg)
 		{
+			Console.WriteLine("Begin processing upload");
 			var context = arg.HttpContext;
 			var headers = context.Request.Headers;
 
@@ -656,6 +691,7 @@ namespace VivistaServer
 					//NOTE(Simon): Check if provided filename is a guid
 					if (!String.IsNullOrEmpty(newFilename))
 					{
+						Console.WriteLine("Upload has correct headers");
 						var path = Path.Combine(baseFilePath, guid.ToString());
 						var tusFilePath = Path.Combine(path, arg.FileId);
 						string newFilePath;
@@ -679,6 +715,7 @@ namespace VivistaServer
 								return;
 						}
 
+						Console.WriteLine($"Creating directory for {newFilePath} and moving uploaded file there");
 						Directory.CreateDirectory(Path.GetDirectoryName(newFilePath));
 						File.Move(tusFilePath, newFilePath, true);
 						await ((ITusTerminationStore)arg.Store).DeleteFileAsync(arg.FileId, arg.CancellationToken);
@@ -849,11 +886,11 @@ namespace VivistaServer
 			try
 			{
 				var timestamp = DateTime.UtcNow;
-				await connection.ExecuteAsync(@"INSERT INTO videos (id, userid, title, description, length, timestamp, privacy)
-												VALUES (@id::uuid, @userid, @title, @description, @length, @timestamp, @privacy)
+				await connection.ExecuteAsync(@"INSERT INTO videos (id, userid, title, description, length, downloadsize, timestamp, privacy)
+												VALUES (@id::uuid, @userid, @title, @description, @length, @downloadsize, @timestamp, @privacy)
 												ON CONFLICT(id) DO UPDATE
-												SET title=@title, description=@description, length=@length",
-												new {video.id, video.userid, video.title, video.description, video.length, timestamp, video.privacy});
+												SET title=@title, description=@description, length=@length, downloadsize=@downloadsize",
+												new {video.id, video.userid, video.title, video.description, video.length, video.downloadsize, timestamp, video.privacy});
 
 				return true;
 			}
@@ -1027,6 +1064,7 @@ namespace VivistaServer
 
 		private static async Task<int> FfmpegGetVideoLength(string videoPath)
 		{
+			Console.WriteLine($"Getting video length with ffprobe");
 			var process = new Process();
 			process.StartInfo.UseShellExecute = false;
 			process.StartInfo.RedirectStandardOutput = true;
@@ -1036,8 +1074,8 @@ namespace VivistaServer
 
 			if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
 			{
-				process.StartInfo.FileName = "/bin/bash";
-				process.StartInfo.Arguments = $"ffprobe {ffmpegArgs}";
+				process.StartInfo.FileName = "/usr/bin/ffprobe";
+				process.StartInfo.Arguments = $"{ffmpegArgs}";
 			}
 			else if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
 			{
@@ -1048,8 +1086,10 @@ namespace VivistaServer
 			process.Start();
 
 			await process.WaitForExitAsync();
+			Console.WriteLine($"ffprobe exit code {process.ExitCode}");
 			if (process.ExitCode == 0)
 			{
+				Console.WriteLine($"ffprobe run succesful");
 				return (int)float.Parse(process.StandardOutput.ReadLine());
 			}
 

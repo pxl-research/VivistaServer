@@ -40,7 +40,9 @@ namespace VivistaServer
 		[Route("GET", "/register")]
 		private static async Task RegisterGet(HttpContext context)
 		{
+			Console.WriteLine("Started running RegisterGet");
 			SetHTMLContentType(context);
+			Console.WriteLine("Content type set to HTML");
 
 			await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\register.liquid", null));
 		}

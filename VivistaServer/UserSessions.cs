@@ -37,25 +37,39 @@ namespace VivistaServer
 
 		public static async Task<User> GetLoggedInUser(HttpContext context)
 		{
+			Console.WriteLine("Begin searching for logged in user");
+
 			string sessionToken = context.Request.Cookies["session"];
 			if (String.IsNullOrEmpty(sessionToken))
 			{
+				Console.WriteLine("No session cookie");
 				sessionToken = context.Request.Query["token"].ToString();
 				if (String.IsNullOrEmpty(sessionToken))
 				{
+					Console.WriteLine("No session in query either. No user found");
 					return null;
 				}
 			}
 
 			if (cache[sessionToken] != null)
 			{
+				Console.WriteLine("Session in cache");
 				return (User)cache[sessionToken];
 			}
 			else
 			{
+				Console.WriteLine("Session not in cache. Retrieving from db");
 				var user = await GetLoggedInUserSkipCache(sessionToken);
-				cache.Set(sessionToken, user, defaultPolicy);
-				return user;
+				if (user == null)
+				{
+					Console.WriteLine("Bad token. No user found.");
+					return null;
+				}
+				else
+				{
+					cache.Set(sessionToken, user, defaultPolicy);
+					return user;
+				}
 			}
 		}
 

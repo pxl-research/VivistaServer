@@ -63,15 +63,25 @@ namespace VivistaServer
 					routes.Add(new Route(attrib.method, attrib.route), (RouteDelegate) Delegate.CreateDelegate(typeof(RouteDelegate), null, method));
 				}
 			}
+
+			Console.WriteLine("Routes registered:");
+			foreach (var route in routes)
+			{
+				Console.WriteLine($"\t{route.Key.method} {route.Key.route}");
+			}
 		}
 
 		public async Task RouteAsync(HttpRequest request, HttpContext context)
 		{
+			Console.WriteLine("Attempt routing");
 			if (routes.TryGetValue(new Route(request.Method, request.Path), out var del))
 			{
+				Console.WriteLine("Route found");
 				var watch = Stopwatch.StartNew();
 
 				await del.Invoke(context);
+
+				Console.WriteLine("Route function invocation succesful");
 
 				watch.Stop();
 				Console.WriteLine($"controller: {watch.Elapsed.TotalMilliseconds} ms");
