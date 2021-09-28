@@ -28,10 +28,10 @@
 						<td>
 							<form class="pure-form" method="post" action="/update_video_privacy?id={{ video.id | guidbase64 }}">
 								<select name="video-privacy">
-									<option value="0" {% if video.privacy == 0 %} selected {% endif %}>Public</option>
-									<option value="1" {% if video.privacy == 1 %} selected {% endif %}>Organization</option>
-									<option value="2" {% if video.privacy == 2 %} selected {% endif %}>Unlisted</option>
-									<option value="3" {% if video.privacy == 3 %} selected {% endif %}>Private</option>
+									<option value="0" {% if video.privacyInt == 0 %} selected {% endif %}>Public</option>
+									<option value="1" {% if video.privacyInt == 1 %} selected {% endif %}>Organization</option>
+									<option value="2" {% if video.privacyInt == 2 %} selected {% endif %}>Unlisted</option>
+									<option value="3" {% if video.privacyInt == 3 %} selected {% endif %}>Private</option>
 								</select>
 								<input type="submit" class="pure-button" value="Update">
 							</form>

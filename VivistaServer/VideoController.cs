@@ -36,6 +36,7 @@ namespace VivistaServer
 			public int views;
 			public int downloads;
 			public VideoPrivacy privacy;
+			public int privacyInt => (int)privacy;
 
 			public string title;
 			public string description;
@@ -965,6 +966,9 @@ namespace VivistaServer
 			{
 				var result = await connection.ExecuteAsync(@"delete from videos
 															where id=@videoid::uuid", new { videoid });
+
+				uploadAuthorisationCache.Remove(videoid.ToString());
+
 				return result > 0;
 			}
 			catch (Exception e)
