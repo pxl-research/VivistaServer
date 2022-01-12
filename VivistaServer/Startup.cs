@@ -118,7 +118,7 @@ namespace VivistaServer
 
 				await authenticateTask;
 				watch.Stop();
-				Console.WriteLine($"request preamble: {watch.Elapsed.TotalMilliseconds} ms");
+				CommonController.LogDebug($"request preamble: {watch.Elapsed.TotalMilliseconds} ms");
 
 				await router.RouteAsync(context.Request, context);
 			});
@@ -128,25 +128,25 @@ namespace VivistaServer
 		{
 #if DEBUG
 			var watch = Stopwatch.StartNew();
-			Console.WriteLine("Request data:");
-			Console.WriteLine($"\tPath: {context.Request.Path}");
-			Console.WriteLine($"\tMethod: {context.Request.Method}");
-			Console.WriteLine("\tQuery: ");
+			CommonController.LogDebug("Request data:");
+			CommonController.LogDebug($"\tPath: {context.Request.Path}");
+			CommonController.LogDebug($"\tMethod: {context.Request.Method}");
+			CommonController.LogDebug("\tQuery: ");
 			foreach (var kvp in context.Request.Query)
 			{
-				Console.WriteLine($"\t\t{kvp.Key}: {kvp.Value}");
+				CommonController.LogDebug($"\t\t{kvp.Key}: {kvp.Value}");
 			}
-			Console.WriteLine("\tHeaders: ");
+			CommonController.LogDebug("\tHeaders: ");
 			foreach (var kvp in context.Request.Headers)
 			{
-				Console.WriteLine($"\t\t{kvp.Key}: {kvp.Value}");
+				CommonController.LogDebug($"\t\t{kvp.Key}: {kvp.Value}");
 			}
 			if (!context.Request.HasFormContentType)
 			{
-				Console.WriteLine($"\tBody: {new StreamReader(context.Request.Body).ReadToEnd()}");
+				CommonController.LogDebug($"\tBody: {new StreamReader(context.Request.Body).ReadToEnd()}");
 			}
 			watch.Stop();
-			Console.WriteLine($"writing debug info: {watch.Elapsed.TotalMilliseconds} ms");
+			CommonController.LogDebug($"writing debug info: {watch.Elapsed.TotalMilliseconds} ms");
 #endif
 		}
 

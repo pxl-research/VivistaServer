@@ -7,7 +7,7 @@ namespace VivistaServer
 	{
 		public static NpgsqlConnection OpenNewConnection()
 		{
-			Console.WriteLine("Opening new SQL connection");
+			CommonController.LogDebug("Opening new SQL connection");
 			var conn = new NpgsqlConnection(GetPgsqlConfig());
 			conn.Open();
 			return conn;

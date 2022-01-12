@@ -126,5 +126,12 @@ namespace VivistaServer
 		{
 			context.Response.ContentType = "text/html";
 		}
+
+		public static void LogDebug(string value)
+		{
+#if DEBUG
+			Console.WriteLine(value);
+#endif
+		}
 	}
 }

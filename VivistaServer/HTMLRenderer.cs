@@ -40,10 +40,10 @@ namespace VivistaServer
 				templateCache[normalizedFile] = template;
 			}
 
-			Console.WriteLine("Templates found:");
+			CommonController.LogDebug("Templates found:");
 			foreach (var file in templateCache)
 			{
-				Console.WriteLine($"\t{file.Key}");
+				CommonController.LogDebug($"\t{file.Key}");
 			}
 
 			InitWatcher();
@@ -107,11 +107,11 @@ namespace VivistaServer
 
 		public static async Task<string> Render(HttpContext httpContext, string templateName, TemplateContext context, BaseLayout layout = BaseLayout.Web)
 		{
-			Console.WriteLine($"Begin Rendering {templateName}");
+			CommonController.LogDebug($"Begin Rendering {templateName}");
 			var watch = Stopwatch.StartNew();
 			if (templateCache.TryGetValue(templateName, out var template))
 			{
-				Console.WriteLine("Template found");
+				CommonController.LogDebug("Template found");
 				var user = await UserSessions.GetLoggedInUser(httpContext);
 				string result;
 
@@ -146,7 +146,7 @@ namespace VivistaServer
 				}
 
 				watch.Stop();
-				Console.WriteLine($"rendering: {watch.Elapsed.TotalMilliseconds} ms");
+				CommonController.LogDebug($"rendering: {watch.Elapsed.TotalMilliseconds} ms");
 
 				return result;
 			}
@@ -179,7 +179,7 @@ namespace VivistaServer
 #if DEBUG
 		private static void OnRename(object sender, RenamedEventArgs e)
 		{
-			Console.WriteLine($"File Renamed: {e.OldFullPath} => {e.FullPath}");
+			CommonController.LogDebug($"File Renamed: {e.OldFullPath} => {e.FullPath}");
 			templateCache.Remove(e.OldFullPath);
 			try
 			{
@@ -190,7 +190,7 @@ namespace VivistaServer
 
 		private static void OnCreate(object sender, FileSystemEventArgs e)
 		{
-			Console.WriteLine($"File Created: {e.FullPath}");
+			CommonController.LogDebug($"File Created: {e.FullPath}");
 			try
 			{
 				templateCache.TryAdd(e.FullPath, parser.Parse(File.ReadAllText(e.FullPath)));
@@ -200,7 +200,7 @@ namespace VivistaServer
 
 		private static void OnChange(object sender, FileSystemEventArgs e)
 		{
-			Console.WriteLine($"File Change: {e.FullPath}");
+			CommonController.LogDebug($"File Change: {e.FullPath}");
 			try
 			{
 				string raw = File.ReadAllText(e.FullPath);
