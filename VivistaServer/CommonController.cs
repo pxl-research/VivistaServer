@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
+using Fluid;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Net.Http.Headers;
 
@@ -115,6 +116,13 @@ namespace VivistaServer
 		private static async Task Error404(HttpContext context)
 		{
 			await Write404(context);
+		}
+
+		[Route("GET", "/cookie-policy")]
+		private static async Task CookiePolicy(HttpContext context)
+		{
+			SetHTMLContentType(context);
+			await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\cookiePolicy.liquid", null));
 		}
 
 		public static void SetJSONContentType(HttpContext context)

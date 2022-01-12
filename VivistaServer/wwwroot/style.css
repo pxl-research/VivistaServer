@@ -68,6 +68,15 @@ a {
 	color: var(--anchor-font);
 }
 
+footer a {
+	color: var(--muted-font);
+	text-decoration: none;
+}
+
+footer a:hover {
+	color: var(--main-font);
+}
+
 .center {
 	justify-content: center;
 }
@@ -639,6 +648,19 @@ input.toggle + label:active::after {
 
 #logo {
 	display: none;
+}
+
+#cookie-banner {
+	background-color: var(--muted-bg);
+	position: fixed;
+	bottom: 0;
+	left: 0;
+	width: 100%;
+	padding: 20px;
+}
+
+.hidden {
+	visibility: hidden;
 }
 
 @media screen and (min-width:48em) {

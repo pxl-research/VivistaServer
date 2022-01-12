@@ -42,11 +42,11 @@ namespace VivistaServer
 
 		private static string GetLatestEditorInstallerURL()
 		{
-			var latestPlayerInstaller = new DirectoryInfo(editorFolder)
+			var latestEditorInstaller = new DirectoryInfo(editorFolder)
 						.GetFiles("*.exe")
 						.OrderBy(x => x.LastWriteTime)
 						.First();
-			return GetURLFromAbsolutePath(latestPlayerInstaller.FullName);
+			return GetURLFromAbsolutePath(latestEditorInstaller.FullName);
 		}
 
 		private static string GetURLFromAbsolutePath(string absolutePath)
