@@ -31,7 +31,7 @@ namespace VivistaServer
 			{
 				var installerName = new DirectoryInfo(playerFolder)
 					.GetFiles("*.exe")
-					.OrderBy(x => x.LastWriteTime)
+					.OrderByDescending(x => x.LastWriteTime)
 					.First().Name;
 				//NOTE(Simon): String looks like "VivistaPlayer-x.x.x.exe. So we take the substring from the first dash to the last period.
 				var lastPart = installerName.Substring(installerName.IndexOf('-') + 1);
@@ -75,7 +75,7 @@ namespace VivistaServer
 		{
 			var latestPlayerInstaller = new DirectoryInfo(playerFolder)
 									.GetFiles("*.exe")
-									.OrderBy(x => x.LastWriteTime)
+									.OrderByDescending(x => x.LastWriteTime)
 									.First();
 			return GetURLFromAbsolutePath(latestPlayerInstaller.FullName);
 		}
@@ -92,7 +92,7 @@ namespace VivistaServer
 		{
 			var latestEditorInstaller = new DirectoryInfo(editorFolder)
 						.GetFiles("*.exe")
-						.OrderBy(x => x.LastWriteTime)
+						.OrderByDescending(x => x.LastWriteTime)
 						.First();
 			return GetURLFromAbsolutePath(latestEditorInstaller.FullName);
 		}
