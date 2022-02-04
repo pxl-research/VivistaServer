@@ -350,6 +350,8 @@ namespace VivistaServer
 						{
 							CommonController.LogDebug("Database row updated succesfully");
 							await context.Response.WriteAsJsonAsync(new { success = true});
+
+							CleanPartialUploads(video.id);
 						}
 						else
 						{
@@ -377,6 +379,29 @@ namespace VivistaServer
 			}
 		}
 
+		private static void CleanPartialUploads(Guid videoId)
+		{
+			string directory = Path.Combine(baseFilePath, videoId.ToString());
+			var files = new List<string>();
+			files.AddRange(Directory.GetFiles(directory, "*.chunkstart"));
+			files.AddRange(Directory.GetFiles(directory, "*.chunkcomplete"));
+			files.AddRange(Directory.GetFiles(directory, "*.metadata"));
+			files.AddRange(Directory.GetFiles(directory, "*.uploadlength"));
+
+			var filesToFilter = Directory.GetFiles(directory);
+			foreach (var file in filesToFilter)
+			{
+				if (Path.GetExtension(file) == String.Empty)
+				{
+					files.Add(file);
+				}
+			}
+
+			foreach (var file in files)
+			{
+				File.Delete(file);
+			}
+		}
 
 
 		[Route("GET", "/")]
