@@ -75,7 +75,6 @@ namespace VivistaServer
 			}
 			else
 			{
-				app.UseDeveloperExceptionPage();
 				app.UseHsts();
 				CommonController.baseURL = "https://vivista.net";
 			}
