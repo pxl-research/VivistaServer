@@ -442,9 +442,10 @@ namespace VivistaServer
 
 				if (video != null && UserCanViewVideo(video, user))
 				{
+					bool userOwnsVideo = UserOwnsVideo(video, user.userid);
 					var relatedVideos = new List<Video>();
 
-					var templateContext = new TemplateContext(new { video, relatedVideos});
+					var templateContext = new TemplateContext(new { video, relatedVideos, userOwnsVideo});
 					await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\video.liquid", templateContext));
 					await AddVideoView(video.id, context, connection);
 				}

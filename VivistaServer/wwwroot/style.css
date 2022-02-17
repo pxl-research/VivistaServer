@@ -294,7 +294,7 @@ footer a:hover {
 }
 
 .video-info .description { 
-	font-size: .8em;
+	font-size: .9em;
 	color: var(--muted-font);
 }
 
@@ -304,6 +304,20 @@ footer a:hover {
 	color: var(--muted-font);
 }
 
+.video-info .user {
+	display: flex;
+	align-items: center;
+}
+
+.video-info .user .username {
+	flex: 0 0 auto;
+	text-decoration: none;
+}
+
+.video-info .user .edit-video {
+	flex: 0 0 auto;
+	margin-left: auto
+}
 
 .related-videos {
 	min-width: 300px;
@@ -604,6 +618,7 @@ input.toggle + label:active::after {
 
 .home-menu .right {
 	flex: 0 0 auto;
+	margin-right: 10px;
 }
 
 .pure-menu-heading, .pure-menu-link {

@@ -11,6 +11,15 @@
 	<div class="video-info pure-u-1 pure-u-md-1-2">
 		<h1 class="title">{{ video.title }}</h1>
 		<p class="view-stats">{{ video.length | format_seconds }} • {{video.downloadsize | format_bytes }} • {{ video.views | format_number: "N0" }} views • {{ video.downloads | format_number: "N0" }} downloads</p>
+		<div class="user">
+			<a class="username" href="/user?name={{ video.username }}">
+				<img class="profile-picture-small" src="/profile_pictures/{{User.pictureId}}">
+				{{ video.username }}
+			</a>
+			{% if userOwnsVideo %}
+			<button class="pure-button edit-video">Edit Video</button>
+			{% endif %}
+		</div>
 		<p class="description">{{ video.description }}</p>
 		<p>
 			{% for tag in video.tags %}
@@ -30,8 +39,6 @@
 				<p class="uploader">User </p>
 			</div>
 		</div>
-		{% endfor %}
-		{% for v in video.relatedVideos %}
 		{% endfor %}
 	</div>
 </div>
