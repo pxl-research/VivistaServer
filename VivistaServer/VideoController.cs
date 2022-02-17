@@ -438,8 +438,9 @@ namespace VivistaServer
 			{
 				using var connection = Database.OpenNewConnection();
 				var video = await GetVideo(videoId, connection);
+				var user = await UserSessions.GetLoggedInUser(context);
 
-				if (video != null && !video.isPrivate)
+				if (video != null && UserCanViewVideo(video, user))
 				{
 					var relatedVideos = new List<Video>();
 
@@ -839,6 +840,19 @@ namespace VivistaServer
 		private static bool UserOwnsVideo(Video video, int userId)
 		{
 			return video?.userid == userId;
+		}
+
+		private static bool UserCanViewVideo(Video video, User user)
+		{
+			switch (video.privacy)
+			{
+				case VideoPrivacy.Public:
+				case VideoPrivacy.Unlisted:
+				case VideoPrivacy.Private when video.userid == user.userid:
+					return true;
+				default:
+					return false;
+			}
 		}
 
 		private static async Task<bool> VideoExists(Guid guid, NpgsqlConnection connection)
