@@ -27,7 +27,13 @@ html {
 	--toggle-bg: #aaa;
 	--toggle-bg-active: #eee;
 	--toggle-fg: #fff;
-
+	--form-bg: hsl(0, 0%, 100%);
+	--form-shadow: hsl(0, 0%, 86%);
+	--form-font: hsl(0, 0%, 0%);
+	--form-border: hsl(0, 0%, 80%);
+	--form-disabled-bg: hsl(0, 0%, 85%);
+	--form-disabled-font: hsl(0, 0%, 30%);
+	--form-disabled-border: hsl(0, 0%, 75%);
 
 	height: 100%;
 }
@@ -52,8 +58,14 @@ html[data-theme='dark'] {
 	--main-border: hsl(200, 0%, 40%);
 	--anchor-font: hsl(50, 100%, 50%);
 	--table-bg: hsl(200, 0%, 25%);
-
 	--toggle-fg: #000;
+	--form-bg: hsl(0, 0%, 25%);
+	--form-shadow: hsl(0, 0%, 14%);
+	--form-font: hsl(0, 0%, 100%);
+	--form-border: hsl(0, 0%, 46%);
+	--form-disabled-bg: hsl(0, 0%, 15%);
+	--form-disabled-font: hsl(0, 0%, 70%);
+	--form-disabled-border: hsl(0, 0%, 50%);
 }
 
 body {
@@ -444,8 +456,15 @@ footer a:hover {
 }
 
 .tag:hover {
-	background-color: var(--button-border);
+	background-color: var(--muted-bg);
 	cursor: pointer;
+}
+
+.tag-editable:hover::after {
+	margin-left: 5px;
+	content: 'x';
+	color: var(--muted-font);
+	font-variant: small-caps;
 }
 
 
@@ -588,6 +607,44 @@ input.toggle + label:active::after {
 	border-color: var(--button-safe-bg-active);
 }
 
+
+.full-page-form input,
+.full-page-form select,
+.full-page-form textarea {
+	width: 100%;
+	max-width: 30em;
+	resize: vertical;
+}
+
+.pure-form input[type="color"], 
+.pure-form input[type="date"], 
+.pure-form input[type="datetime-local"], 
+.pure-form input[type="datetime"], 
+.pure-form input[type="email"], 
+.pure-form input[type="month"], 
+.pure-form input[type="number"], 
+.pure-form input[type="password"], 
+.pure-form input[type="search"], 
+.pure-form input[type="tel"], 
+.pure-form input[type="text"], 
+.pure-form input[type="time"], 
+.pure-form input[type="url"], 
+.pure-form input[type="week"], 
+.pure-form select, 
+.pure-form textarea {
+	background-color: var(--form-bg);
+	color: var(--form-font);
+	box-shadow: inset 0 1px 3px var(--form-shadow);
+	border-color: var(--form-border);
+}
+
+.pure-form input[readonly], 
+.pure-form select[readonly], 
+.pure-form textarea[readonly] {
+	background-color: var(--form-disabled-bg);
+	color: var(--form-disabled-font);
+	border-color: var(--form-disabled-border);
+}
 
 
 

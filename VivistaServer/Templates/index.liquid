@@ -28,8 +28,8 @@
 			<a href="/video?id={{ video.id | guidbase64 }}">
 				<img class="video-thumb pure-img" src="/api/thumbnail?id={{ video.id }}">
 			</a>
-			<p><a href="/video?id={{ video.id | guidbase64 }}">{{ video.title }}</a></p>
-			<a class="uploader" href="/user?name={{ video.username }}">{{ video.username }}</a>
+			<p><a href="/video?id={{ video.id | guidbase64 }}">{{ video.title | escape }}</a></p>
+			<a class="uploader" href="/user?name={{ video.username | escape }}">{{ video.username | escape }}</a>
 		</div>
 	{% endfor %}
 </div>

@@ -1,0 +1,50 @@
+<div class="pure-g">
+	<div class="pure-u-1">
+		<h1>Edit "{{ video.title | escape }}"</h1>
+		<div class="pure-u-1 pure-u-lg-1-2">
+			<img class="pure-img" src="/api/thumbnail?id={{ video.id }}">
+		</div>
+		<form class="pure-form pure-form-stacked full-page-form" method="post" action="/edit_video?id={{ video.id | guidbase64 }}">
+			<fieldset>
+				<div class="pure-control-group">
+					<label>Video uploaded on</label>
+					<input type="text" readonly="" value="{{ video.timestamp | date: "%e %b %Y" }}" />
+				</div> 
+				<div class="pure-control-group">
+					<label for="title">Title</label>
+					<input type="text" id="title" name="title" value="{{ video.title | escape }}"/>
+				</div>
+				<div class="pure-control-group">
+					<label for="description">Description</label>
+					<textarea id="description" name="description" >{{ video.description | escape}}</textarea> 
+				</div>
+				<!--
+				<div class="pure-control-group">
+					<label for="tags-input">Tags</label>
+					<input type="text" id="tags-input" />
+					<input type="text" hidden="" id="tags" name="tags" value="{% for tag in video.tags %}{{ tag.name }},{% endfor %}"/>
+					<div id="tag-holder">
+						{% for tag in video.tags %}
+							<span class="tag tag-editable">{{ tag.name | escape }}</span>
+						{% endfor %}
+					</div>
+				</div>
+				-->
+				<div class="pure-control-group">
+					<label for="privacy">Video Privacy</label>
+					{% if video.privacyInt == 4 %}
+						<p>Processing video...</p>
+					{% else %}
+						<select name="privacy">
+							<option value="0" {% if video.privacyInt == 0 %} selected {% endif %}>Public</option>
+							<option value="1" {% if video.privacyInt == 1 %} selected {% endif %}>Organization</option>
+							<option value="2" {% if video.privacyInt == 2 %} selected {% endif %}>Unlisted</option>
+							<option value="3" {% if video.privacyInt == 3 %} selected {% endif %}>Private</option>
+						</select>
+					{% endif %}
+				</div>
+				<button type="submit" class="pure-button">Save Video</button>
+			</fieldset>
+		</form>
+	</div>
+</div>

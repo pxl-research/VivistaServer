@@ -1,29 +1,29 @@
 <div class="pure-g center">
 	<div class="video-info-image pure-u-1">
 		<div class="download-message">
-			<button data-uri="vivista://video/{{video.id | guidbase64 }}" class="pure-button download-button">
-				<span class="play-icon">▶</span> Play In Vivista
+			<button data-uri="vivista://video/{{ video.id | guidbase64 }}" class="pure-button download-button">
+				<span class="play-icon">⯈</span> Play In Vivista
 				<p class="hidden install-message">Don't have Vivista installed? <a href="/install/latest" download>Download now</a></p>
 			</button>
 		</div>
 		<img class="pure-img" src="/api/thumbnail?id={{ video.id }}">
 	</div>
 	<div class="video-info pure-u-1 pure-u-md-1-2">
-		<h1 class="title">{{ video.title }}</h1>
-		<p class="view-stats">{{ video.length | format_seconds }} • {{video.downloadsize | format_bytes }} • {{ video.views | format_number: "N0" }} views • {{ video.downloads | format_number: "N0" }} downloads</p>
+		<h1 class="title">{{ video.title | escape }}</h1>
+		<p class="view-stats">{{ video.length | format_seconds }} • {{ video.downloadsize | format_bytes }} • {{ video.views | format_number: "N0" }} views • {{ video.downloads | format_number: "N0" }} downloads</p>
 		<div class="user">
-			<a class="username" href="/user?name={{ video.username }}">
-				<img class="profile-picture-small" src="/profile_pictures/{{User.pictureId}}">
-				{{ video.username }}
+			<a class="username" href="/user?name={{ video.username | escape }}">
+				<img class="profile-picture-small" src="/profile_pictures/{{ User.pictureId }}">
+				{{ video.username | escape }}
 			</a>
 			{% if userOwnsVideo %}
-			<button class="pure-button edit-video">Edit Video</button>
+				<a class="pure-button edit-video" href="/edit_video?id={{ video.id | guidbase64 }}">Edit Video</a>
 			{% endif %}
 		</div>
-		<p class="description">{{ video.description }}</p>
+		<p class="description">{{ video.description | escape }}</p>
 		<p>
 			{% for tag in video.tags %}
-				<span class="tag">{{ tag.name }}</span>
+				<span class="tag">{{ tag.name | escape }}</span>
 			{% endfor %}
 		</p>
 	</div>

@@ -6,13 +6,13 @@
 			{% if hasResults %}
 				<div class="search-channels">
 					{% for channel in channels %}
-						<a href="/user?name={{ channel.username }}">
+						<a href="/user?name={{ channel.username | escape }}">
 							<div class="channel pure-g">
 								<div class="pure-u-3-8 picture">
-									<img class="profile-picture-large" src="/profile_pictures/{{channel.pictureId}}" />
+									<img class="profile-picture-large" src="/profile_pictures/{{ channel.pictureId }}" />
 								</div>
 								<div class="pure-u-5-8 text">
-									<p class="username">{{ channel.username }}</p>
+									<p class="username">{{ channel.username | escape}}</p>
 								</div>
 							</div>
 						</a>
@@ -27,10 +27,10 @@
 									<img class="pure-img" src="/api/thumbnail?id={{ video.id }}">
 								</div>
 								<div class="pure-u-5-8 text">
-									<p class="title">{{ video.title }}</p>
-									<p class="uploader">{{ video.username }}</p>
+									<p class="title">{{ video.title | escape }}</p>
+									<p class="uploader">{{ video.username | escape }}</p>
 									<br />
-									<p class="description">{{ video.description | truncate: 103}}</p>
+									<p class="description">{{ video.description | truncate: 103 | escape }}</p>
 								</div>
 							</div>
 						</a>

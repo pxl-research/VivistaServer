@@ -4,7 +4,7 @@
 			<img class="profile-picture-large" src="/profile_pictures/{{User.pictureId}}">
 		</div>
 		<div class="profile-info">
-			<h1>{{ user.username }}</h1>
+			<h1>{{ user.username | escape }}</h1>
 			<p>{{ pagination.totalCount }} videos</p>
 		</div>
 	</div>
@@ -14,7 +14,7 @@
 				<img class="video-thumb pure-img" src="/api/thumbnail?id={{ video.id }}">
 			</a>
 			<p>
-				<a href="/video?id={{ video.id | guidbase64 }}">{{ video.title }}</a>
+				<a href="/video?id={{ video.id | guidbase64 }}">{{ video.title | escape }}</a>
 			</p>
 		</div>
 	{% endfor %}
@@ -23,9 +23,9 @@
 		<div class="pure-u-1">
 			{% for i in pagination.pageNumbers %}
 				{% if i == pagination.page %}
-					<a href="?name={{user.username}}&page={{i}}" class="pure-button pure-button-active">{{i}}</a>
+					<a href="?name={{ user.username | escape }}&page={{i}}" class="pure-button pure-button-active">{{i}}</a>
 				{% else %}
-					<a href="?name={{user.username}}&page={{i}}" class="pure-button">{{i}}</a>
+					<a href="?name={{ user.username | escape }}&page={{i}}" class="pure-button">{{i}}</a>
 				{% endif %}
 			{% endfor %}
 		</div>

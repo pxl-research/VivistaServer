@@ -2,13 +2,14 @@ window.onload = function () {
 	InitDarkModeToggles();
 	InitPlayButton();
 	InitSearch();
+	InitTagInput();
 	CheckCookieConsent();
 }
 
 function UpdateDarkModeToggles() {
 	var els = document.getElementsByClassName("dark-mode-toggle");
 	for (var i = 0; i < els.length; i++) {
-		els[i].checked = document.documentElement.dataset.theme == "dark"
+		els[i].checked = document.documentElement.dataset.theme == "dark";
 	}
 }
 
@@ -102,4 +103,71 @@ function ShowCookieBanner() {
 
 function HideCookieBanner() {
 	document.getElementById("cookie-banner").classList.add("hidden");
+}
+
+function InitTagInput() {
+	var inputElement = document.getElementById("tags-input");
+
+	if (inputElement != undefined) {
+		var tagHolderElement = document.getElementById("tag-holder");
+		var tags = tagHolderElement.getElementsByClassName("tag");
+
+		inputElement.oninput = OnTagInput;
+		for (let i = 0; i < tags.length; i++) {
+			let tag = tags[i];
+			tag.addEventListener("click", function() { OnTagRemove(tag) });
+		}
+	}
+}
+
+var tagSeparatorRegex = new RegExp(/ |,|\n|\t/);
+var tagSet = new Set();
+
+function OnTagInput(e) {
+	if (e.data != null && e.data.match(tagSeparatorRegex)) {
+		var inputElement = document.getElementById("tags-input");
+		var parts = inputElement.value.split(tagSeparatorRegex);
+		for (var i = 0; i < parts.length; i++) {
+			if (parts[i].length > 0) {
+				AddTag(parts[i]);
+			}
+		}
+
+		inputElement.value = "";
+	}
+}
+
+function AddTag(tag) {
+	if (!tagSet.has(tag)) {
+		var tagHolderElement = document.getElementById("tag-holder");
+
+		var newTag = document.createElement("span");
+		var content = document.createTextNode(tag);
+
+		newTag.classList.add("tag");
+		newTag.classList.add("tag-editable");
+		newTag.addEventListener("click", function() { OnTagRemove(newTag) });
+
+		newTag.appendChild(content);
+		tagHolderElement.append(newTag);
+		tagHolderElement.append(document.createTextNode(" "));
+
+
+		tagSet.add(tag);
+		UpdateTagFormValue();
+	}
+}
+
+function OnTagRemove(element) {
+	var tagName = element.textContent;
+	element.remove();
+
+	tagSet.delete(tagName);
+	UpdateTagFormValue();
+}
+
+function UpdateTagFormValue() {
+	var tagElement = document.getElementById("tags");
+
+	tagElement.value = Array.from(tagSet).join(",");
 }

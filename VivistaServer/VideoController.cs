@@ -41,6 +41,7 @@ namespace VivistaServer
 			public string title;
 			public string description;
 			public int length;
+			public List<string> tags;
 
 			public bool isPublic => privacy == VideoPrivacy.Public;
 			public bool isPrivate => privacy == VideoPrivacy.Private;
@@ -333,7 +334,7 @@ namespace VivistaServer
 					if (process.ExitCode == 0)
 					{
 						CommonController.LogDebug("Thumbnail generated succesfully");
-						video.privacy = VideoPrivacy.Public;
+						video.privacy = VideoPrivacy.Unlisted;
 						video.downloadsize = (int)GetDirectorySize(new DirectoryInfo(directoryPath));
 						video.length = await FfmpegGetVideoLength(videoPath);
 
@@ -582,6 +583,77 @@ namespace VivistaServer
 				if (UserOwnsVideo(video, user.userid))
 				{
 					await DeleteVideo(video.id, connection);
+
+					context.Response.Redirect("/my_videos");
+				}
+				else
+				{
+					await CommonController.Write404(context);
+				}
+			}
+			else
+			{
+				await CommonController.Write404(context);
+			}
+		}
+
+		[Route("GET", "/edit_video")]
+		private static async Task EditVideoGet(HttpContext context)
+		{
+			CommonController.SetHTMLContentType(context);
+
+			var userTask = UserSessions.GetLoggedInUser(context);
+			using var connection = Database.OpenNewConnection();
+			var user = await userTask;
+
+			if (user != null && GuidHelpers.TryDecode(context.Request.Query["id"], out var videoId))
+			{
+				var video = await GetVideo(videoId, connection);
+				if (UserOwnsVideo(video, user.userid))
+				{
+					var templateContext = new TemplateContext(new { video });
+					await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\editVideo.liquid", templateContext));
+				}
+				else
+				{
+					await CommonController.Write404(context);
+				}
+			}
+			else
+			{
+				await CommonController.Write404(context);
+			}
+
+		}
+
+		[Route("POST", "/edit_video")]
+		private static async Task EditVideoPost(HttpContext context)
+		{
+			CommonController.SetHTMLContentType(context);
+
+			var userTask = UserSessions.GetLoggedInUser(context);
+			using var connection = Database.OpenNewConnection();
+			var user = await userTask;
+
+			if (user != null && GuidHelpers.TryDecode(context.Request.Query["id"], out var videoId))
+			{
+				var video = await GetVideo(videoId, connection);
+				if (UserOwnsVideo(video, user.userid))
+				{
+					var form = context.Request.Form;
+					video.title = form["title"];
+					video.description = form["description"];
+
+					//TODO(Simon): Deduplicate tags. Should be cleaned by frontend, but may be malicious data.
+					string[] tags = form["tags"].ToString().Split(',');
+					var deduplicatedTags = new HashSet<string>(tags);
+					video.tags = deduplicatedTags.ToList();
+					if (Int32.TryParse(form["privacy"], out var privacyInt))
+					{
+						video.privacy = (VideoPrivacy) privacyInt;
+					}
+
+					await AddOrUpdateVideo(video, connection);
 
 					context.Response.Redirect("/my_videos");
 				}
@@ -930,8 +1002,13 @@ namespace VivistaServer
 				await connection.ExecuteAsync(@"INSERT INTO videos (id, userid, title, description, length, downloadsize, timestamp, privacy)
 												VALUES (@id::uuid, @userid, @title, @description, @length, @downloadsize, @timestamp, @privacy)
 												ON CONFLICT(id) DO UPDATE
-												SET title=@title, description=@description, length=@length, downloadsize=@downloadsize",
+												SET title=@title, description=@description, length=@length, downloadsize=@downloadsize, privacy=@privacy",
 												new {video.id, video.userid, video.title, video.description, video.length, video.downloadsize, timestamp, video.privacy});
+
+				if (video.tags != null && video.tags.Count > 0)
+				{
+
+				}
 
 				return true;
 			}

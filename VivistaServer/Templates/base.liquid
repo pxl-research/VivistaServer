@@ -40,7 +40,7 @@
 						</a>
 						<ul class="pure-menu-children">
 							<li class="pure-menu-item">
-								<a href="/user?name={{ User.username }}" class="pure-menu-link">{{ User.username }}</a>
+								<a href="/user?name={{ User.username | escape}}" class="pure-menu-link">{{ User.username | escape }}</a>
 							</li>
 							<li class="pure-menu-item">
 								<a href="/my_videos" class="pure-menu-link">My videos</a>
@@ -94,7 +94,8 @@
 		<p>This website makes use of cookies to provide essential functionality. <button id="cookie-banner-confirm" class="pure-button safe">OK</button></p>
 		<p><a href="/cookie-policy">Read more</a></p>
 	</div>
+
+	<script type="text/javascript" src="site.js"></script>
 </body>
 </html>
 
-<script src="site.js"></script>

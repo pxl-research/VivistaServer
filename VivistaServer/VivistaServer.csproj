@@ -26,6 +26,18 @@
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</Content>
 	</ItemGroup>
+	
+	<ItemGroup>
+	  <Compile Remove="publish\**" />
+	  <Content Remove="publish\**" />
+	  <EmbeddedResource Remove="publish\**" />
+	  <None Remove="publish\**" />
+	</ItemGroup>
+	
+	<ItemGroup>
+	  <None Remove="Templates\editVideo.liquid" />
+	  <None Remove="Templates\TextFile.txt" />
+	</ItemGroup>
 
 	<ItemGroup>
     <Folder Include="wwwroot\Installers\" />
