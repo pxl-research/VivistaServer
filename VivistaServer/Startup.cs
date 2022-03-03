@@ -4,6 +4,7 @@ using System.IO;
 using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
+using Dapper;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -105,9 +106,12 @@ namespace VivistaServer
 			});
 
 			//Task.Run(PeriodicFunction);
+            Task.Run(CollectData);
 
 			app.Run(async (context) =>
-			{
+            {
+                var requestTime = Stopwatch.StartNew();
+
 				var watch = Stopwatch.StartNew();
 				var authenticateTask = UserSessions.GetLoggedInUser(context);
 
@@ -120,7 +124,27 @@ namespace VivistaServer
 				CommonController.LogDebug($"request preamble: {watch.Elapsed.TotalMilliseconds} ms");
 
 				await router.RouteAsync(context.Request, context);
-			});
+
+                var requestInfo = new RequestInfo
+                {
+					path = context.Request.Path,
+					method = context.Request.Method,
+					query = context.Request.Query,
+					headers = context.Request.Headers,
+					body = context.Request.Body
+
+				};
+
+                var request = new Request
+                {
+                    timestamp = DateTime.Now,
+                    ms = requestTime.Elapsed.TotalMilliseconds,
+					requestInfo =  requestInfo
+
+                };
+
+                DashboardController.AddRequestToCache(request);
+            });
 		}
 
 		private void PrintDebugData(HttpContext context)
@@ -157,5 +181,29 @@ namespace VivistaServer
 				await Task.Delay(5000);
 			}
 		}
+
+        private static async Task CollectData()
+        {
+            var lastHours = DateTime.Now;
+            var lastDay = DateTime.Now;
+            while (true)
+            {
+                await Task.Delay(10000);
+
+				Task.Run(DashboardController.AddMinuteData);
+				
+                if (lastHours.Hour != DateTime.Now.Hour +1)
+                {
+                    Task.Run(() => DashboardController.AddHourData(lastHours));
+                    lastHours = DateTime.Now;
+				}
+
+                if (lastDay.Day != DateTime.Now.Day)
+                {
+                    Task.Run(() => DashboardController.AddDayData(lastDay));
+				}
+
+            }
+        }
 	}
 }

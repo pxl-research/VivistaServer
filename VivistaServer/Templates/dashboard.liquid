@@ -1,0 +1,33 @@
+﻿<div class="pure-g">
+    <div class="pure-u-1">
+        <div class="pure-button-group">
+            {% if tab == "Minute" %}
+            <a class="pure-button pure-button-active" href="?tab=minute">Minute</a>
+            {% else %}
+            <a class="pure-button" href="?tab=new">Minute</a>
+            {% endif %}
+
+            {% if tab == "Hour" %}
+            <a class="pure-button pure-button-active" href="?tab=hour">Hour</a>
+            {% else %}
+            <a class="pure-button" href="?tab=popular">Hour</a>
+            {% endif %}
+
+            {% if tab == "Day" %}
+            <a class="pure-button pure-button-active" href="?tab=day">Day</a>
+            {% else %}
+            <a class="pure-button" href="?tab=most-watched">Day</a>
+            {% endif %}
+
+        </div>
+        <br>
+        <h1>Dashboard</h1>
+        <h2>Users</h2>
+        <strong>{{users}}</strong>
+        <h2>Videos</h2>
+        <strong>{{videos}}</strong>
+        <h2>Downloads</h2>
+        <strong>{{downloads}}</strong>
+
+    </div>
+</div>
