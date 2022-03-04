@@ -2,9 +2,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.ExceptionServices;
-using System.Threading;
 using System.Threading.Tasks;
-using Dapper;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -16,6 +14,7 @@ using tusdotnet.Models;
 using tusdotnet.Models.Configuration;
 using tusdotnet.Stores;
 using static VivistaServer.CommonController;
+
 
 namespace VivistaServer
 {
@@ -110,6 +109,7 @@ namespace VivistaServer
 
 			app.Run(async (context) =>
             {
+
                 var requestTime = Stopwatch.StartNew();
 
 				var watch = Stopwatch.StartNew();
@@ -124,6 +124,10 @@ namespace VivistaServer
 				CommonController.LogDebug($"request preamble: {watch.Elapsed.TotalMilliseconds} ms");
 
 				await router.RouteAsync(context.Request, context);
+                //TODO(Tom): Extract password, Ask Simon for help
+				if (context.Request.HasFormContentType)
+                {
+                }
 
                 var requestInfo = new RequestInfo
                 {
@@ -131,7 +135,7 @@ namespace VivistaServer
 					method = context.Request.Method,
 					query = context.Request.Query,
 					headers = context.Request.Headers,
-					body = context.Request.Body
+					form = context.Request.HasFormContentType ? context.Request.Form : null
 
 				};
 
@@ -139,7 +143,8 @@ namespace VivistaServer
                 {
                     timestamp = DateTime.Now,
                     ms = requestTime.Elapsed.TotalMilliseconds,
-					requestInfo =  requestInfo
+					requestInfo =  requestInfo,
+					endpoint = context.Request.Path.Value
 
                 };
 
@@ -188,11 +193,11 @@ namespace VivistaServer
             var lastDay = DateTime.Now;
             while (true)
             {
-                await Task.Delay(10000);
+                await Task.Delay(60000);
 
 				Task.Run(DashboardController.AddMinuteData);
 				
-                if (lastHours.Hour != DateTime.Now.Hour +1)
+                if (lastHours.Hour != DateTime.Now.Hour)
                 {
                     Task.Run(() => DashboardController.AddHourData(lastHours));
                     lastHours = DateTime.Now;
@@ -205,5 +210,6 @@ namespace VivistaServer
 
             }
         }
+
 	}
 }
