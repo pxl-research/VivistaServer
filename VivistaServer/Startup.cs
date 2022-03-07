@@ -187,7 +187,7 @@ namespace VivistaServer
             while (true)
             {
 #if DEBUG
-				var nextTime = DateTime.UtcNow.RoundUp(TimeSpan.FromSeconds(5));
+				var nextTime = DateTime.UtcNow.RoundUp(TimeSpan.FromSeconds(10));
 #else
 				var nextTime = DateTime.UtcNow.RoundUp(TimeSpan.FromMinutes(1));
 #endif
@@ -197,7 +197,7 @@ namespace VivistaServer
 
 				Task.Run(DashboardController.AddMinuteData);
 				
-                if (DateTime.UtcNow.Hour > lastHours.Hour)
+                if (DateTime.UtcNow.Hour > lastHours.Hour - 1)
                 {
                     Task.Run(() => DashboardController.AddHourData(lastHours));
                     lastHours = DateTime.UtcNow;

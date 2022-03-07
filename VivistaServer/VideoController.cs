@@ -26,6 +26,7 @@ namespace VivistaServer
 		private const string VIEWHISTORY_CACHE_NAME = "viewHistoryCache";
 		private const string UPLOAD_AUTHORISATION_CACHE_NAME = "viewHistoryCache";
 
+
 		public class Video
 		{
 			public Guid id;
@@ -442,13 +443,19 @@ namespace VivistaServer
 				var user = await UserSessions.GetLoggedInUser(context);
 
 				if (video != null && UserCanViewVideo(video, user))
-				{
-					bool userOwnsVideo = UserOwnsVideo(video, user.userid);
+                {
+                    bool userOwnsVideo = false;
+                    if (user != null)
+                    {
+                        userOwnsVideo = UserOwnsVideo(video, user.userid);
+					}
+					
 					var relatedVideos = new List<Video>();
 
 					var templateContext = new TemplateContext(new { video, relatedVideos, userOwnsVideo});
 					await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\video.liquid", templateContext));
 					await AddVideoView(video.id, context, connection);
+
 				}
 				else
 				{
@@ -1036,6 +1043,7 @@ namespace VivistaServer
 
 		private static async Task<bool> AddVideoView(Guid videoid, HttpContext context, NpgsqlConnection connection)
 		{
+			DashboardController.AddViews();
 			var ip = context.Connection.RemoteIpAddress;
 
 			bool inCache = viewHistoryCache.Get(ip.ToString()) != null;
