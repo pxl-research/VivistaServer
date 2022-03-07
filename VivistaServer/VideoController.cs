@@ -1068,7 +1068,7 @@ namespace VivistaServer
 				var success = await connection.ExecuteAsync(@"update videos
 															set downloads = downloads + 1
 															where id=@videoid:uuid", new { videoid });
-
+				DashboardController.AddDownloads();
 				return success > 0;
 			}
 			catch (Exception e)

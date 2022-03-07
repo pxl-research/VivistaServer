@@ -1,24 +1,17 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations.Schema;
-using System.Globalization;
 using System.IO;
 using System.Linq;
-using System.Security.Cryptography;
-using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 using Dapper;
 using Fluid;
-using Microsoft.AspNetCore.Connections;
 using Microsoft.AspNetCore.Http;
-using Npgsql;
-using Org.BouncyCastle.Crypto.Encodings;
 using static VivistaServer.CommonController;
 using JsonSerializer = System.Text.Json.JsonSerializer;
 
 namespace VivistaServer
 {
+    
     public class Request
     {
         public DateTime timestamp;
@@ -36,12 +29,13 @@ namespace VivistaServer
         public double percentile95;
         public double percentile99;
         public int countrequests;
+        public int downloads;
     }
 
     public class EndpointPercentile
     {
-        public string endpoint;
         public double percentile95;
+        public string endpoint;
     }
 
     public class RequestInfo
@@ -49,14 +43,13 @@ namespace VivistaServer
         public PathString path { get; set; }
         public string method { get; set; }
         public IQueryCollection query { get; set; }
-        public IHeaderDictionary headers { get; set; }
 
         public IFormCollection form { get; set; }
     }
 
     public class DashboardController
     {
-
+        public static int downloads = 0;
         private static List<Request> cachedRequests = new List<Request>();
 
         [Route("GET", "/admin/dashboard")]
@@ -64,7 +57,6 @@ namespace VivistaServer
         {
             SetHTMLContentType(context);
             //TODO: Multiply database connections  
-
             var userTask = Task.Run(async () =>
             {
                 var connection = Database.OpenNewConnection();
@@ -95,16 +87,22 @@ namespace VivistaServer
             await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\dashboard.liquid", templateContext));
         }
 
-
-
+        public static void AddDownloads()
+        {
+            downloads++;
+        }
 
         public static void AddRequestToCache(Request request)
         {
+            request.timestamp = DateTime.UtcNow;
+
             cachedRequests.Add(request);
         }
 
         public static void AddMinuteData()
         {
+            //TODO: Dictionary
+            var a = new Dictionary<string, Request>().GroupBy(x => x.Key);
             if (cachedRequests.Count > 0)
             {
                 var groupedRequests = cachedRequests.GroupBy(s => s.endpoint).Select(grp => grp.ToList()).ToList();
@@ -131,17 +129,19 @@ namespace VivistaServer
                     }
 
                     //Average
-                    var average = specificEndpointList.Average((req) => req.ms);
+                    double average = 0;
+                    specificEndpointList.ForEach((req) => average += req.ms);
+                    average = average / specificEndpointList.Count;
 
                     //timestamp
                     var timestamp = specificEndpointList[specificEndpointList.Count / 2].timestamp;
                     //round down to xx:xx:00
-                    timestamp = RoundUp(timestamp, TimeSpan.FromSeconds(60)).AddMinutes(-1);
+                    timestamp = timestamp.RoundUp(TimeSpan.FromSeconds(60)).AddMinutes(-1);
 
                     using var connection = Database.OpenNewConnection();
                     connection.Execute(
-                        @"insert into statistics_minutes(median, average, timestamp, countrequests, percentile95, percentile99, endpoint) 
-                                values(@median, @average, @timestamp, @countrequests, @percentile95, @percentile99, @endpoint);",
+                        @"insert into statistics_minutes(median, average, timestamp, countrequests, percentile95, percentile99, endpoint, downloads) 
+                                values(@median, @average, @timestamp, @countrequests, @percentile95, @percentile99, @endpoint, @downloads);",
                         new
                         {
                             median,
@@ -150,31 +150,28 @@ namespace VivistaServer
                             countrequests = specificEndpointList.Count,
                             percentile95,
                             percentile99,
-                            endpoint = specificEndpointList[0].endpoint
+                            endpoint = specificEndpointList[0].endpoint,
+                            downloads
                         });
+                    downloads = 0;
 
-
-                    //TODO(Tom): Fix outliers with endpoints (ask Simon for his opinion)
                     //Outliers
-                    //var percentilesDays = (List<EndpointPercentile>)connection.Query<EndpointPercentile>(
-                    //    @"SELECT percentile95, endpoint
-                    //    FROM statistics_days;");
-                    ////var upperFence = percentilesDays.Average();
-                    ////if (upperFence == 0)
-                    ////{
-                    ////    upperFence = 550;
-                    ////}
-                    //foreach (var req in cachedRequests)
-                    //{
-                    //    //var reqinfo = SerializeToBson(req.requestInfo);
-                    //    if (req.ms > percentilesDays.Where(req))
-                    //    {
-                    //        var reqinfo = SerializeToBson(req.requestInfo);
-                    //        connection.Execute(@"insert into statistics_outliers(timestamp, ms, reqinfo) values(@timestamp, @ms, @reqinfo::jsonb);",
-                    //            new { timestamp = req.timestamp, ms = req.ms, reqinfo = reqinfo });
-                    //    }
-                    //}
-                    //cachedRequests.Clear();
+                    var percentilesPerEndpoint = connection.Query<EndpointPercentile>(
+                        @"SELECT avg(percentile95) as percentile95, endpoint
+                        FROM statistics_days
+                        GROUP BY endpoint;").ToDictionary(p => p.endpoint, p => p.percentile95);
+
+                    foreach (var req in cachedRequests)
+                    {
+                        var outlierLimit = percentilesPerEndpoint[req.endpoint] > 0 ? percentilesPerEndpoint[req.endpoint] * 2 : double.MaxValue;
+                        if (req.ms > outlierLimit)
+                        {
+                            var reqinfo = SerializeToBson(req.requestInfo);
+                            connection.Execute(@"insert into statistics_outliers(timestamp, ms, reqinfo) values(@timestamp, @ms, @reqinfo::jsonb);",
+                                new { timestamp = req.timestamp, ms = req.ms, reqinfo = reqinfo });
+                        }
+                    }
+                    cachedRequests.Clear();
                 }
 
 
@@ -187,12 +184,12 @@ namespace VivistaServer
             var connection = Database.OpenNewConnection();
 
             //round down to xx:00:00
-            startTime = RoundUp(startTime, TimeSpan.FromMinutes(60)).AddHours(-1);
+            startTime = startTime.RoundUp(TimeSpan.FromMinutes(60)).AddHours(-1);
 
             var endTime = startTime.AddHours(1);
 
             var minutesData = (List<RequestData>)connection.Query<RequestData>(
-                @"SELECT median, average, timestamp, countrequests, percentile95, percentile99, endpoint
+                @"SELECT median, average, timestamp, countrequests, percentile95, percentile99, endpoint, downloads
                     FROM statistics_minutes  
                     WHERE timestamp >= @startTime AND timestamp < @endTime;",
                 new { startTime, endTime });
@@ -205,7 +202,7 @@ namespace VivistaServer
                     var hourData = GetMedianAverageTimestamp(specificEndpointList);
                     var timestamp = hourData.timestamp;
 
-                    timestamp = RoundUp(timestamp, TimeSpan.FromMinutes(60)).AddHours(-1);
+                    timestamp = startTime.RoundUp(TimeSpan.FromMinutes(60)).AddHours(-1);
 
                     hourData.timestamp = timestamp;
 
@@ -220,7 +217,8 @@ namespace VivistaServer
                             countrequests = hourData.countrequests,
                             percentile95 = hourData.percentile95,
                             percentile99 = hourData.percentile99,
-                            endpoint = specificEndpointList[0].endpoint
+                            endpoint = specificEndpointList[0].endpoint,
+                            downloads = hourData.downloads
                         });
 
                 }
@@ -232,12 +230,12 @@ namespace VivistaServer
             var connection = Database.OpenNewConnection();
 
             //round down to 00:00:00
-            startTime = RoundUp(startTime, TimeSpan.FromHours(24)).AddDays(-1);
+            startTime = startTime.RoundUp(TimeSpan.FromHours(24)).AddDays(-1);
 
             var endTime = startTime.AddDays(1);
 
             var hoursData = (List<RequestData>)connection.Query<RequestData>(
-                @"SELECT median, average, timestamp, countrequests, percentile95, percentile99, endpoint
+                @"SELECT median, average, timestamp, countrequests, percentile95, percentile99, endpoint, downloads
                     FROM statistics_hours  
                     WHERE timestamp >= @startTime AND timestamp < @endTime;",
                 new { startTime, endTime });
@@ -249,14 +247,14 @@ namespace VivistaServer
                     var dayData = GetMedianAverageTimestamp(specificEndpointList);
                     var timestamp = dayData.timestamp;
 
-                    timestamp = RoundUp(timestamp, TimeSpan.FromHours(24)).AddDays(-1);
+                    timestamp = timestamp.RoundUp(TimeSpan.FromHours(24)).AddDays(-1);
 
                     dayData.timestamp = timestamp;
 
 
                     connection.Execute(
-                        @"insert into statistics_days(median, average, timestamp, countrequests, percentile95, percentile99, endpoint) 
-                        values(@median, @average, @timestamp, @countrequests, @percentile95, @percentile99, @endpoint);",
+                        @"insert into statistics_days(median, average, timestamp, countrequests, percentile95, percentile99, endpoint, downloads) 
+                        values(@median, @average, @timestamp, @countrequests, @percentile95, @percentile99, @endpoint, @downloads);",
                         new
                         {
                             median = dayData.median,
@@ -265,7 +263,8 @@ namespace VivistaServer
                             countrequests = dayData.countrequests,
                             percentile95 = dayData.percentile95,
                             percentile99 = dayData.percentile99,
-                            endpoint = specificEndpointList[0].endpoint
+                            endpoint = specificEndpointList[0].endpoint,
+                            downloads = dayData.downloads
                         });
                 }
 
@@ -296,12 +295,20 @@ namespace VivistaServer
             }
 
             //Average
-            var average = requestData.Average((req) => req.average);
+            double average = 0;
+            requestData.ForEach(req => average += req.average);
+            average = average / requestData.Count;
 
             //timestamp
             var timestamp = requestData[requestData.Count / 2].timestamp;
 
-            var countrequests = requestData.Sum(req => req.countrequests);
+            //countrequests
+            var countrequests = 0;
+            requestData.ForEach(req => countrequests += req.countrequests);
+
+            //downloads
+            var countDownloads = 0;
+            requestData.ForEach(req => countDownloads += req.countrequests);
 
             return new RequestData
             {
@@ -310,14 +317,11 @@ namespace VivistaServer
                 timestamp = timestamp,
                 countrequests = countrequests,
                 percentile95 = percentile95,
-                percentile99 = percentile99
+                percentile99 = percentile99,
+                downloads = countDownloads
             };
         }
 
-        private static DateTime RoundUp(DateTime dt, TimeSpan d)
-        {
-            return new DateTime((dt.Ticks + d.Ticks - 1) / d.Ticks * d.Ticks, dt.Kind);
-        }
 
         private static double Percentile(double[] sequence, double excelPercentile)
         {

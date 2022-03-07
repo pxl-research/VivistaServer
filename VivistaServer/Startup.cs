@@ -104,7 +104,6 @@ namespace VivistaServer
 				};
 			});
 
-			//Task.Run(PeriodicFunction);
             Task.Run(CollectData);
 
 			app.Run(async (context) =>
@@ -124,9 +123,13 @@ namespace VivistaServer
 				CommonController.LogDebug($"request preamble: {watch.Elapsed.TotalMilliseconds} ms");
 
 				await router.RouteAsync(context.Request, context);
-                //TODO(Tom): Extract password, Ask Simon for help
-				if (context.Request.HasFormContentType)
+
+				IFormCollection form = null;
+
+				//NOTE(Tom): Do no not allow to show password in database
+				if (context.Request.HasFormContentType && !context.Request.Form.ContainsKey("password"))
                 {
+                    form = context.Request.Form;
                 }
 
                 var requestInfo = new RequestInfo
@@ -134,14 +137,12 @@ namespace VivistaServer
 					path = context.Request.Path,
 					method = context.Request.Method,
 					query = context.Request.Query,
-					headers = context.Request.Headers,
-					form = context.Request.HasFormContentType ? context.Request.Form : null
+					form = form
 
 				};
 
                 var request = new Request
                 {
-                    timestamp = DateTime.Now,
                     ms = requestTime.Elapsed.TotalMilliseconds,
 					requestInfo =  requestInfo,
 					endpoint = context.Request.Path.Value
@@ -178,38 +179,39 @@ namespace VivistaServer
 #endif
 		}
 
-		private static async Task PeriodicFunction()
-		{
-			while (true)
-			{
-				Console.WriteLine("periodic");
-				await Task.Delay(5000);
-			}
-		}
-
         private static async Task CollectData()
         {
-            var lastHours = DateTime.Now;
-            var lastDay = DateTime.Now;
+#pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
+			var lastHours = DateTime.UtcNow;
+            var lastDay = DateTime.UtcNow;
             while (true)
             {
-                await Task.Delay(60000);
+#if DEBUG
+				var nextTime = DateTime.UtcNow.RoundUp(TimeSpan.FromSeconds(5));
+#else
+				var nextTime = DateTime.UtcNow.RoundUp(TimeSpan.FromMinutes(1));
+#endif
+				var delay =  nextTime - DateTime.UtcNow;
+				Console.WriteLine(delay);
+				await Task.Delay(delay);
 
 				Task.Run(DashboardController.AddMinuteData);
 				
-                if (lastHours.Hour != DateTime.Now.Hour)
+                if (DateTime.UtcNow.Hour > lastHours.Hour)
                 {
                     Task.Run(() => DashboardController.AddHourData(lastHours));
-                    lastHours = DateTime.Now;
+                    lastHours = DateTime.UtcNow;
 				}
 
-                if (lastDay.Day != DateTime.Now.Day)
+                if (DateTime.UtcNow.Day > lastDay.Day)
                 {
                     Task.Run(() => DashboardController.AddDayData(lastDay));
+					lastDay = DateTime.UtcNow;
 				}
-
             }
-        }
+#pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
+
+		}
 
 	}
 }
