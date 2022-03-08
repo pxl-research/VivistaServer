@@ -108,7 +108,6 @@ namespace VivistaServer
 
 			app.Run(async (context) =>
             {
-
                 var requestTime = Stopwatch.StartNew();
 
 				var watch = Stopwatch.StartNew();
@@ -197,13 +196,13 @@ namespace VivistaServer
 
 				Task.Run(DashboardController.AddMinuteData);
 				
-                if (DateTime.UtcNow.Hour > lastHours.Hour - 1)
+                if (DateTime.UtcNow.Hour > lastHours.Hour)
                 {
                     Task.Run(() => DashboardController.AddHourData(lastHours));
                     lastHours = DateTime.UtcNow;
 				}
 
-                if (DateTime.UtcNow.Day > lastDay.Day)
+                if (DateTime.UtcNow.Day > lastDay.Day - 1)
                 {
                     Task.Run(() => DashboardController.AddDayData(lastDay));
 					lastDay = DateTime.UtcNow;

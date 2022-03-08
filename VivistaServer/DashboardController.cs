@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -37,6 +38,9 @@ namespace VivistaServer
         public DateTime timestamp;
         public int downloads;
         public int views;
+        public long privateMemory;
+        public long workingSet;
+        public long virtualMemory;
     }
 
     public class EndpointPercentile
@@ -115,7 +119,7 @@ namespace VivistaServer
         public static void AddMinuteData()
         {
             //TODO: Dictionary
-            var a = new Dictionary<string, Request>().GroupBy(x => x.Key);
+            //var a = new Dictionary<string, Request>().GroupBy(x => x.Key);
             using var connection = Database.OpenNewConnection();
             if (cachedRequests.Count > 0)
             {
@@ -193,15 +197,22 @@ namespace VivistaServer
                     cachedRequests.Clear();
                 }
 
+                Process.GetCurrentProcess().Refresh();
+                var privateMemory = Process.GetCurrentProcess().PrivateMemorySize64;
+                var workingSet = Process.GetCurrentProcess().WorkingSet64;
+                var virtualMemory = Process.GetCurrentProcess().VirtualMemorySize64;
                 //GeneralData
                 connection.Execute(
-                    @"INSERT INTO statistics_general_minutes(timestamp, downloads, views)
-                            VALUES(@timestamp, @downloads, @views);",
+                    @"INSERT INTO statistics_general_minutes(timestamp, downloads, views, private_memory, working_set, virtual_memory)
+                            VALUES(@timestamp, @downloads, @views, @privateMemory, @workingSet, @virtualMemory);",
                     new
                     {
                         timestamp,
                         downloads,
-                        views
+                        views,
+                        privateMemory,
+                        workingSet,
+                        virtualMemory
                     });
                 downloads = 0;
                 views = 0;
@@ -209,6 +220,9 @@ namespace VivistaServer
 
 
             }
+
+
+
         }
 
         public static void AddHourData(DateTime startTime)
@@ -227,7 +241,7 @@ namespace VivistaServer
                 new { startTime, endTime });
 
             var minutesGeneralData = (List<GeneralData>)connection.Query<GeneralData>(
-                @"SELECT timestamp, downloads, views 
+                @"SELECT timestamp, downloads, views, private_memory as privateMemory, working_set as workingSet, virtual_memory as virtualMemory
                     FROM statistics_general_minutes  
                     WHERE timestamp >= @startTime AND timestamp < @endTime;",
                 new { startTime, endTime });
@@ -270,9 +284,17 @@ namespace VivistaServer
                 var generalData = GetNewGeneralData(minutesGeneralData);
 
                 connection.Execute(
-                    @"INSERT INTO statistics_general_hours(timestamp, downloads, views)
-                        VALUES(@timestamp, @downloads, @views)",
-                    new {timestamp, downloads = generalData.downloads, views = generalData.views});
+                    @"INSERT INTO statistics_general_hours(timestamp, downloads, views, private_memory, working_set, virtual_memory)
+                        VALUES(@timestamp, @downloads, @views, @privateMemory, @workingSet, @virtualMemory)",
+                    new {
+                        timestamp, 
+                        downloads = generalData.downloads, 
+                        views = generalData.views, 
+                        privateMemory = generalData.privateMemory, 
+                        workingSet = generalData.workingSet, 
+                        virtualMemory = generalData.virtualMemory
+
+                    });
             }
         }
 
@@ -293,7 +315,7 @@ namespace VivistaServer
                 new { startTime, endTime });
 
             var hoursGeneralData = (List<GeneralData>) connection.Query<GeneralData>(
-                @"SELECT timestamp, downloads, views 
+                @"SELECT timestamp, downloads, views, private_memory as privateMemory, working_set as workingSet, virtual_memory as virtualMemory
                     FROM statistics_general_hours 
                     WHERE timestamp >= @startTime AND timestamp < @endTime;",
                 new {startTime, endTime});
@@ -336,9 +358,17 @@ namespace VivistaServer
                 var generalData = GetNewGeneralData(hoursGeneralData);
 
                 connection.Execute(
-                    @"INSERT INTO statistics_general_days(timestamp, downloads, views)
-                        VALUES(@timestamp, @downloads, @views)",
-                    new { timestamp, downloads = generalData.downloads, views = generalData.views });
+                    @"INSERT INTO statistics_general_days(timestamp, downloads, views, private_memory, working_set, virtual_memory)
+                        VALUES(@timestamp, @downloads, @views, @privateMemory, @workingSet, @virtualMemory)",
+                    new
+                    {
+                        timestamp, 
+                        downloads = generalData.downloads, 
+                        views = generalData.views,
+                        privateMemory = generalData.privateMemory,
+                        workingSet = generalData.workingSet,
+                        virtualMemory = generalData.virtualMemory
+                    });
             }
 
         }
@@ -347,17 +377,26 @@ namespace VivistaServer
         {
             var countDownloads = 0;
             var countViews = 0;
+            long privateMemory = 0;
+            long workingSet = 0;
+            long virtualMemory = 0;
 
             generalData.ForEach(g =>
             {
                 countDownloads += g.downloads;
                 countViews += g.views;
+                privateMemory += g.privateMemory;
+                workingSet += g.workingSet;
+                virtualMemory += g.virtualMemory;
             });
 
             var result = new GeneralData
             {
                 downloads = countDownloads,
-                views = countViews
+                views = countViews,
+                privateMemory = privateMemory / generalData.Count,
+                workingSet = workingSet / generalData.Count,
+                virtualMemory = virtualMemory / generalData.Count
             };
             return result;
         }
@@ -438,6 +477,9 @@ namespace VivistaServer
             string jsonString = JsonSerializer.Serialize(requestInfo);
             return jsonString;
         }
+
+
+
     }
 
 }
