@@ -55,6 +55,7 @@
     <PackageReference Include="Fluid.Core" Version="2.0.13" />
     <PackageReference Include="MailKit" Version="2.13.0" />
     <PackageReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
     <PackageReference Include="Npgsql" Version="6.0.0-preview5" />
     <PackageReference Include="System.Runtime.Caching" Version="6.0.0-preview.5.21301.5" />
     <PackageReference Include="tusdotnet" Version="2.4.0" />

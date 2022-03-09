@@ -20,6 +20,7 @@ namespace VivistaServer
         public double ms;
         public RequestInfo requestInfo;
         public string endpoint;
+        public double renderTime;
     }
 
     public class RequestData
@@ -31,6 +32,7 @@ namespace VivistaServer
         public double percentile95;
         public double percentile99;
         public int countrequests;
+        public double renderTime;
     }
 
     public class GeneralData
@@ -41,6 +43,7 @@ namespace VivistaServer
         public long privateMemory;
         public long workingSet;
         public long virtualMemory;
+        public int uploads;
     }
 
     public class EndpointPercentile
@@ -63,6 +66,7 @@ namespace VivistaServer
         public static int downloads = 0;
         private static List<Request> cachedRequests = new List<Request>();
         private static int views = 0;
+        private static int uploads = 0;
 
         [Route("GET", "/admin/dashboard")]
         private static async Task DashboardGet(HttpContext context)
@@ -109,6 +113,11 @@ namespace VivistaServer
             views++;
         }
 
+        public static void AddUpload()
+        {
+            uploads++;
+        }
+
         public static void AddRequestToCache(Request request)
         {
             request.timestamp = DateTime.UtcNow;
@@ -118,8 +127,6 @@ namespace VivistaServer
 
         public static void AddMinuteData()
         {
-            //TODO: Dictionary
-            //var a = new Dictionary<string, Request>().GroupBy(x => x.Key);
             using var connection = Database.OpenNewConnection();
             if (cachedRequests.Count > 0)
             {
@@ -152,15 +159,22 @@ namespace VivistaServer
                         median = (firstValue + secondValue) / 2;
                     }
 
-                    //Average
+                    //Average and average render time
                     double average = 0;
-                    specificEndpointList.ForEach((req) => average += req.ms);
+                    double averageRenderTime = 0;
+                    foreach (var req in specificEndpointList)
+                    {
+                        average += req.ms;
+                        averageRenderTime += req.renderTime;
+                    }
+
                     average = average / specificEndpointList.Count;
+                    averageRenderTime = average / specificEndpointList.Count;
 
 
                     connection.Execute(
-                        @"INSERT INTO statistics_minutes(median, average, timestamp, countrequests, percentile95, percentile99, endpoint) 
-                                VALUES(@median, @average, @timestamp, @countrequests, @percentile95, @percentile99, @endpoint);",
+                        @"INSERT INTO statistics_minutes(median, average, timestamp, countrequests, percentile95, percentile99, endpoint, render_time) 
+                                VALUES(@median, @average, @timestamp, @countrequests, @percentile95, @percentile99, @endpoint, @renderTime);",
                         new
                         {
                             median,
@@ -169,7 +183,8 @@ namespace VivistaServer
                             countrequests = specificEndpointList.Count,
                             percentile95,
                             percentile99,
-                            endpoint = specificEndpointList[0].endpoint
+                            endpoint = specificEndpointList[0].endpoint,
+                            renderTime = averageRenderTime
                         });
 
 
@@ -203,8 +218,8 @@ namespace VivistaServer
                 var virtualMemory = Process.GetCurrentProcess().VirtualMemorySize64;
                 //GeneralData
                 connection.Execute(
-                    @"INSERT INTO statistics_general_minutes(timestamp, downloads, views, private_memory, working_set, virtual_memory)
-                            VALUES(@timestamp, @downloads, @views, @privateMemory, @workingSet, @virtualMemory);",
+                    @"INSERT INTO statistics_general_minutes(timestamp, downloads, views, private_memory, working_set, virtual_memory, uploads)
+                            VALUES(@timestamp, @downloads, @views, @privateMemory, @workingSet, @virtualMemory, @uploads);",
                     new
                     {
                         timestamp,
@@ -212,7 +227,8 @@ namespace VivistaServer
                         views,
                         privateMemory,
                         workingSet,
-                        virtualMemory
+                        virtualMemory,
+                        uploads
                     });
                 downloads = 0;
                 views = 0;
@@ -235,13 +251,13 @@ namespace VivistaServer
             var endTime = startTime.AddHours(1);
 
             var minutesData = (List<RequestData>)connection.Query<RequestData>(
-                @"SELECT median, average, timestamp, countrequests, percentile95, percentile99, endpoint
+                @"SELECT median, average, timestamp, countrequests, percentile95, percentile99, endpoint, render_time
                     FROM statistics_minutes  
                     WHERE timestamp >= @startTime AND timestamp < @endTime;",
                 new { startTime, endTime });
 
             var minutesGeneralData = (List<GeneralData>)connection.Query<GeneralData>(
-                @"SELECT timestamp, downloads, views, private_memory as privateMemory, working_set as workingSet, virtual_memory as virtualMemory
+                @"SELECT timestamp, downloads, views, private_memory as privateMemory, working_set as workingSet, virtual_memory as virtualMemory, uploads
                     FROM statistics_general_minutes  
                     WHERE timestamp >= @startTime AND timestamp < @endTime;",
                 new { startTime, endTime });
@@ -260,8 +276,8 @@ namespace VivistaServer
                     hourData.timestamp = timestamp;
 
                     connection.Execute(
-                        @"INSERT INTO statistics_hours(median, average, timestamp, countrequests, percentile95, percentile99, endpoint) 
-                            VALUES(@median, @average, @timestamp, @countrequests, @percentile95, @percentile99, @endpoint);",
+                        @"INSERT INTO statistics_hours(median, average, timestamp, countrequests, percentile95, percentile99, endpoint, render_time) 
+                            VALUES(@median, @average, @timestamp, @countrequests, @percentile95, @percentile99, @endpoint, @renderTime);",
                         new
                         {
                             median = hourData.median,
@@ -270,7 +286,8 @@ namespace VivistaServer
                             countrequests = hourData.countrequests,
                             percentile95 = hourData.percentile95,
                             percentile99 = hourData.percentile99,
-                            endpoint = specificEndpointList[0].endpoint
+                            endpoint = specificEndpointList[0].endpoint,
+                            renderTime = hourData.renderTime
                         });
 
                 }
@@ -284,15 +301,16 @@ namespace VivistaServer
                 var generalData = GetNewGeneralData(minutesGeneralData);
 
                 connection.Execute(
-                    @"INSERT INTO statistics_general_hours(timestamp, downloads, views, private_memory, working_set, virtual_memory)
-                        VALUES(@timestamp, @downloads, @views, @privateMemory, @workingSet, @virtualMemory)",
+                    @"INSERT INTO statistics_general_hours(timestamp, downloads, views, private_memory, working_set, virtual_memory, uploads)
+                        VALUES(@timestamp, @downloads, @views, @privateMemory, @workingSet, @virtualMemory, @uploads)",
                     new {
                         timestamp, 
                         downloads = generalData.downloads, 
                         views = generalData.views, 
                         privateMemory = generalData.privateMemory, 
                         workingSet = generalData.workingSet, 
-                        virtualMemory = generalData.virtualMemory
+                        virtualMemory = generalData.virtualMemory,
+                        uploads = generalData.uploads
 
                     });
             }
@@ -309,13 +327,13 @@ namespace VivistaServer
             var endTime = startTime.AddDays(1);
 
             var hoursData = (List<RequestData>)connection.Query<RequestData>(
-                @"SELECT median, average, timestamp, countrequests, percentile95, percentile99, endpoint
+                @"SELECT median, average, timestamp, countrequests, percentile95, percentile99, endpoint, render_time
                     FROM statistics_hours  
                     WHERE timestamp >= @startTime AND timestamp < @endTime;",
                 new { startTime, endTime });
 
             var hoursGeneralData = (List<GeneralData>) connection.Query<GeneralData>(
-                @"SELECT timestamp, downloads, views, private_memory as privateMemory, working_set as workingSet, virtual_memory as virtualMemory
+                @"SELECT timestamp, downloads, views, private_memory as privateMemory, working_set as workingSet, virtual_memory as virtualMemory, uploads
                     FROM statistics_general_hours 
                     WHERE timestamp >= @startTime AND timestamp < @endTime;",
                 new {startTime, endTime});
@@ -334,8 +352,8 @@ namespace VivistaServer
 
 
                     connection.Execute(
-                        @"insert into statistics_days(median, average, timestamp, countrequests, percentile95, percentile99, endpoint) 
-                        values(@median, @average, @timestamp, @countrequests, @percentile95, @percentile99, @endpoint);",
+                        @"INSERT INTO statistics_days(median, average, timestamp, countrequests, percentile95, percentile99, endpoint, render_time) 
+                            VALUES(@median, @average, @timestamp, @countrequests, @percentile95, @percentile99, @endpoint, @renderTime);",
                         new
                         {
                             median = dayData.median,
@@ -344,7 +362,8 @@ namespace VivistaServer
                             countrequests = dayData.countrequests,
                             percentile95 = dayData.percentile95,
                             percentile99 = dayData.percentile99,
-                            endpoint = specificEndpointList[0].endpoint
+                            endpoint = specificEndpointList[0].endpoint,
+                            renderTime = dayData.renderTime
                         });
                 }
 
@@ -358,8 +377,8 @@ namespace VivistaServer
                 var generalData = GetNewGeneralData(hoursGeneralData);
 
                 connection.Execute(
-                    @"INSERT INTO statistics_general_days(timestamp, downloads, views, private_memory, working_set, virtual_memory)
-                        VALUES(@timestamp, @downloads, @views, @privateMemory, @workingSet, @virtualMemory)",
+                    @"INSERT INTO statistics_general_days(timestamp, downloads, views, private_memory, working_set, virtual_memory, uploads)
+                        VALUES(@timestamp, @downloads, @views, @privateMemory, @workingSet, @virtualMemory, @uploads)",
                     new
                     {
                         timestamp, 
@@ -367,7 +386,8 @@ namespace VivistaServer
                         views = generalData.views,
                         privateMemory = generalData.privateMemory,
                         workingSet = generalData.workingSet,
-                        virtualMemory = generalData.virtualMemory
+                        virtualMemory = generalData.virtualMemory, 
+                        uploads = generalData.uploads
                     });
             }
 
@@ -380,15 +400,17 @@ namespace VivistaServer
             long privateMemory = 0;
             long workingSet = 0;
             long virtualMemory = 0;
+            var countUploads = 0;
 
-            generalData.ForEach(g =>
+            foreach (var g in generalData)
             {
                 countDownloads += g.downloads;
                 countViews += g.views;
                 privateMemory += g.privateMemory;
                 workingSet += g.workingSet;
                 virtualMemory += g.virtualMemory;
-            });
+                countUploads += g.uploads;
+            }
 
             var result = new GeneralData
             {
@@ -396,7 +418,8 @@ namespace VivistaServer
                 views = countViews,
                 privateMemory = privateMemory / generalData.Count,
                 workingSet = workingSet / generalData.Count,
-                virtualMemory = virtualMemory / generalData.Count
+                virtualMemory = virtualMemory / generalData.Count,
+                uploads = countUploads
             };
             return result;
         }
@@ -424,25 +447,23 @@ namespace VivistaServer
                 median = (firstValue + secondValue) / 2;
             }
 
-            //Average
+            //countrequests
+            var countrequests = 0;
+
+            //Average and average render time
             double average = 0;
-            requestData.ForEach(req => average += req.average);
+            double averageRenderTime = 0;
+            foreach (var req in requestData)
+            {
+                average += req.average;
+                averageRenderTime += averageRenderTime;
+                countrequests += req.countrequests;
+            }
             average = average / requestData.Count;
+            averageRenderTime = average / requestData.Count;
 
             //timestamp
             var timestamp = requestData[requestData.Count / 2].timestamp;
-
-            //countrequests
-            var countrequests = 0;
-            requestData.ForEach(req => countrequests += req.countrequests);
-
-            ////downloads
-            //var countDownloads = 0;
-            //requestData.ForEach(req => countDownloads += req.countrequests);
-
-            ////views 
-            //var countViews = 0;
-            //requestData.ForEach(req => countViews += req.views);
 
             return new RequestData
             {
@@ -451,10 +472,10 @@ namespace VivistaServer
                 timestamp = timestamp,
                 countrequests = countrequests,
                 percentile95 = percentile95,
-                percentile99 = percentile99
+                percentile99 = percentile99,
+                renderTime =  averageRenderTime
             };
         }
-
 
         private static double Percentile(double[] sequence, double excelPercentile)
         {

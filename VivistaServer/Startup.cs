@@ -144,10 +144,10 @@ namespace VivistaServer
                 {
                     ms = requestTime.Elapsed.TotalMilliseconds,
 					requestInfo =  requestInfo,
-					endpoint = context.Request.Path.Value
+					endpoint = context.Request.Path.Value,
+					renderTime = (double)context.Items["renderTime"]
 
                 };
-
                 DashboardController.AddRequestToCache(request);
             });
 		}
@@ -191,8 +191,7 @@ namespace VivistaServer
 				var nextTime = DateTime.UtcNow.RoundUp(TimeSpan.FromMinutes(1));
 #endif
 				var delay =  nextTime - DateTime.UtcNow;
-				Console.WriteLine(delay);
-				await Task.Delay(delay);
+                await Task.Delay(delay);
 
 				Task.Run(DashboardController.AddMinuteData);
 				
@@ -202,7 +201,7 @@ namespace VivistaServer
                     lastHours = DateTime.UtcNow;
 				}
 
-                if (DateTime.UtcNow.Day > lastDay.Day - 1)
+                if (DateTime.UtcNow.Day > lastDay.Day)
                 {
                     Task.Run(() => DashboardController.AddDayData(lastDay));
 					lastDay = DateTime.UtcNow;

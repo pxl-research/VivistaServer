@@ -354,6 +354,7 @@ namespace VivistaServer
 							await context.Response.WriteAsJsonAsync(new { success = true});
 
 							CleanPartialUploads(video.id);
+							DashboardController.AddUpload();
 						}
 						else
 						{
