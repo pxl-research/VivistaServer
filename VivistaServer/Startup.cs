@@ -22,7 +22,7 @@ namespace VivistaServer
 	{
 		private static Router router;
 
-		public void ConfigureServices(IServiceCollection services)
+        public void ConfigureServices(IServiceCollection services)
 		{
 			services.Configure<FormOptions>(config => { config.MultipartBodyLengthLimit = long.MaxValue;});
 
@@ -108,6 +108,9 @@ namespace VivistaServer
 
 			app.Run(async (context) =>
             {
+                context.Items[DashboardController.RENDER_TIME] = 0;
+                context.Items[DashboardController.DB_EXEC_TIME] = 0;
+
                 var requestTime = Stopwatch.StartNew();
 
 				var watch = Stopwatch.StartNew();
@@ -144,11 +147,17 @@ namespace VivistaServer
                 {
                     ms = requestTime.Elapsed.TotalMilliseconds,
 					requestInfo =  requestInfo,
-					endpoint = context.Request.Path.Value,
-					renderTime = (double)context.Items["renderTime"]
+					endpoint = $"/{context.Request.Method}:  {context.Request.Path.Value}",
+					renderTime = (double)context.Items[DashboardController.RENDER_TIME], 
+                    dbExecTime = (double)context.Items[DashboardController.DB_EXEC_TIME]
 
-                };
+				};
                 DashboardController.AddRequestToCache(request);
+
+                if (context.Items["databaseTime"] != null)
+                {
+                    Console.WriteLine("----------------" + context.Items["databaseTime"]);
+                }
             });
 		}
 

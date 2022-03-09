@@ -1,19 +1,17 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
-using Dapper;
+﻿using Dapper;
 using Fluid;
 using Microsoft.AspNetCore.Http;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
+using System.Threading.Tasks;
 using static VivistaServer.CommonController;
 using JsonSerializer = System.Text.Json.JsonSerializer;
 
 namespace VivistaServer
 {
-    
+
     public class Request
     {
         public DateTime timestamp;
@@ -21,6 +19,7 @@ namespace VivistaServer
         public RequestInfo requestInfo;
         public string endpoint;
         public double renderTime;
+        public double dbExecTime;
     }
 
     public class RequestData
@@ -33,6 +32,7 @@ namespace VivistaServer
         public double percentile99;
         public int countrequests;
         public double renderTime;
+        public double dbExecTime;
     }
 
     public class GeneralData
@@ -63,6 +63,8 @@ namespace VivistaServer
 
     public class DashboardController
     {
+        public const string DB_EXEC_TIME = "dbExecTime";
+        public const string RENDER_TIME = "renderTime";
         public static int downloads = 0;
         private static List<Request> cachedRequests = new List<Request>();
         private static int views = 0;
@@ -76,7 +78,7 @@ namespace VivistaServer
             var userTask = Task.Run(async () =>
             {
                 var connection = Database.OpenNewConnection();
-                return await connection.QueryAsync<int>("select COUNT(*) FROM users;");
+                return await connection.QueryAsync<int>("SELECT COUNT(*) FROM users;");
             });
 
             var videoTask = Task.Run(async () =>
@@ -499,7 +501,10 @@ namespace VivistaServer
             return jsonString;
         }
 
-
+        public static void AddDbExecTimeToRequest(HttpContext context, double time)
+        {
+            context.Items[DB_EXEC_TIME] = (double) context.Items[DB_EXEC_TIME] + time;
+        }
 
     }
 

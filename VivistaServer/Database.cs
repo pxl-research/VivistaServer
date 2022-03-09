@@ -1,4 +1,9 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Threading.Tasks;
+using Dapper;
+using Microsoft.AspNetCore.Http;
 using Npgsql;
 
 namespace VivistaServer
@@ -7,16 +12,53 @@ namespace VivistaServer
 	{
 		public static NpgsqlConnection OpenNewConnection()
 		{
-			CommonController.LogDebug("Opening new SQL connection");
+            CommonController.LogDebug("Opening new SQL connection");
 			var conn = new NpgsqlConnection(GetPgsqlConfig());
 			conn.Open();
-			return conn;
-		}
+            return conn;
+        }
 
-		//NOTE(Simon): Use GetPgsqlConfig() instead of this directly, it handles caching of this variable.
-		private static string connectionString;
+        public static Task<IEnumerable<T>> QueryAsync<T>(NpgsqlConnection conn, string sql, HttpContext context, object param = null)
+        {
+            var watch = Stopwatch.StartNew();
+			var result =  conn.QueryAsync<T>(sql, param);
+			watch.Stop();
+            DashboardController.AddDbExecTimeToRequest(context, watch.Elapsed.TotalMilliseconds);
+            return result;
+        }
 
-		private static string GetPgsqlConfig()
+        public static Task<int> ExecuteAsync(NpgsqlConnection conn, string sql, HttpContext context, object param = null)
+        {
+            var watch = Stopwatch.StartNew();
+            var result = conn.ExecuteAsync(sql, param);
+            watch.Stop();
+            DashboardController.AddDbExecTimeToRequest(context, watch.Elapsed.TotalMilliseconds);
+            return result;
+        }
+
+        public static IEnumerable<dynamic> Query(NpgsqlConnection conn, string sql, HttpContext context, object param = null)
+        {
+            var watch = Stopwatch.StartNew();
+            var result = conn.Query(sql, param);
+            watch.Stop();
+            DashboardController.AddDbExecTimeToRequest(context, watch.Elapsed.TotalMilliseconds);
+            return result;
+        }
+
+        public static int Execute(NpgsqlConnection conn, string sql, HttpContext context, object param = null)
+        {
+            var watch = Stopwatch.StartNew();
+            var result = conn.Execute(sql, param);
+            watch.Stop();
+            DashboardController.AddDbExecTimeToRequest(context, watch.Elapsed.TotalMilliseconds);
+			return result;
+        }
+
+
+
+        //NOTE(Simon): Use GetPgsqlConfig() instead of this directly, it handles caching of this variable.
+        private static string connectionString;
+        private static string GetPgsqlConfig()
 		{
 			if (string.IsNullOrEmpty(connectionString))
 			{
