@@ -59,7 +59,7 @@ namespace VivistaServer
 			else
 			{
 				CommonController.LogDebug("Session not in cache. Retrieving from db");
-				var user = await GetLoggedInUserSkipCache(sessionToken);
+				var user = await GetLoggedInUserSkipCache(sessionToken, context);
 				if (user == null)
 				{
 					CommonController.LogDebug("Bad token. No user found.");
@@ -73,13 +73,13 @@ namespace VivistaServer
 			}
 		}
 
-		public static async Task<User> GetLoggedInUserSkipCache(string sessionToken)
+		public static async Task<User> GetLoggedInUserSkipCache(string sessionToken, HttpContext context)
 		{
 			using var connection = Database.OpenNewConnection();
-			var session = await AuthenticateWithToken(sessionToken, connection);
+			var session = await AuthenticateWithToken(sessionToken, connection, context);
 			if (session.IsValid)
 			{
-				return await connection.QuerySingleAsync<User>("select userid, username, email, pictureid from users where userid=@userid", new { session.userid });
+				return await Database.QuerySingleAsync<User>(connection,"select userid, username, email, pictureid from users where userid=@userid", context, new { session.userid });
 			}
 			else
 			{
@@ -87,13 +87,13 @@ namespace VivistaServer
 			}
 		}
 
-		private static async Task<Session> AuthenticateWithToken(string token, NpgsqlConnection connection)
+		private static async Task<Session> AuthenticateWithToken(string token, NpgsqlConnection connection, HttpContext context)
 		{
 			Session session;
 
 			try
 			{
-				session = await connection.QuerySingleAsync<Session>("select expiry, userid from sessions where token = @token", new {token});
+				session = await Database.QuerySingleAsync<Session>(connection,"select expiry, userid from sessions where token = @token", context, new {token});
 			}
 			catch
 			{
@@ -102,23 +102,23 @@ namespace VivistaServer
 
 			if (!session.IsValid)
 			{
-				await InvalidateSession(token, connection);
+				await InvalidateSession(token, connection, context);
 				return session;
 			}
 			else
 			{
 				var newExpiry = DateTime.UtcNow.AddMinutes(sessionExpiryMins);
-				await connection.ExecuteAsync("update sessions set expiry = @newExpiry where token = @token", new { newExpiry, token });
+				await Database.ExecuteAsync(connection,"update sessions set expiry = @newExpiry where token = @token",context, new { newExpiry, token });
 				return session;
 			}
 		}
 
-		public static async Task InvalidateSession(string token, NpgsqlConnection connection)
+		public static async Task InvalidateSession(string token, NpgsqlConnection connection, HttpContext context)
 		{
 			try
 			{
 				cache.Remove(token);
-				await connection.ExecuteAsync("delete from sessions where token=@token", new {token});
+				await Database.ExecuteAsync(connection,"delete from sessions where token=@token", context, new {token});
 			}
 			catch
 			{
@@ -126,7 +126,7 @@ namespace VivistaServer
 			}
 		}
 
-		public static async Task<string> CreateNewSession(int userid, NpgsqlConnection connection)
+		public static async Task<string> CreateNewSession(int userid, NpgsqlConnection connection, HttpContext context)
 		{
 			var token = Tokens.NewSessionToken();
 			var expiry = DateTime.UtcNow.AddMinutes(sessionExpiryMins);
@@ -136,7 +136,7 @@ namespace VivistaServer
 				throw new Exception("Something went wrong while retrieving UserID");
 			}
 
-			await connection.ExecuteAsync("insert into sessions (token, expiry, userid) values (@token, @expiry, @userid)", new { token, expiry, userid });
+			await Database.ExecuteAsync(connection,"insert into sessions (token, expiry, userid) values (@token, @expiry, @userid)", context,new { token, expiry, userid });
 
 			return token;
 		}

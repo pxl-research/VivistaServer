@@ -21,7 +21,7 @@ namespace VivistaServer
 			{
 				using var connection = Database.OpenNewConnection();
 
-				bool success = await AddBugReport(problem, repro, email, connection);
+				bool success = await AddBugReport(problem, repro, email, connection, context);
 				await context.Response.Body.WriteAsync(Utf8Json.JsonSerializer.SerializeUnsafe(new {success}));
 			}
 			else
@@ -30,12 +30,12 @@ namespace VivistaServer
 			}
 		}
 
-		private static async Task<bool> AddBugReport(string problem, string repro, string email, NpgsqlConnection connection)
+		private static async Task<bool> AddBugReport(string problem, string repro, string email, NpgsqlConnection connection, HttpContext context)
 		{
 			try
 			{
-				int success = await connection.ExecuteAsync(@"insert into bug_reports (problem, repro, email) values (@problem, @repro, @email)", new {problem, repro, email});
-				return success > 0;
+                int success = await Database.ExecuteAsync(connection,@"insert into bug_reports (problem, repro, email) values (@problem, @repro, @email)", context, new { problem, repro, email });
+                return success > 0;
 			}
 			catch (Exception e)
 			{

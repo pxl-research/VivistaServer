@@ -165,7 +165,7 @@ namespace VivistaServer
 			{
 				using var connection = Database.OpenNewConnection();
 
-				await UserSessions.InvalidateSession(context.Request.Cookies["session"], connection);
+				await UserSessions.InvalidateSession(context.Request.Cookies["session"], connection, context);
 				context.Response.Cookies.Delete("session");
 
 				context.Response.Redirect("/");
@@ -209,9 +209,9 @@ namespace VivistaServer
 			string email = args["email"].ToString().NormalizeEmail();
 			string token = args["token"].ToString();
 
-			int userid = await UserIdFromEmail(email, connection);
+			int userid = await UserIdFromEmail(email, connection, context);
 
-			bool success = await VerifyEmail(userid, token, connection);
+			bool success = await VerifyEmail(userid, token, connection, context);
 
 			if (success)
 			{
@@ -241,13 +241,13 @@ namespace VivistaServer
 			var form = context.Request.Form;
 			string email = form["email"].ToString().NormalizeEmail();
 
-			var userExistsTask = UserExists(email, connection);
+			var userExistsTask = UserExists(email, connection, context);
 
 			await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\resetPasswordSuccess.liquid", null));
 
 			if (await userExistsTask)
 			{
-				var token = await CreatePasswordResetToken(email, connection);
+				var token = await CreatePasswordResetToken(email, connection, context);
 				await EmailClient.SendPasswordResetMail(email, token);
 			}
 		}
@@ -284,9 +284,9 @@ namespace VivistaServer
 
 			string password = form["password"].ToString();
 			string confirmPassword = form["password-confirmation"].ToString();
-			int userid = await UserIdFromEmail(model.email, connection);
+			int userid = await UserIdFromEmail(model.email, connection, context);
 
-			if (await AuthenticatePasswordResetToken(userid, model.token, connection))
+			if (await AuthenticatePasswordResetToken(userid, model.token, connection, context))
 			{
 				var (success, result) = ValidatePassword(password, confirmPassword);
 				if (!success)
@@ -297,10 +297,10 @@ namespace VivistaServer
 					return;
 				}
 
-				if (await UpdatePassword(model.email, password, connection))
+				if (await UpdatePassword(model.email, password, connection, context))
 				{
 					await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\resetPasswordFinishSuccess.liquid", null));
-					await DeletePasswordResetToken(userid, model.token, connection);
+					await DeletePasswordResetToken(userid, model.token, connection, context);
 				}
 				else
 				{
@@ -346,11 +346,11 @@ namespace VivistaServer
 			{
 				using var connection = Database.OpenNewConnection();
 				var user = await UserSessions.GetLoggedInUser(context);
-				var currentPassCorrect = await AuthenticateUser(user.email, currentPassword, connection);
+				var currentPassCorrect = await AuthenticateUser(user.email, currentPassword, connection, context);
 
 				if (currentPassCorrect)
 				{
-					if (await UpdatePassword(user.email, password, connection))
+					if (await UpdatePassword(user.email, password, connection, context))
 					{
 						var templateContext = new TemplateContext(new {success = true, message = ""});
 						await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\settings.liquid", templateContext));
@@ -401,14 +401,15 @@ namespace VivistaServer
 
 				using var connection = Database.OpenNewConnection();
 
-				bool userExists = await UserExists(email, connection);
+				bool userExists = await UserExists(email, connection, context);
 				string hashedPassword = BCrypt.Net.BCrypt.HashPassword(password, bcryptWorkFactor);
 
 				if (!userExists)
 				{
 					string verificationToken = Tokens.NewVerifyEmailToken();
-					int querySuccess = await connection.ExecuteAsync(@"insert into users (username, email, pass, verification_token)
-																	values (@username, @email, @hashedPassword, @verificationToken)",
+					int querySuccess = await Database.ExecuteAsync(connection,@"insert into users (username, email, pass, verification_token)
+																	values (@username, @email, @hashedPassword, @verificationToken)", 
+                                                                    context,
 																new { username, email, hashedPassword, verificationToken });
 
 					if (querySuccess == 0)
@@ -425,8 +426,8 @@ namespace VivistaServer
 
 				//NOTE(Simon): Create session token to immediately log user in.
 				{
-					int userid = await UserIdFromEmail(email, connection);
-					string token = await UserSessions.CreateNewSession(userid, connection);
+					int userid = await UserIdFromEmail(email, connection, context);
+					string token = await UserSessions.CreateNewSession(userid, connection, context);
 
 					return (true, token);
 				}
@@ -444,12 +445,12 @@ namespace VivistaServer
 			var form = context.Request.Form;
 			string email = form["email"].ToString().NormalizeEmail();
 			string password = form["password"];
-			bool success = await AuthenticateUser(email, password, connection);
+			bool success = await AuthenticateUser(email, password, connection, context);
 
 			if (success)
 			{
-				var userid = await UserIdFromEmail(email, connection);
-				var token = await UserSessions.CreateNewSession(userid, connection);
+				var userid = await UserIdFromEmail(email, connection, context);
+				var token = await UserSessions.CreateNewSession(userid, connection, context);
 
 				return (true, token);
 			}
@@ -474,23 +475,23 @@ namespace VivistaServer
 			return (true, "");
 		}
 
-		public static async Task<User> UserFromId(int userid, NpgsqlConnection connection)
+		public static async Task<User> UserFromId(int userid, NpgsqlConnection connection, HttpContext context)
 		{
-			return await connection.QuerySingleAsync<User>("select userid, username from users where userid=@userid", new { userid });
+			return await Database.QuerySingleAsync<User>(connection, "select userid, username from users where userid=@userid", context, new { userid });
 		}
 
-		public static async Task<User> UserFromUsername(string username, NpgsqlConnection connection)
+		public static async Task<User> UserFromUsername(string username, NpgsqlConnection connection, HttpContext context)
 		{
-			return await connection.QuerySingleAsync<User>("select userid, username from users where username=@username", new { username });
+			return await Database.QuerySingleAsync<User>(connection, "select userid, username from users where username=@username", context,new { username });
 		}
 
 
-		private static async Task<int> UserIdFromEmail(string email, NpgsqlConnection connection)
+		private static async Task<int> UserIdFromEmail(string email, NpgsqlConnection connection, HttpContext context)
 		{
 			int? id;
 			try
 			{
-				id = await connection.QueryFirstOrDefaultAsync<int?>("select userid from users where email = @email", new { email });
+				id = await Database.QueryFirstOrDefaultAsync<int?>(connection,"select userid from users where email = @email", context, new { email });
 			}
 			catch
 			{
@@ -499,12 +500,12 @@ namespace VivistaServer
 			return id ?? -1;
 		}
 
-		public static async Task<int> UserIdFromUsername(string username, NpgsqlConnection connection)
+		public static async Task<int> UserIdFromUsername(string username, NpgsqlConnection connection, HttpContext context)
 		{
 			int? id;
 			try
 			{
-				id = await connection.QueryFirstOrDefaultAsync<int?>("select userid from users where username = @username", new { username });
+				id = await Database.QueryFirstOrDefaultAsync<int?>(connection, "select userid from users where username = @username", context, new { username });
 			}
 			catch
 			{
@@ -513,11 +514,11 @@ namespace VivistaServer
 			return id ?? -1;
 		}
 
-		private static async Task<bool> UserExists(string email, NpgsqlConnection connection)
+		private static async Task<bool> UserExists(string email, NpgsqlConnection connection, HttpContext context)
 		{
 			try
 			{
-				int count = await connection.QuerySingleAsync<int>("select count(*) from users where email=@email", new { email });
+				int count = await Database.QuerySingleAsync<int>(connection, "select count(*) from users where email=@email", context, new { email });
 				return count > 0;
 			}
 			catch
@@ -526,14 +527,14 @@ namespace VivistaServer
 			}
 		}
 
-		private static async Task<bool> UpdatePassword(string email, string password, NpgsqlConnection connection)
+		private static async Task<bool> UpdatePassword(string email, string password, NpgsqlConnection connection, HttpContext context)
 		{
 			string hashedPassword = BCrypt.Net.BCrypt.HashPassword(password, bcryptWorkFactor);
 			int rows;
 
 			try
 			{
-				rows = await connection.ExecuteAsync("update users set pass = @hashedPassword where email = @email", new { email, hashedPassword });
+				rows = await Database.ExecuteAsync(connection, "update users set pass = @hashedPassword where email = @email", context,new { email, hashedPassword });
 			}
 			catch
 			{
@@ -543,12 +544,12 @@ namespace VivistaServer
 			return rows > 0;
 		}
 
-		private static async Task<bool> VerifyEmail(int userid, string token, NpgsqlConnection connection)
+		private static async Task<bool> VerifyEmail(int userid, string token, NpgsqlConnection connection, HttpContext context)
 		{
 			bool valid;
 			try
 			{
-				int count = await connection.QuerySingleAsync<int>("select count(*) from users where userid=@userid and verification_token=@token", new { userid, token });
+				int count = await Database.QuerySingleAsync<int>(connection, "select count(*) from users where userid=@userid and verification_token=@token", context, new { userid, token });
 
 				valid = count > 0;
 			}
@@ -560,32 +561,32 @@ namespace VivistaServer
 			return valid;
 		}
 
-		private static async Task<string> CreatePasswordResetToken(string email, NpgsqlConnection connection)
+		private static async Task<string> CreatePasswordResetToken(string email, NpgsqlConnection connection, HttpContext context)
 		{
 			string token = Tokens.NewPasswordResetToken();
 			var expiry = DateTime.UtcNow.AddMinutes(passwordResetExpiryMins);
 
-			int userid = await UserIdFromEmail(email, connection);
+			int userid = await UserIdFromEmail(email, connection, context);
 
 			if (userid != -1)
 			{
-				await connection.ExecuteAsync(@"insert into password_reset_tokens (token, expiry, userid) 
+				await Database.ExecuteAsync(connection,@"insert into password_reset_tokens (token, expiry, userid) 
 											values (@token, @expiry, @userId)
 											on conflict(userid)
-											do update set token=@token, expiry=@expiry", new { token, expiry, userid });
+											do update set token=@token, expiry=@expiry", context,new { token, expiry, userid });
 				return token;
 			}
 
 			return null;
 		}
 
-		private static async Task<bool> AuthenticatePasswordResetToken(int userid, string token, NpgsqlConnection connection)
+		private static async Task<bool> AuthenticatePasswordResetToken(int userid, string token, NpgsqlConnection connection, HttpContext context)
 		{
 			DateTime validUntil;
 
 			try
 			{
-				validUntil = await connection.QuerySingleOrDefaultAsync<DateTime>("select expiry from password_reset_tokens where userid=@userid and token=@token", new { userid, token });
+				validUntil = await Database.QuerySingleOrDefaultAsync<DateTime>(connection, "select expiry from password_reset_tokens where userid=@userid and token=@token", context, new { userid, token });
 			}
 			catch
 			{
@@ -595,12 +596,12 @@ namespace VivistaServer
 			return validUntil > DateTime.UtcNow;
 		}
 
-		private static async Task<bool> DeletePasswordResetToken(int userid, string token, NpgsqlConnection connection)
+		private static async Task<bool> DeletePasswordResetToken(int userid, string token, NpgsqlConnection connection, HttpContext context)
 		{
 			int result;
 			try
 			{
-				result = await connection.ExecuteAsync("delete from password_reset_tokens where userid=@userid and token=@token", new { userid, token });
+				result = await Database.ExecuteAsync(connection, "delete from password_reset_tokens where userid=@userid and token=@token", context, new { userid, token });
 			}
 			catch
 			{
@@ -610,12 +611,12 @@ namespace VivistaServer
 			return result > 0;
 		}
 
-		private static async Task<bool> AuthenticateUser(string email, string password, NpgsqlConnection connection)
+		private static async Task<bool> AuthenticateUser(string email, string password, NpgsqlConnection connection, HttpContext context)
 		{
 			string storedPassword;
 			try
 			{
-				storedPassword = await connection.QuerySingleAsync<string>("select pass from users where email = @email", new { email });
+				storedPassword = await Database.QuerySingleAsync<string>(connection,"select pass from users where email = @email", context, new { email });
 			}
 			catch
 			{

@@ -108,8 +108,8 @@ namespace VivistaServer
 
 			app.Run(async (context) =>
             {
-                context.Items[DashboardController.RENDER_TIME] = 0;
-                context.Items[DashboardController.DB_EXEC_TIME] = 0;
+                context.Items[DashboardController.RENDER_TIME] = 0d;
+                context.Items[DashboardController.DB_EXEC_TIME] = 0d;
 
                 var requestTime = Stopwatch.StartNew();
 
@@ -210,7 +210,7 @@ namespace VivistaServer
                     lastHours = DateTime.UtcNow;
 				}
 
-                if (DateTime.UtcNow.Day > lastDay.Day)
+                if (DateTime.UtcNow.Day > lastDay.Day - 1)
                 {
                     Task.Run(() => DashboardController.AddDayData(lastDay));
 					lastDay = DateTime.UtcNow;

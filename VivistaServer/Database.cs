@@ -54,7 +54,32 @@ namespace VivistaServer
 			return result;
         }
 
+        public static Task<T> QuerySingleAsync<T>(NpgsqlConnection conn, string sql, HttpContext context, object param = null)
+        {
+            var watch = Stopwatch.StartNew();
+            var result = conn.QuerySingleAsync<T>(sql, param);
+            watch.Stop();
+            DashboardController.AddDbExecTimeToRequest(context, watch.Elapsed.TotalMilliseconds);
+            return result;
+        }
 
+        public static Task<T> QueryFirstOrDefaultAsync<T>(NpgsqlConnection conn, string sql, HttpContext context, object param = null)
+        {
+            var watch = Stopwatch.StartNew();
+            var result = conn.QueryFirstOrDefaultAsync<T>(sql, param);
+            watch.Stop();
+            DashboardController.AddDbExecTimeToRequest(context, watch.Elapsed.TotalMilliseconds);
+            return result;
+        }
+
+        public static Task<T> QuerySingleOrDefaultAsync<T>(NpgsqlConnection conn, string sql, HttpContext context, object param = null)
+        {
+            var watch = Stopwatch.StartNew();
+            var result = conn.QuerySingleOrDefaultAsync<T>(sql, param);
+            watch.Stop();
+            DashboardController.AddDbExecTimeToRequest(context, watch.Elapsed.TotalMilliseconds);
+            return result;
+        }
 
         //NOTE(Simon): Use GetPgsqlConfig() instead of this directly, it handles caching of this variable.
         private static string connectionString;
