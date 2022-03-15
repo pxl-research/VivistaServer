@@ -55,18 +55,24 @@ namespace VivistaServer
 
 		public void RegisterGlobalExceptionLogger()
 		{
-#if DEBUG
+
 			AppDomain.CurrentDomain.FirstChanceException += ExceptionLogger;
 
 			void ExceptionLogger(object source, FirstChanceExceptionEventArgs e)
 			{
-				Console.WriteLine(e.Exception.Message);
+#if DEBUG
+                Console.WriteLine(e.Exception.Message);
 				Console.WriteLine(e.Exception.StackTrace);
-			}
+#else
+                //Log in db
 #endif
-		}
+				DashboardController.AddUnCaughtException();
 
-		public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
+            }
+
+        }
+
+			public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
 		{
 			if (env.IsDevelopment())
 			{
@@ -164,7 +170,7 @@ namespace VivistaServer
 		private void PrintDebugData(HttpContext context)
 		{
 #if DEBUG
-			var watch = Stopwatch.StartNew();
+            var watch = Stopwatch.StartNew();
 			CommonController.LogDebug("Request data:");
 			CommonController.LogDebug($"\tPath: {context.Request.Path}");
 			CommonController.LogDebug($"\tMethod: {context.Request.Method}");
@@ -204,7 +210,7 @@ namespace VivistaServer
 
 				Task.Run(DashboardController.AddMinuteData);
 				
-                if (DateTime.UtcNow.Hour > lastHours.Hour)
+                if (DateTime.UtcNow.Hour > lastHours.Hour )
                 {
                     Task.Run(() => DashboardController.AddHourData(lastHours));
                     lastHours = DateTime.UtcNow;

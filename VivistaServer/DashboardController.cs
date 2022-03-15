@@ -44,6 +44,7 @@ namespace VivistaServer
         public long workingSet;
         public long virtualMemory;
         public int uploads;
+        public int uncaughtExceptions;
     }
 
     public class EndpointPercentile
@@ -69,6 +70,7 @@ namespace VivistaServer
         private static List<Request> cachedRequests = new List<Request>();
         private static int views = 0;
         private static int uploads = 0;
+        private static int uncaughtExceptions = 0;
 
         [Route("GET", "/admin/dashboard")]
         private static async Task DashboardGet(HttpContext context)
@@ -93,13 +95,22 @@ namespace VivistaServer
                 return Database.QueryAsync<int>(connection, "SELECT SUM(downloads) FROM videos;", context);
             });
 
-            Task.WaitAll(userTask, videoTask, downloadTask);
+            var minuteData = Task.Run(() =>
+            {
+                var connection = Database.OpenNewConnection();
+                return Database.QueryAsync<RequestData>(connection, "SELECT * FROM statistics_minutes;", context);
+            });
+
+            Task.WaitAll(userTask, videoTask, downloadTask, minuteData);
 
             var templateContext = new TemplateContext(new
             {
                 users = userTask.Result,
                 videos = videoTask.Result,
-                downloads = downloadTask.Result
+                downloads = downloadTask.Result,
+                averagesMinutes = minuteData.Result.Select(s => new {x = s.timestamp, y = s.average, endpoint = s.endpoint}).ToList(),
+                endpoints = minuteData.Result.Select(s => s.endpoint).Distinct().ToList(),
+                timeUnit = "minute"
             });
 
             await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\dashboard.liquid", templateContext));
@@ -118,6 +129,11 @@ namespace VivistaServer
         public static void AddUpload()
         {
             uploads++;
+        }
+
+        public static void AddUnCaughtException()
+        {
+            uncaughtExceptions++;
         }
 
         public static void AddRequestToCache(Request request)
@@ -223,8 +239,8 @@ namespace VivistaServer
                 var virtualMemory = Process.GetCurrentProcess().VirtualMemorySize64;
                 //GeneralData
                 connection.Execute(
-                    @"INSERT INTO statistics_general_minutes(timestamp, downloads, views, private_memory, working_set, virtual_memory, uploads)
-                            VALUES(@timestamp, @downloads, @views, @privateMemory, @workingSet, @virtualMemory, @uploads);",
+                    @"INSERT INTO statistics_general_minutes(timestamp, downloads, views, private_memory, working_set, virtual_memory, uploads, uncaught_exceptions)
+                            VALUES(@timestamp, @downloads, @views, @privateMemory, @workingSet, @virtualMemory, @uploads, @uncaughtExceptions);",
                     new
                     {
                         timestamp,
@@ -233,10 +249,13 @@ namespace VivistaServer
                         privateMemory,
                         workingSet,
                         virtualMemory,
-                        uploads
+                        uploads,
+                        uncaughtExceptions
                     });
                 downloads = 0;
                 views = 0;
+                uploads = 0;
+                uncaughtExceptions = 0;
 
             }
         }
@@ -257,7 +276,7 @@ namespace VivistaServer
                 new { startTime, endTime });
 
             var minutesGeneralData = (List<GeneralData>)connection.Query<GeneralData>(
-                @"SELECT timestamp, downloads, views, private_memory as privateMemory, working_set as workingSet, virtual_memory as virtualMemory, uploads
+                @"SELECT timestamp, downloads, views, private_memory as privateMemory, working_set as workingSet, virtual_memory as virtualMemory, uploads, uncaught_exceptions as uncaughtExceptions
                     FROM statistics_general_minutes  
                     WHERE timestamp >= @startTime AND timestamp < @endTime;",
                 new { startTime, endTime });
@@ -302,8 +321,8 @@ namespace VivistaServer
                 var generalData = GetNewGeneralData(minutesGeneralData);
 
                 connection.Execute(
-                    @"INSERT INTO statistics_general_hours(timestamp, downloads, views, private_memory, working_set, virtual_memory, uploads)
-                        VALUES(@timestamp, @downloads, @views, @privateMemory, @workingSet, @virtualMemory, @uploads)",
+                    @"INSERT INTO statistics_general_hours(timestamp, downloads, views, private_memory, working_set, virtual_memory, uploads, uncaught_exceptions)
+                        VALUES(@timestamp, @downloads, @views, @privateMemory, @workingSet, @virtualMemory, @uploads, @uncaughtExceptions)",
                     new {
                         timestamp, 
                         downloads = generalData.downloads, 
@@ -311,7 +330,8 @@ namespace VivistaServer
                         privateMemory = generalData.privateMemory, 
                         workingSet = generalData.workingSet, 
                         virtualMemory = generalData.virtualMemory,
-                        uploads = generalData.uploads
+                        uploads = generalData.uploads,
+                        uncaughtExceptions = generalData.uncaughtExceptions
 
                     });
             }
@@ -333,7 +353,7 @@ namespace VivistaServer
                 new { startTime, endTime });
 
             var hoursGeneralData = (List<GeneralData>) connection.Query<GeneralData>(
-                @"SELECT timestamp, downloads, views, private_memory as privateMemory, working_set as workingSet, virtual_memory as virtualMemory, uploads
+                @"SELECT timestamp, downloads, views, private_memory as privateMemory, working_set as workingSet, virtual_memory as virtualMemory, uploads, uncaught_exceptions as uncaughtExceptions
                     FROM statistics_general_hours 
                     WHERE timestamp >= @startTime AND timestamp < @endTime;",
                 new {startTime, endTime});
@@ -378,8 +398,8 @@ namespace VivistaServer
                 var generalData = GetNewGeneralData(hoursGeneralData);
 
                 connection.Execute(
-                    @"INSERT INTO statistics_general_days(timestamp, downloads, views, private_memory, working_set, virtual_memory, uploads)
-                        VALUES(@timestamp, @downloads, @views, @privateMemory, @workingSet, @virtualMemory, @uploads)",
+                    @"INSERT INTO statistics_general_days(timestamp, downloads, views, private_memory, working_set, virtual_memory, uploads, uncaught_exceptions)
+                        VALUES(@timestamp, @downloads, @views, @privateMemory, @workingSet, @virtualMemory, @uploads, @uncaughtExceptions)",
                     new
                     {
                         timestamp, 
@@ -388,7 +408,8 @@ namespace VivistaServer
                         privateMemory = generalData.privateMemory,
                         workingSet = generalData.workingSet,
                         virtualMemory = generalData.virtualMemory, 
-                        uploads = generalData.uploads
+                        uploads = generalData.uploads,
+                        uncaughtExceptions = generalData.uncaughtExceptions
                     });
             }
 
@@ -407,6 +428,7 @@ namespace VivistaServer
             long workingSet = 0;
             long virtualMemory = 0;
             var countUploads = 0;
+            var countUncaughtExceptions = 0;
 
             foreach (var g in generalData)
             {
@@ -416,6 +438,7 @@ namespace VivistaServer
                 workingSet += g.workingSet;
                 virtualMemory += g.virtualMemory;
                 countUploads += g.uploads;
+                countUncaughtExceptions += g.uncaughtExceptions;
             }
 
             var result = new GeneralData
@@ -425,7 +448,8 @@ namespace VivistaServer
                 privateMemory = privateMemory / generalData.Count,
                 workingSet = workingSet / generalData.Count,
                 virtualMemory = virtualMemory / generalData.Count,
-                uploads = countUploads
+                uploads = countUploads,
+                uncaughtExceptions = countUncaughtExceptions
             };
             return result;
         }
