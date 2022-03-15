@@ -79,25 +79,25 @@ namespace VivistaServer
             //TODO: Multiply database connections  
             var userTask = Task.Run(() =>
             {
-                var connection = Database.OpenNewConnection();
+                using var connection = Database.OpenNewConnection();
                 return Database.QueryAsync<int>(connection, "SELECT COUNT(*) FROM users;", context);
             });
 
             var videoTask = Task.Run( () =>
             {
-                var connection = Database.OpenNewConnection();
+                using var connection = Database.OpenNewConnection();
                 return Database.QueryAsync<int>(connection, "SELECT COUNT(*) FROM videos;", context);
             });
 
             var downloadTask = Task.Run(() =>
             {
-                var connection = Database.OpenNewConnection();
+                using var connection = Database.OpenNewConnection();
                 return Database.QueryAsync<int>(connection, "SELECT SUM(downloads) FROM videos;", context);
             });
 
             var minuteData = Task.Run(() =>
             {
-                var connection = Database.OpenNewConnection();
+                using var connection = Database.OpenNewConnection();
                 return Database.QueryAsync<RequestData>(connection, "SELECT * FROM statistics_minutes;", context);
             });
 
@@ -262,7 +262,7 @@ namespace VivistaServer
 
         public static void AddHourData(DateTime startTime)
         {
-            var connection = Database.OpenNewConnection();
+            using var connection = Database.OpenNewConnection();
 
             //round down to xx:00:00
             startTime = startTime.RoundUp(TimeSpan.FromMinutes(60)).AddHours(-1);
@@ -339,7 +339,7 @@ namespace VivistaServer
 
         public static void AddDayData(DateTime startTime)
         {
-            var connection = Database.OpenNewConnection();
+            using var connection = Database.OpenNewConnection();
 
             //round down to 00:00:00
             startTime = startTime.RoundUp(TimeSpan.FromHours(24)).AddDays(-1);
