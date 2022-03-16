@@ -146,6 +146,7 @@ namespace VivistaServer
 				}
 
 				watch.Stop();
+                DashboardController.AddRenderTime(httpContext, watch.Elapsed.TotalMilliseconds);
 				CommonController.LogDebug($"rendering: {watch.Elapsed.TotalMilliseconds} ms");
 
 				return result;

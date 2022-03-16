@@ -1,0 +1,101 @@
+﻿<div class="pure-g">
+    <div class="pure-u-1">
+        <div class="pure-button-group">
+            <button id="minute" class="pure-button pure-button-active" onclick="ChangeTimeUnit('minute')">Minute</button>
+            <button id="hour" class="pure-button" onclick="ChangeTimeUnit('hour')">Hour</button>
+            <button id="day" class="pure-button" onclick="ChangeTimeUnit('day')">Day</button>
+        </div>
+
+        <input type="date" id="date" name="date"/>
+        <input type="time" id="time" name="time"/>
+
+        <div class="pure-button">
+            <select onchange="GetSelectedTextValue(this)">
+                {% for endpoint in endpoints %}
+                <option value="{{forloop.index}}">{{endpoint}}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+
+
+        <br>
+        <h1>Dashboard</h1>
+        <h2>Users</h2>
+        <strong>{{users}}</strong>
+        <h2>Videos</h2>
+        <strong>{{videos}}</strong>
+        <h2>Downloads</h2>
+        <strong>{{downloads}}</strong>
+        <div class="chartBox">
+            <canvas id="myChart" width="5" height="5"></canvas>
+        </div>
+    </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+
+<style type="text/css">
+    .chartBox {
+        width: 400px;
+    }
+</style>
+<script>
+    //let dateTime = document.getElementById("myText").value
+    let averages = {{ averagesMinutes | json}};
+
+
+    let endpoints = {{ endpoints | json }};
+    let selectedEndpoint = endpoints[0];
+    let timeUnit = "{{timeUnit}}";
+
+    function ChangeTimeUnit(time) {
+        document.getElementById(timeUnit).classList.remove("pure-button-active");
+        document.getElementById(time).classList.add("pure-button-active");
+        timeUnit = time;
+        myChart.options.scales.x.time.unit = time;
+        myChart.update();
+    }
+
+    function GetSelectedTextValue(endpoint) {
+        selectedEndpoint = endpoints[endpoint.value - 1];
+        myChart.data.datasets[0].data = averages.filter(a => a.endpoint === selectedEndpoint);
+        myChart.data.datasets[0].label = selectedEndpoint;
+        myChart.update();
+    }
+
+
+    const data = {
+        //labels: labels,
+        datasets: [{
+            label: selectedEndpoint,
+            backgroundColor: 'rgb(255, 99, 132)',
+            borderColor: 'rgb(255, 99, 132)',
+            data: averages.filter(a => a.endpoint === selectedEndpoint),
+        }]
+    };
+
+    const config = {
+        type: 'bar',
+        data: data,
+        options: {
+            scales: {
+                x: {
+                    type: 'time',
+                    time: {
+                        unit: timeUnit
+                    }
+                },
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    };
+
+    const myChart = new Chart(
+        document.getElementById('myChart'),
+        config
+    );
+
+</script>
