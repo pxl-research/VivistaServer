@@ -18,66 +18,48 @@ namespace VivistaServer
             return conn;
         }
 
-        public static Task<IEnumerable<T>> QueryAsync<T>(NpgsqlConnection conn, string sql, HttpContext context, object param = null)
+        public static async Task<IEnumerable<T>> QueryAsync<T>(NpgsqlConnection conn, string sql, HttpContext context, object param = null)
         {
             var watch = Stopwatch.StartNew();
-			var result =  conn.QueryAsync<T>(sql, param);
+			var result =  await conn.QueryAsync<T>(sql, param);
 			watch.Stop();
-            DashboardController.AddDbExecTimeToRequest(context, watch.Elapsed.TotalMilliseconds);
+            DashboardController.AddDbExecTimeToRequest(context, watch.Elapsed.TotalSeconds);
             return result;
         }
 
-        public static Task<int> ExecuteAsync(NpgsqlConnection conn, string sql, HttpContext context, object param = null)
+        public static async Task<int> ExecuteAsync(NpgsqlConnection conn, string sql, HttpContext context, object param = null)
         {
             var watch = Stopwatch.StartNew();
-            var result = conn.ExecuteAsync(sql, param);
+            var result = await conn.ExecuteAsync(sql, param);
             watch.Stop();
-            DashboardController.AddDbExecTimeToRequest(context, watch.Elapsed.TotalMilliseconds);
+            DashboardController.AddDbExecTimeToRequest(context, watch.Elapsed.TotalSeconds);
             return result;
         }
 
-        public static IEnumerable<dynamic> Query(NpgsqlConnection conn, string sql, HttpContext context, object param = null)
+        public static async Task<T> QuerySingleAsync<T>(NpgsqlConnection conn, string sql, HttpContext context, object param = null)
         {
             var watch = Stopwatch.StartNew();
-            var result = conn.Query(sql, param);
+            var result = await conn.QuerySingleAsync<T>(sql, param);
             watch.Stop();
-            DashboardController.AddDbExecTimeToRequest(context, watch.Elapsed.TotalMilliseconds);
+            DashboardController.AddDbExecTimeToRequest(context, watch.Elapsed.TotalSeconds);
             return result;
         }
 
-        public static int Execute(NpgsqlConnection conn, string sql, HttpContext context, object param = null)
+        public static async Task<T> QueryFirstOrDefaultAsync<T>(NpgsqlConnection conn, string sql, HttpContext context, object param = null)
         {
             var watch = Stopwatch.StartNew();
-            var result = conn.Execute(sql, param);
+            var result = await conn.QueryFirstOrDefaultAsync<T>(sql, param);
             watch.Stop();
-            DashboardController.AddDbExecTimeToRequest(context, watch.Elapsed.TotalMilliseconds);
-			return result;
-        }
-
-        public static Task<T> QuerySingleAsync<T>(NpgsqlConnection conn, string sql, HttpContext context, object param = null)
-        {
-            var watch = Stopwatch.StartNew();
-            var result = conn.QuerySingleAsync<T>(sql, param);
-            watch.Stop();
-            DashboardController.AddDbExecTimeToRequest(context, watch.Elapsed.TotalMilliseconds);
+            DashboardController.AddDbExecTimeToRequest(context, watch.Elapsed.TotalSeconds);
             return result;
         }
 
-        public static Task<T> QueryFirstOrDefaultAsync<T>(NpgsqlConnection conn, string sql, HttpContext context, object param = null)
+        public static async Task<T> QuerySingleOrDefaultAsync<T>(NpgsqlConnection conn, string sql, HttpContext context, object param = null)
         {
             var watch = Stopwatch.StartNew();
-            var result = conn.QueryFirstOrDefaultAsync<T>(sql, param);
+            var result = await conn.QuerySingleOrDefaultAsync<T>(sql, param);
             watch.Stop();
-            DashboardController.AddDbExecTimeToRequest(context, watch.Elapsed.TotalMilliseconds);
-            return result;
-        }
-
-        public static Task<T> QuerySingleOrDefaultAsync<T>(NpgsqlConnection conn, string sql, HttpContext context, object param = null)
-        {
-            var watch = Stopwatch.StartNew();
-            var result = conn.QuerySingleOrDefaultAsync<T>(sql, param);
-            watch.Stop();
-            DashboardController.AddDbExecTimeToRequest(context, watch.Elapsed.TotalMilliseconds);
+            DashboardController.AddDbExecTimeToRequest(context, watch.Elapsed.TotalSeconds);
             return result;
         }
 

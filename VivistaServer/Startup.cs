@@ -22,9 +22,9 @@ namespace VivistaServer
 	{
 		private static Router router;
 
-        public void ConfigureServices(IServiceCollection services)
+		public void ConfigureServices(IServiceCollection services)
 		{
-			services.Configure<FormOptions>(config => { config.MultipartBodyLengthLimit = long.MaxValue;});
+			services.Configure<FormOptions>(config => { config.MultipartBodyLengthLimit = long.MaxValue; });
 
 			router = new Router();
 
@@ -55,24 +55,18 @@ namespace VivistaServer
 
 		public void RegisterGlobalExceptionLogger()
 		{
-
 			AppDomain.CurrentDomain.FirstChanceException += ExceptionLogger;
-
 			void ExceptionLogger(object source, FirstChanceExceptionEventArgs e)
 			{
 #if DEBUG
-                Console.WriteLine(e.Exception.Message);
+				Console.WriteLine(e.Exception.Message);
 				Console.WriteLine(e.Exception.StackTrace);
-#else
-                //Log in db
 #endif
 				DashboardController.AddUnCaughtException();
+			}
+		}
 
-            }
-
-        }
-
-			public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
+		public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
 		{
 			if (env.IsDevelopment())
 			{
@@ -110,14 +104,15 @@ namespace VivistaServer
 				};
 			});
 
-            Task.Run(CollectData);
+			Task.Run(CollectPeriodicStatistics);
 
 			app.Run(async (context) =>
-            {
-                context.Items[DashboardController.RENDER_TIME] = 0d;
-                context.Items[DashboardController.DB_EXEC_TIME] = 0d;
+			{
+				//NOTE(Tom): Is for initialization
+				context.Items[DashboardController.RENDER_TIME] = 0f;
+				context.Items[DashboardController.DB_EXEC_TIME] = 0f;
 
-                var requestTime = Stopwatch.StartNew();
+				var requestTime = Stopwatch.StartNew();
 
 				var watch = Stopwatch.StartNew();
 				var authenticateTask = UserSessions.GetLoggedInUser(context);
@@ -136,12 +131,12 @@ namespace VivistaServer
 
 				//NOTE(Tom): Do no not allow to show password in database
 				if (context.Request.HasFormContentType && !context.Request.Form.ContainsKey("password"))
-                {
-                    form = context.Request.Form;
-                }
+				{
+					form = context.Request.Form;
+				}
 
-                var requestInfo = new RequestInfo
-                {
+				var requestInfo = new RequestInfo
+				{
 					path = context.Request.Path,
 					method = context.Request.Method,
 					query = context.Request.Query,
@@ -149,28 +144,23 @@ namespace VivistaServer
 
 				};
 
-                var request = new Request
-                {
-                    ms = requestTime.Elapsed.TotalMilliseconds,
-					requestInfo =  requestInfo,
+				var request = new Request
+				{
+					seconds = (float)requestTime.Elapsed.TotalSeconds,
+					requestInfo = requestInfo,
 					endpoint = $"/{context.Request.Method}:  {context.Request.Path.Value}",
-					renderTime = (double)context.Items[DashboardController.RENDER_TIME], 
-                    dbExecTime = (double)context.Items[DashboardController.DB_EXEC_TIME]
+					renderTime = (float)context.Items[DashboardController.RENDER_TIME],
+					dbExecTime = (float)context.Items[DashboardController.DB_EXEC_TIME]
 
 				};
-                DashboardController.AddRequestToCache(request);
-
-                if (context.Items["databaseTime"] != null)
-                {
-                    Console.WriteLine("----------------" + context.Items["databaseTime"]);
-                }
-            });
+				DashboardController.AddRequestToCache(request);
+			});
 		}
 
 		private void PrintDebugData(HttpContext context)
 		{
 #if DEBUG
-            var watch = Stopwatch.StartNew();
+			var watch = Stopwatch.StartNew();
 			CommonController.LogDebug("Request data:");
 			CommonController.LogDebug($"\tPath: {context.Request.Path}");
 			CommonController.LogDebug($"\tMethod: {context.Request.Method}");
@@ -193,35 +183,35 @@ namespace VivistaServer
 #endif
 		}
 
-        private static async Task CollectData()
-        {
+		private static async Task CollectPeriodicStatistics()
+		{
 #pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
 			var lastHours = DateTime.UtcNow;
-            var lastDay = DateTime.UtcNow;
-            while (true)
-            {
+			var lastDay = DateTime.UtcNow;
+			while (true)
+			{
 #if DEBUG
 				var nextTime = DateTime.UtcNow.RoundUp(TimeSpan.FromSeconds(10));
 #else
 				var nextTime = DateTime.UtcNow.RoundUp(TimeSpan.FromMinutes(1));
 #endif
-				var delay =  nextTime - DateTime.UtcNow;
-                await Task.Delay(delay);
+				var delay = nextTime - DateTime.UtcNow;
+				await Task.Delay(delay);
 
 				Task.Run(DashboardController.AddMinuteData);
-				
-                if (DateTime.UtcNow.Hour > lastHours.Hour )
-                {
-                    Task.Run(() => DashboardController.AddHourData(lastHours));
-                    lastHours = DateTime.UtcNow;
+
+				if (DateTime.UtcNow.Hour > lastHours.Hour)
+				{
+					Task.Run(() => DashboardController.AddHourData(lastHours));
+					lastHours = DateTime.UtcNow;
 				}
 
-                if (DateTime.UtcNow.Day > lastDay.Day - 1)
-                {
-                    Task.Run(() => DashboardController.AddDayData(lastDay));
+				if (DateTime.UtcNow.Day > lastDay.Day)
+				{
+					Task.Run(() => DashboardController.AddDayData(lastDay));
 					lastDay = DateTime.UtcNow;
 				}
-            }
+			}
 #pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
 
 		}

@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using static VivistaServer.CommonController;
 using JsonSerializer = System.Text.Json.JsonSerializer;
@@ -15,31 +16,31 @@ namespace VivistaServer
     public class Request
     {
         public DateTime timestamp;
-        public double ms;
+        public float seconds;
         public RequestInfo requestInfo;
         public string endpoint;
-        public double renderTime;
-        public double dbExecTime;
+        public float renderTime;
+        public float dbExecTime;
     }
 
     public class RequestData
     {
         public string endpoint;
-        public double median;
-        public double average;
+        public float median;
+        public float average;
         public DateTime timestamp;
-        public double percentile95;
-        public double percentile99;
-        public int countrequests;
-        public double renderTime;
-        public double dbExecTime;
+        public float percentile95;
+        public float percentile99;
+        public long countrequests;
+        public float renderTime;
+        public float dbExecTime;
     }
 
     public class GeneralData
     {
         public DateTime timestamp;
         public int downloads;
-        public int views;
+        public long views;
         public long privateMemory;
         public long workingSet;
         public long virtualMemory;
@@ -49,16 +50,16 @@ namespace VivistaServer
 
     public class EndpointPercentile
     {
-        public double percentile95;
+        public float percentile95;
         public string endpoint;
     }
 
+    //NOTE(Tom): Needs to be in a separate class for serialization to bson
     public class RequestInfo
     {
         public PathString path { get; set; }
         public string method { get; set; }
         public IQueryCollection query { get; set; }
-
         public IFormCollection form { get; set; }
     }
 
@@ -66,39 +67,41 @@ namespace VivistaServer
     {
         public const string DB_EXEC_TIME = "dbExecTime";
         public const string RENDER_TIME = "renderTime";
+
         public static int downloads = 0;
-        private static List<Request> cachedRequests = new List<Request>();
         private static int views = 0;
         private static int uploads = 0;
         private static int uncaughtExceptions = 0;
+        private static List<Request> cachedRequests = new List<Request>();
+        private static readonly Object cachedRequestLock = new Object();
 
         [Route("GET", "/admin/dashboard")]
         private static async Task DashboardGet(HttpContext context)
         {
             SetHTMLContentType(context);
             //TODO: Multiply database connections  
-            var userTask = Task.Run(() =>
+            var userTask = Task.Run(async () =>
             {
-                using var connection = Database.OpenNewConnection();
-                return Database.QueryAsync<int>(connection, "SELECT COUNT(*) FROM users;", context);
+	            await using var connection = Database.OpenNewConnection();
+                return await Database.QueryAsync<int>(connection, "SELECT COUNT(*) FROM users;", context);
             });
 
-            var videoTask = Task.Run( () =>
+            var videoTask = Task.Run( async () =>
             {
-                using var connection = Database.OpenNewConnection();
-                return Database.QueryAsync<int>(connection, "SELECT COUNT(*) FROM videos;", context);
+	            await using var connection = Database.OpenNewConnection();
+                return await Database.QueryAsync<int>(connection, "SELECT COUNT(*) FROM videos;", context);
             });
 
-            var downloadTask = Task.Run(() =>
+            var downloadTask = Task.Run(async () =>
             {
-                using var connection = Database.OpenNewConnection();
-                return Database.QueryAsync<int>(connection, "SELECT SUM(downloads) FROM videos;", context);
+	            await using var connection = Database.OpenNewConnection();
+                return await Database.QueryAsync<int>(connection, "SELECT SUM(downloads) FROM videos;", context);
             });
 
-            var minuteData = Task.Run(() =>
+            var minuteData = Task.Run(async () =>
             {
-                using var connection = Database.OpenNewConnection();
-                return Database.QueryAsync<RequestData>(connection, "SELECT * FROM statistics_minutes;", context);
+	            await using var connection = Database.OpenNewConnection();
+                return await Database.QueryAsync<RequestData>(connection, "SELECT * FROM statistics_minutes;", context);
             });
 
             Task.WaitAll(userTask, videoTask, downloadTask, minuteData);
@@ -116,32 +119,37 @@ namespace VivistaServer
             await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\dashboard.liquid", templateContext));
         }
 
+
         public static void AddDownloads()
         {
-            downloads++;
+	        Interlocked.Increment(ref downloads);
         }
 
         public static void AddViews()
         {
-            views++;
+	        Interlocked.Increment(ref views);
         }
 
         public static void AddUpload()
         {
-            uploads++;
+	        Interlocked.Increment(ref uploads);
         }
 
         public static void AddUnCaughtException()
         {
-            uncaughtExceptions++;
+	        Interlocked.Increment(ref uncaughtExceptions);
         }
 
         public static void AddRequestToCache(Request request)
         {
-            request.timestamp = DateTime.UtcNow;
-
-            cachedRequests.Add(request);
+	        lock (cachedRequestLock)
+            {
+	            request.timestamp = DateTime.UtcNow;
+                cachedRequests.Add(request);
+            }
+            
         }
+
 
         public static void AddMinuteData()
         {
@@ -159,31 +167,33 @@ namespace VivistaServer
                 foreach (var specificEndpointList in groupedRequests)
                 {
                     //Percentile
-                    double[] ms = specificEndpointList.Select(c => c.ms).ToArray();
-                    var percentile95 = Percentile(ms, 0.95);
-                    var percentile99 = Percentile(ms, 0.99);
+                    float[] ms = specificEndpointList.Select(c => c.seconds).ToArray();
+                    //Note(Tom): Array needs to be sorted
+                    Array.Sort(ms);
+                    var percentile95 = Percentile(ms, 0.95f);
+                    var percentile99 = Percentile(ms, 0.99f);
 
                     //Median
-                    specificEndpointList.Sort((r1, r2) => r1.ms.CompareTo(r2.ms));
-                    double median = 0;
+                    specificEndpointList.Sort((r1, r2) => r1.seconds.CompareTo(r2.seconds));
+                    float median = 0;
                     if (specificEndpointList.Count % 2 == 1)
                     {
-                        median = specificEndpointList[specificEndpointList.Count / 2].ms;
+                        median = specificEndpointList[specificEndpointList.Count / 2].seconds;
                     }
                     else
                     {
-                        var firstValue = specificEndpointList[specificEndpointList.Count / 2 - 1].ms;
-                        var secondValue = specificEndpointList[specificEndpointList.Count / 2].ms;
+                        var firstValue = specificEndpointList[specificEndpointList.Count / 2 - 1].seconds;
+                        var secondValue = specificEndpointList[specificEndpointList.Count / 2].seconds;
                         median = (firstValue + secondValue) / 2;
                     }
 
                     //Average, average render time and average db exec time
-                    double average = 0;
-                    double averageRenderTime = 0;
-                    double averageDbExecTime = 0;
+                    float average = 0;
+                    float averageRenderTime = 0;
+                    float averageDbExecTime = 0;
                     foreach (var req in specificEndpointList)
                     {
-                        average += req.ms;
+                        average += req.seconds;
                         averageRenderTime += req.renderTime;
                         averageDbExecTime += req.dbExecTime;
                     }
@@ -217,19 +227,18 @@ namespace VivistaServer
 
                     foreach (var req in cachedRequests)
                     {
-                        double outlierThreshold = 0;
+	                    float outlierThreshold = 0;
                         outlierThreshold = percentilesPerEndpoint.ContainsKey(req.endpoint)
                             ? percentilesPerEndpoint[req.endpoint] * 2
-                            : Double.MaxValue;
+                            : float.MaxValue;
 
-                        if (req.ms > outlierThreshold)
+                        if (req.seconds > outlierThreshold)
                         {
                             var reqinfo = SerializeToBson(req.requestInfo);
-                            connection.Execute(@"insert into statistics_outliers(timestamp, ms, reqinfo) values(@timestamp, @ms, @reqinfo::jsonb);",
-                                new { timestamp = req.timestamp, ms = req.ms, reqinfo = reqinfo });
+                            connection.Execute(@"insert into statistics_outliers(timestamp, seconds, reqinfo) values(@timestamp, @seconds, @reqinfo::jsonb);",
+                                new { timestamp = req.timestamp, ms = req.seconds, reqinfo = reqinfo });
                         }
                     }
-
                     cachedRequests.Clear();
                 }
 
@@ -256,7 +265,6 @@ namespace VivistaServer
                 views = 0;
                 uploads = 0;
                 uncaughtExceptions = 0;
-
             }
         }
 
@@ -370,7 +378,6 @@ namespace VivistaServer
 
                     dayData.timestamp = timestamp;
 
-
                     connection.Execute(
                         @"INSERT INTO statistics_days(median, average, timestamp, countrequests, percentile95, percentile99, endpoint, render_time, db_exec_time) 
                             VALUES(@median, @average, @timestamp, @countrequests, @percentile95, @percentile99, @endpoint, @renderTime, @dbExecTime);",
@@ -387,7 +394,6 @@ namespace VivistaServer
                             dbExecTime = dayData.dbExecTime
                         });
                 }
-
             }
 
             if (hoursGeneralData.Count > 0)
@@ -413,17 +419,41 @@ namespace VivistaServer
                     });
             }
 
+            //Delete old data
+            var dateMinutes = DateTime.UtcNow.AddMonths(-1);
+            connection.ExecuteAsync(@"DELETE FROM statistics_general_minutes 
+											WHERE timestamp < @dateMinutes;", 
+										new { dateMinutes });
+            connection.ExecuteAsync(@"DELETE FROM statistics_minutes 
+											WHERE timestamp < @dateMinutes;",
+		            new { dateMinutes });
+
+            var dateHours = DateTime.UtcNow.AddMonths(-6);
+            connection.ExecuteAsync(@"DELETE FROM statistics_general_hours
+											WHERE timestamp < @dateHours;",
+		            new { dateHours });
+            connection.ExecuteAsync(@"DELETE FROM statistics_hours 
+											WHERE timestamp < @dateHours;",
+	            new { dateHours });
+
+
         }
+
 
         public static void AddDbExecTimeToRequest(HttpContext context, double time)
         {
-            context.Items[DB_EXEC_TIME] = (double)context.Items[DB_EXEC_TIME] + time;
+            context.Items[DB_EXEC_TIME] = (float)context.Items[DB_EXEC_TIME] + (float)time;
+        }
+
+        public static void AddRenderTime(HttpContext context, double time)
+        {
+	        context.Items[RENDER_TIME] = (float)context.Items[RENDER_TIME] + (float)time;
         }
 
         private static GeneralData GetNewGeneralData(List<GeneralData> generalData)
         {
             var countDownloads = 0;
-            var countViews = 0;
+            long countViews = 0;
             long privateMemory = 0;
             long workingSet = 0;
             long virtualMemory = 0;
@@ -457,14 +487,13 @@ namespace VivistaServer
         private static RequestData GetNewRequestData(List<RequestData> requestData)
         {
             //Percentile
-            double[] ms95 = requestData.Select(c => c.percentile95).ToArray();
-            double[] ms99 = requestData.Select(c => c.percentile95).ToArray();
-            var percentile95 = Percentile(ms95, 0.95);
-            var percentile99 = Percentile(ms99, 0.99);
-
+            float[] seconds95 = requestData.Select(c => c.percentile95).ToArray();
+            float[] seconds99 = requestData.Select(c => c.percentile99).ToArray();
+            var percentile95 = Percentile(seconds95, 0.95f);
+            var percentile99 = Percentile(seconds99, 0.99f);
 
             requestData.Sort((r1, r2) => r1.median.CompareTo(r2.median));
-            double median = 0;
+            float median = 0;
             if (requestData.Count % 2 == 1)
             {
                 median = requestData[requestData.Count / 2].median;
@@ -477,12 +506,12 @@ namespace VivistaServer
             }
 
             //countrequests
-            var countrequests = 0;
+            long countrequests = 0;
 
             //Average and average render time and average db exec time
-            double average = 0;
-            double averageRenderTime = 0;
-            double averageDbExecTime = 0;
+            float average = 0;
+            float averageRenderTime = 0;
+            float averageDbExecTime = 0;
             foreach (var req in requestData)
             {
                 average += req.average;
@@ -510,26 +539,25 @@ namespace VivistaServer
             };
         }
 
-        private static double Percentile(double[] sequence, double excelPercentile)
+        private static float Percentile(float[] sequence, float excelPercentile)
         {
-            Array.Sort(sequence);
-            int N = sequence.Length;
-            double n = (N - 1) * excelPercentile + 1;
-            // Another method: double n = (N + 1) * excelPercentile;
+            //Note(Tom): Array needs to be sorted
+	        int N = sequence.Length;
+	        float n = (N - 1) * excelPercentile + 1;
+            // Another method: float n = (N + 1) * excelPercentile;
             if (n == 1d) return sequence[0];
             else if (n == N) return sequence[N - 1];
             else
             {
                 int k = (int)n;
-                double d = n - k;
+                float d = n - k;
                 return sequence[k - 1] + d * (sequence[k] - sequence[k - 1]);
             }
         }
 
         private static string SerializeToBson(RequestInfo requestInfo)
         {
-            string jsonString = JsonSerializer.Serialize(requestInfo);
-            return jsonString;
+            return JsonSerializer.Serialize(requestInfo);
         }
     }
 
