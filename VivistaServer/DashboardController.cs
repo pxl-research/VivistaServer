@@ -142,10 +142,10 @@ namespace VivistaServer
 
         public static void AddRequestToCache(Request request)
         {
-	        lock (cachedRequestLock)
+	        request.timestamp = DateTime.UtcNow;
+            lock (cachedRequestLock)
             {
-	            request.timestamp = DateTime.UtcNow;
-                cachedRequests.Add(request);
+	            cachedRequests.Add(request);
             }
             
         }
@@ -169,12 +169,11 @@ namespace VivistaServer
                     //Percentile
                     float[] ms = specificEndpointList.Select(c => c.seconds).ToArray();
                     //Note(Tom): Array needs to be sorted
-                    Array.Sort(ms);
+                    specificEndpointList.Sort((r1, r2) => r1.seconds.CompareTo(r2.seconds));
                     var percentile95 = Percentile(ms, 0.95f);
                     var percentile99 = Percentile(ms, 0.99f);
 
                     //Median
-                    specificEndpointList.Sort((r1, r2) => r1.seconds.CompareTo(r2.seconds));
                     float median = 0;
                     if (specificEndpointList.Count % 2 == 1)
                     {
@@ -541,7 +540,6 @@ namespace VivistaServer
 
         private static float Percentile(float[] sequence, float excelPercentile)
         {
-            //Note(Tom): Array needs to be sorted
 	        int N = sequence.Length;
 	        float n = (N - 1) * excelPercentile + 1;
             // Another method: float n = (N + 1) * excelPercentile;
