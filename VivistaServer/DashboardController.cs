@@ -168,7 +168,6 @@ namespace VivistaServer
                 {
                     //Percentile
                     float[] ms = specificEndpointList.Select(c => c.seconds).ToArray();
-                    //Note(Tom): Array needs to be sorted
                     specificEndpointList.Sort((r1, r2) => r1.seconds.CompareTo(r2.seconds));
                     var percentile95 = Percentile(ms, 0.95f);
                     var percentile99 = Percentile(ms, 0.99f);
@@ -538,6 +537,7 @@ namespace VivistaServer
             };
         }
 
+        //Note(Tom): Array needs to be sorted
         private static float Percentile(float[] sequence, float excelPercentile)
         {
 	        int N = sequence.Length;
