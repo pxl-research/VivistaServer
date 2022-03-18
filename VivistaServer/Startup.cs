@@ -191,7 +191,7 @@ namespace VivistaServer
 			while (true)
 			{
 #if DEBUG
-				var nextTime = DateTime.UtcNow.RoundUp(TimeSpan.FromSeconds(10));
+				var nextTime = DateTime.UtcNow.RoundUp(TimeSpan.FromSeconds(60));
 #else
 				var nextTime = DateTime.UtcNow.RoundUp(TimeSpan.FromMinutes(1));
 #endif

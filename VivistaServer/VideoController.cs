@@ -504,6 +504,7 @@ namespace VivistaServer
 			}
 		}
 
+
 		[Route("GET", "/user")]
 		private static async Task UserGet(HttpContext context)
 		{
