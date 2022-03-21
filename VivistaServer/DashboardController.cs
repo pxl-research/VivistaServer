@@ -5,8 +5,10 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using Npgsql;
 using static VivistaServer.CommonController;
 using JsonSerializer = System.Text.Json.JsonSerializer;
 
@@ -46,6 +48,7 @@ namespace VivistaServer
         public long virtualMemory;
         public int uploads;
         public int uncaughtExceptions;
+        public long countTotalRequests;
     }
 
     public class EndpointPercentile
@@ -78,6 +81,20 @@ namespace VivistaServer
         [Route("GET", "/admin/dashboard")]
         private static async Task DashboardGet(HttpContext context)
         {
+	        var searchQuery = context.Request.Query["date"].ToString();
+	        DateTime date = DateTime.UtcNow;
+	        if (!string.IsNullOrEmpty(searchQuery))
+	        {
+		        try
+		        {
+			        date = Convert.ToDateTime(searchQuery);
+		        }
+		        catch(Exception ex)
+		        {
+			        CommonController.LogDebug(ex.Message);
+		        }
+	        }
+
             SetHTMLContentType(context);
             //TODO: Multiply database connections  
             var userTask = Task.Run(async () =>
@@ -98,27 +115,53 @@ namespace VivistaServer
                 return await Database.QueryAsync<int>(connection, "SELECT SUM(downloads) FROM videos;", context);
             });
 
-            var minuteData = Task.Run(async () =>
-            {
-	            await using var connection = Database.OpenNewConnection();
-                return await Database.QueryAsync<RequestData>(connection, "SELECT * FROM statistics_minutes;", context);
-            });
+			var minuteData = Task.Run(async () =>
+			{
+				var startDate = new DateTime(date.Year, date.Month, date.Day);
+				var endDate = startDate.AddDays(1);
+				await using var connection = Database.OpenNewConnection();
+				return await Database.QueryAsync<RequestData>(connection, "SELECT median, average, timestamp, countrequests, percentile95, percentile99, endpoint, render_time as renderTime, db_exec_time as dbExecTime FROM statistics_minutes WHERE @startDate <= timestamp AND @endDate > timestamp ORDER BY timestamp", context, new { startDate, endDate });
+			});
 
-            Task.WaitAll(userTask, videoTask, downloadTask, minuteData);
+			var hourData = Task.Run(async () =>
+			{
+				var startDate = date.RoundUp(TimeSpan.FromHours(24)).AddDays(-(int)date.DayOfWeek);
+				var endDate = startDate.AddDays(7);
+				await using var connection = Database.OpenNewConnection();
+				return await Database.QueryAsync<RequestData>(connection, "SELECT median, average, timestamp, countrequests, percentile95, percentile99, endpoint, render_time as renderTime, db_exec_time as dbExecTime FROM statistics_hours WHERE @startDate <= timestamp AND @endDate > timestamp ORDER BY timestamp", context, new { startDate, endDate });
+			});
+			var dayData = Task.Run(async () =>
+			{
+				var startDate = new DateTime(date.Year, date.Month, 1);
+				var endDate = startDate.AddMonths(1);
+                await using var connection = Database.OpenNewConnection();
+				return await Database.QueryAsync<RequestData>(connection, "SELECT median, average, timestamp, countrequests, percentile95, percentile99, endpoint, render_time as renderTime, db_exec_time as dbExecTime FROM statistics_days WHERE @startDate <= timestamp AND @endDate > timestamp ORDER BY timestamp", context, new { startDate, endDate });
+			});
 
-            var templateContext = new TemplateContext(new
+			var endpoints = Task.Run(async () =>
+			{
+				await using var connection = Database.OpenNewConnection();
+				return await Database.QueryAsync<string>(connection, "SELECT endpoint FROM statistics_minutes UNION SELECT endpoint FROM statistics_hours UNION SELECT endpoint FROM statistics_days ORDER BY endpoint;",
+	                context);
+			});
+
+			Task.WaitAll(userTask, videoTask, downloadTask, minuteData, hourData, dayData);
+
+			var templateContext = new TemplateContext(new
             {
                 users = userTask.Result,
                 videos = videoTask.Result,
                 downloads = downloadTask.Result,
+                endpoints = endpoints.Result,
                 averagesMinutes = minuteData.Result.Select(s => new {x = s.timestamp, y = s.average, endpoint = s.endpoint}).ToList(),
-                endpoints = minuteData.Result.Select(s => s.endpoint).Distinct().ToList(),
-                timeUnit = "minute"
+                //TODO(Tom & Simon): check why select is necessary 
+                minuteData = minuteData.Result.Select(d => new { d.median, d.average, d.timestamp, d.countrequests, d.percentile95, d.percentile99, d.endpoint, d.renderTime, d.dbExecTime }).ToList(),
+				hourData = hourData.Result.Select(d => new { d.median, d.average, d.timestamp, d.countrequests, d.percentile95, d.percentile99, d.endpoint, d.renderTime, d.dbExecTime }).ToList(),
+				dayData = dayData.Result.Select(d => new { d.median, d.average, d.timestamp, d.countrequests, d.percentile95, d.percentile99, d.endpoint, d.renderTime, d.dbExecTime }).ToList()
             });
 
             await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\dashboard.liquid", templateContext));
         }
-
 
         public static void AddDownloads()
         {
@@ -167,10 +210,10 @@ namespace VivistaServer
                 foreach (var specificEndpointList in groupedRequests)
                 {
                     //Percentile
-                    float[] ms = specificEndpointList.Select(c => c.seconds).ToArray();
                     specificEndpointList.Sort((r1, r2) => r1.seconds.CompareTo(r2.seconds));
-                    var percentile95 = Percentile(ms, 0.95f);
-                    var percentile99 = Percentile(ms, 0.99f);
+                    float[] seconds = specificEndpointList.Select(c => c.seconds).ToArray();
+                    var percentile95 = Percentile(seconds, 0.95f);
+                    var percentile99 = Percentile(seconds, 0.99f);
 
                     //Median
                     float median = 0;
@@ -237,7 +280,6 @@ namespace VivistaServer
                                 new { timestamp = req.timestamp, ms = req.seconds, reqinfo = reqinfo });
                         }
                     }
-                    cachedRequests.Clear();
                 }
 
                 Process.GetCurrentProcess().Refresh();
@@ -246,8 +288,8 @@ namespace VivistaServer
                 var virtualMemory = Process.GetCurrentProcess().VirtualMemorySize64;
                 //GeneralData
                 connection.Execute(
-                    @"INSERT INTO statistics_general_minutes(timestamp, downloads, views, private_memory, working_set, virtual_memory, uploads, uncaught_exceptions)
-                            VALUES(@timestamp, @downloads, @views, @privateMemory, @workingSet, @virtualMemory, @uploads, @uncaughtExceptions);",
+                    @"INSERT INTO statistics_general_minutes(timestamp, downloads, views, private_memory, working_set, virtual_memory, uploads, uncaught_exceptions, count_total_requests)
+                            VALUES(@timestamp, @downloads, @views, @privateMemory, @workingSet, @virtualMemory, @uploads, @uncaughtExceptions, @countTotalRequests);",
                     new
                     {
                         timestamp,
@@ -257,12 +299,15 @@ namespace VivistaServer
                         workingSet,
                         virtualMemory,
                         uploads,
-                        uncaughtExceptions
+                        uncaughtExceptions,
+                        countTotalRequests = cachedRequests.Count
                     });
+                cachedRequests.Clear();
                 downloads = 0;
                 views = 0;
                 uploads = 0;
                 uncaughtExceptions = 0;
+
             }
         }
 
@@ -276,13 +321,13 @@ namespace VivistaServer
             var endTime = startTime.AddHours(1);
 
             var minutesData = (List<RequestData>)connection.Query<RequestData>(
-                @"SELECT median, average, timestamp, countrequests, percentile95, percentile99, endpoint, render_time, db_exec_time as dbExecTime
+                @"SELECT median, average, timestamp, countrequests, percentile95, percentile99, endpoint, render_time as renderTime, db_exec_time as dbExecTime
                     FROM statistics_minutes  
                     WHERE timestamp >= @startTime AND timestamp < @endTime;",
                 new { startTime, endTime });
 
             var minutesGeneralData = (List<GeneralData>)connection.Query<GeneralData>(
-                @"SELECT timestamp, downloads, views, private_memory as privateMemory, working_set as workingSet, virtual_memory as virtualMemory, uploads, uncaught_exceptions as uncaughtExceptions
+                @"SELECT timestamp, downloads, views, private_memory as privateMemory, working_set as workingSet, virtual_memory as virtualMemory, uploads, uncaught_exceptions as uncaughtExceptions, count_total_requests as countTotalRequests
                     FROM statistics_general_minutes  
                     WHERE timestamp >= @startTime AND timestamp < @endTime;",
                 new { startTime, endTime });
@@ -327,8 +372,8 @@ namespace VivistaServer
                 var generalData = GetNewGeneralData(minutesGeneralData);
 
                 connection.Execute(
-                    @"INSERT INTO statistics_general_hours(timestamp, downloads, views, private_memory, working_set, virtual_memory, uploads, uncaught_exceptions)
-                        VALUES(@timestamp, @downloads, @views, @privateMemory, @workingSet, @virtualMemory, @uploads, @uncaughtExceptions)",
+                    @"INSERT INTO statistics_general_hours(timestamp, downloads, views, private_memory, working_set, virtual_memory, uploads, uncaught_exceptions, count_total_requests)
+                        VALUES(@timestamp, @downloads, @views, @privateMemory, @workingSet, @virtualMemory, @uploads, @uncaughtExceptions, @countTotalRequests)",
                     new {
                         timestamp, 
                         downloads = generalData.downloads, 
@@ -337,7 +382,8 @@ namespace VivistaServer
                         workingSet = generalData.workingSet, 
                         virtualMemory = generalData.virtualMemory,
                         uploads = generalData.uploads,
-                        uncaughtExceptions = generalData.uncaughtExceptions
+                        uncaughtExceptions = generalData.uncaughtExceptions,
+                        countTotalRequests = generalData.countTotalRequests
 
                     });
             }
@@ -353,13 +399,13 @@ namespace VivistaServer
             var endTime = startTime.AddDays(1);
 
             var hoursData = (List<RequestData>)connection.Query<RequestData>(
-                @"SELECT median, average, timestamp, countrequests, percentile95, percentile99, endpoint, render_time, db_exec_time as dbExecTime
+                @"SELECT median, average, timestamp, countrequests, percentile95, percentile99, endpoint, render_time as renderTime, db_exec_time as dbExecTime
                     FROM statistics_hours  
                     WHERE timestamp >= @startTime AND timestamp < @endTime;",
                 new { startTime, endTime });
 
             var hoursGeneralData = (List<GeneralData>) connection.Query<GeneralData>(
-                @"SELECT timestamp, downloads, views, private_memory as privateMemory, working_set as workingSet, virtual_memory as virtualMemory, uploads, uncaught_exceptions as uncaughtExceptions
+                @"SELECT timestamp, downloads, views, private_memory as privateMemory, working_set as workingSet, virtual_memory as virtualMemory, uploads, uncaught_exceptions as uncaughtExceptions, count_total_requests as countTotalRequests
                     FROM statistics_general_hours 
                     WHERE timestamp >= @startTime AND timestamp < @endTime;",
                 new {startTime, endTime});
@@ -402,8 +448,8 @@ namespace VivistaServer
                 var generalData = GetNewGeneralData(hoursGeneralData);
 
                 connection.Execute(
-                    @"INSERT INTO statistics_general_days(timestamp, downloads, views, private_memory, working_set, virtual_memory, uploads, uncaught_exceptions)
-                        VALUES(@timestamp, @downloads, @views, @privateMemory, @workingSet, @virtualMemory, @uploads, @uncaughtExceptions)",
+                    @"INSERT INTO statistics_general_days(timestamp, downloads, views, private_memory, working_set, virtual_memory, uploads, uncaught_exceptions, count_total_requests)
+                        VALUES(@timestamp, @downloads, @views, @privateMemory, @workingSet, @virtualMemory, @uploads, @uncaughtExceptions, @countTotalRequests)",
                     new
                     {
                         timestamp, 
@@ -413,7 +459,8 @@ namespace VivistaServer
                         workingSet = generalData.workingSet,
                         virtualMemory = generalData.virtualMemory, 
                         uploads = generalData.uploads,
-                        uncaughtExceptions = generalData.uncaughtExceptions
+                        uncaughtExceptions = generalData.uncaughtExceptions,
+                        countTotalRequests = generalData.countTotalRequests
                     });
             }
 
@@ -457,6 +504,7 @@ namespace VivistaServer
             long virtualMemory = 0;
             var countUploads = 0;
             var countUncaughtExceptions = 0;
+            long totalRequests = 0;
 
             foreach (var g in generalData)
             {
@@ -467,6 +515,7 @@ namespace VivistaServer
                 virtualMemory += g.virtualMemory;
                 countUploads += g.uploads;
                 countUncaughtExceptions += g.uncaughtExceptions;
+                totalRequests += g.countTotalRequests;
             }
 
             var result = new GeneralData
@@ -477,7 +526,8 @@ namespace VivistaServer
                 workingSet = workingSet / generalData.Count,
                 virtualMemory = virtualMemory / generalData.Count,
                 uploads = countUploads,
-                uncaughtExceptions = countUncaughtExceptions
+                uncaughtExceptions = countUncaughtExceptions,
+                countTotalRequests = totalRequests
             };
             return result;
         }

@@ -103,8 +103,9 @@ namespace VivistaServer
 					}
 				};
 			});
-
+#if !VIVISTA_DONT_COLLECT_PERF_DATA
 			Task.Run(CollectPeriodicStatistics);
+#endif
 
 			app.Run(async (context) =>
 			{
@@ -191,7 +192,7 @@ namespace VivistaServer
 			while (true)
 			{
 #if DEBUG
-				var nextTime = DateTime.UtcNow.RoundUp(TimeSpan.FromSeconds(10));
+				var nextTime = DateTime.UtcNow.RoundUp(TimeSpan.FromSeconds(60));
 #else
 				var nextTime = DateTime.UtcNow.RoundUp(TimeSpan.FromMinutes(1));
 #endif

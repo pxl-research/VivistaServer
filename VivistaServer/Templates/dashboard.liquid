@@ -1,101 +1,419 @@
 ﻿<div class="pure-g">
-    <div class="pure-u-1">
-        <div class="pure-button-group">
-            <button id="minute" class="pure-button pure-button-active" onclick="ChangeTimeUnit('minute')">Minute</button>
-            <button id="hour" class="pure-button" onclick="ChangeTimeUnit('hour')">Hour</button>
-            <button id="day" class="pure-button" onclick="ChangeTimeUnit('day')">Day</button>
-        </div>
+	<div class="pure-u-1">
+		<div class="pure-button-group">
+			<button id="minuteBtn" class="pure-button pure-button-active">Minute</button>
+			<button id="hourBtn" class="pure-button">Hour</button>
+			<button id="dayBtn" class="pure-button">Day</button>
+		</div>
+		<div class="pure-u-1 pure-u-md-1-2 pure-u-lg-1-3 pure-u-xl-1-4">
+			<div class="pure-form">
+				<input type="date" id="date" name="date" />
+				<input type="time" id="time" name="time" value="09:00" />
+			</div>
+		</div>
 
-        <input type="date" id="date" name="date"/>
-        <input type="time" id="time" name="time"/>
+		<div class="pure-form">
+			<select id="endpoint">
+				{% for endpoint in endpoints %}
+				<option value="{{endpoint}}">{{endpoint}}</option>
+				{% endfor %}
+			</select>
+		</div>
+		<br>
+		<div class="chartBox">
+			<canvas id="areaChart"></canvas>
+		</div>
 
-        <div class="pure-button">
-            <select onchange="GetSelectedTextValue(this)">
-                {% for endpoint in endpoints %}
-                <option value="{{forloop.index}}">{{endpoint}}</option>
-                {% endfor %}
-            </select>
-        </div>
+		<div class="chartBox">
+		<div class="pure-form">
+			<select id="dataType">
+				<option value="Average">Average</option>
+				<option value="Median">Median</option>
+				<option value="Percentile 95">Percentile 95</option>
+				<option value="Percentile 99">Percentile 99</option>
+				<option value="Render time">Render time</option>
+				<option value="Db exec time">Db exec time</option>
+			</select>
+		</div>
+			<canvas id="mixedChart"></canvas>
+		</div>
 
-
-
-        <br>
-        <h1>Dashboard</h1>
-        <h2>Users</h2>
-        <strong>{{users}}</strong>
-        <h2>Videos</h2>
-        <strong>{{videos}}</strong>
-        <h2>Downloads</h2>
-        <strong>{{downloads}}</strong>
-        <div class="chartBox">
-            <canvas id="myChart" width="5" height="5"></canvas>
-        </div>
-    </div>
+		<br />
+		<table class="pure-table">
+			<thead>
+				<tr>
+					<th>Users</th>
+					<th>Videos</th>
+					<th>Downloads</th>
+				</tr>
+			</thead>
+			<tbody>
+				<tr>
+					<td>{{users}}</td>
+					<td>{{videos}}</td>
+					<td>{{downloads}}</td>
+				</tr>
+			</tbody>
+		</table>
+	</div>
 </div>
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 
 <style type="text/css">
-    .chartBox {
-        width: 400px;
-    }
+	.chartBox {
+		width: 1000px;
+	}
 </style>
 <script>
-    //let dateTime = document.getElementById("myText").value
-    let averages = {{ averagesMinutes | json}};
+	//------Retrieve and initialize data
+	let minuteData = {{ minuteData | json}};
+	let hourData = {{ hourData | json}};
+	let dayData = {{ dayData | json}};
+	let endpoints = {{ endpoints | json }};
+	let selectedEndpoint = endpoints[0];
+	console.log(dayData);
 
 
-    let endpoints = {{ endpoints | json }};
-    let selectedEndpoint = endpoints[0];
-    let timeUnit = "{{timeUnit}}";
+	let timeUnit = "minute";
+	let selectedData = minuteData;
+	//Retrieve and initialize data------
 
-    function ChangeTimeUnit(time) {
-        document.getElementById(timeUnit).classList.remove("pure-button-active");
-        document.getElementById(time).classList.add("pure-button-active");
-        timeUnit = time;
-        myChart.options.scales.x.time.unit = time;
-        myChart.update();
-    }
+	//------Date paramter
+	const queryString = new URLSearchParams(window.location.search).get("date");
+	document.getElementById("date").value = queryString;
+	if (document.getElementById("date").value === "") {
+		document.getElementById("date").value = new Date().toISOString().slice(0, 10);
+	}
 
-    function GetSelectedTextValue(endpoint) {
-        selectedEndpoint = endpoints[endpoint.value - 1];
-        myChart.data.datasets[0].data = averages.filter(a => a.endpoint === selectedEndpoint);
-        myChart.data.datasets[0].label = selectedEndpoint;
-        myChart.update();
-    }
+	let time;
+	let dateTime;
+	let maxDateTime;
+	SetDateAndTimes();
+	//Date paramter------
+	let dataType = document.getElementById("dataType").value;
+
+	//------Configure charts
+	const countRequest = {
+		label: 'Number of requests from endpoint',
+		borderColor: 'hsl(350, 60%, 50%)',
+		backgroundColor: 'hsl(350, 60%, 50%)',
+		data: selectedData.map(a => ({ x: a.timestamp, y: a.countrequests, endpoint: a.endpoint })).filter(a => a.endpoint === selectedEndpoint && new Date(a.x) >= dateTime && new Date(a.x) < maxDateTime),
+		order: 1,
+		yAxisID: 'y',
+	};
+	//Mixed chart
+	const dataMixedChart = {
+		//labels: labels,
+		datasets: [
+			{
+				label: 'Number of requests from endpoint',
+				borderColor: 'hsl(350, 60%, 50%)',
+				backgroundColor: 'hsl(350, 60%, 50%)',
+				data: selectedData.map(a => ({ x: a.timestamp, y: a.countrequests, endpoint: a.endpoint })).filter(a => a.endpoint === selectedEndpoint && new Date(a.x) >= dateTime && new Date(a.x) < maxDateTime),
+				order: 1,
+				yAxisID: 'y',
+			},
+			{
+				label: 'Average in ms',
+				borderColor: 'hsl(250, 60%, 33%)',
+				backgroundColor: 'hsl(250, 60%, 33%)',
+				data: selectedData.map(a => ({ x: a.timestamp, y: a.average * 1000, endpoint: a.endpoint })).filter(a => a.endpoint === selectedEndpoint && new Date(a.x) >= dateTime && new Date(a.x) < maxDateTime),
+				type: 'line',
+				order: 0,
+				yAxisID: 'y1',
+			}
+		]
+	};
+	const configMixedChart = {
+		type: 'bar',
+		data: dataMixedChart,
+		options: {
+			plugins: {
+				title: {
+					display: true,
+					text: 'Count requests and average'
+				},
+			},
+			scales: {
+				x: {
+					type: 'time',
+					time: {
+						unit: timeUnit,
+						displayFormats: {
+							minute: 'hh:mm',
+							hour: 'MMM dd - hh:mm',
+							day: 'MMM dd'
+
+						}
+					}
+				},
+				y: {
+					beginAtZero: true,
+					position: 'left'
+				},
+				y1: {
+					beginAtZero: true,
+					position: 'right'
+				}
+			}
+		}
+	};
+	const mixedChart = new Chart(
+		document.getElementById('mixedChart'),
+		configMixedChart
+	);
+
+	//Area chart
+	const dataAreaChart = {
+		datasets: [
+			{
+				label: 'Db exec time in ms',
+				data: selectedData.map(a => ({ x: a.timestamp, y: a.dbExecTime * 1000, endpoint: a.endpoint })).filter(a => a.endpoint === selectedEndpoint && new Date(a.x) >= dateTime && new Date(a.x) < maxDateTime),
+				borderColor: 'hsl(330, 60%, 33%)',
+				backgroundColor: 'hsl(330, 60%, 33%)',
+				fill: true
+			},
+			{
+				label: 'Render time in ms',
+				data: selectedData.map(a => ({ x: a.timestamp, y: a.renderTime * 1000, endpoint: a.endpoint })).filter(a => a.endpoint === selectedEndpoint && new Date(a.x) >= dateTime && new Date(a.x) < maxDateTime),
+				borderColor: 'hsl(50, 60%, 67%)',
+				backgroundColor: 'hsl(50, 60%, 67%)',
+				fill: true
+			}
+			,
+			{
+				label: 'Average in ms',
+				data: selectedData.map(a => ({ x: a.timestamp, y: a.average * 1000, endpoint: a.endpoint })).filter(a => a.endpoint === selectedEndpoint && new Date(a.x) >= dateTime && new Date(a.x) < maxDateTime),
+				borderColor: 'hsl(350, 60%, 50%)',
+				backgroundColor: 'hsl(350, 60%, 50%)',
+				fill: true
+			},
+			{
+				label: '95 Percentile in ms',
+				data: selectedData.map(a => ({ x: a.timestamp, y: a.percentile95 * 1000, endpoint: a.endpoint })).filter(a => a.endpoint === selectedEndpoint && new Date(a.x) >= dateTime && new Date(a.x) < maxDateTime),
+				borderColor: 'hsl(250, 60%, 33%)',
+				backgroundColor: 'hsl(250, 60%, 33%)',
+				fill: true
+			},
+			{
+				label: '99 Percentile in ms',
+				data: selectedData.map(a => ({ x: a.timestamp, y: a.percentile99 * 1000, endpoint: a.endpoint })).filter(a => a.endpoint === selectedEndpoint && new Date(a.x) >= dateTime && new Date(a.x) < maxDateTime),
+				borderColor: 'hsl(170, 43%, 46%)',
+				backgroundColor: 'hsl(170, 43%, 46%)',
+				fill: true
+			}
+
+		]
+	}
+	const configAreaChart  = {
+		type: 'line',
+		data: dataAreaChart,
+		options: {
+			responsive: true,
+			plugins: {
+				title: {
+					display: true,
+					text: 'Average, percentile 95, percentile 99, render time and db exec time'
+				},
+			},
+			interaction: {
+				mode: 'nearest',
+				axis: 'x',
+				intersect: false
+			},
+			scales: {
+				x: {
+					type: 'time',
+					time: {
+						unit: timeUnit,
+						displayFormats: {
+							minute: 'hh:mm',
+							hour: 'MMM dd - hh:mm',
+							day: 'MMM dd'
+
+						}
+					}
+				},
+				y: {
+					stacked: false,
+					beginAtZero: true,
+					ticks: {
+						callback: function (value, index, values) {
+							return value + ' ms';
+						}
+					}
+				}
+			}
+		}
+	};
+	const areaChart = new Chart(
+		document.getElementById('areaChart'),
+		configAreaChart
+	);
+	//Configure charts------
+
+	//--------Event listeners
+	document.getElementById("minuteBtn").addEventListener("click", function () {
+		selectedData = minuteData;
+		ChangeTimeUnit("minute");
+	});
+	document.getElementById("hourBtn").addEventListener("click", function () {
+		selectedData = hourData;
+		ChangeTimeUnit("hour");
+	});
+	document.getElementById("dayBtn").addEventListener("click", function () {
+		selectedData = dayData;
+		ChangeTimeUnit("day");
+	});
+
+	document.getElementById("date").addEventListener("change", function () { location.href = "/admin/dashboard?date=" + document.getElementById("date").value;});
+	document.getElementById("endpoint").addEventListener("change", function () { ChangeEndpoint(document.getElementById("endpoint").value) });
+	document.getElementById("time").addEventListener("blur", function () { selectedData = minuteData; ChangeDataOfCharts(); });
+	document.getElementById("dataType").addEventListener("change", function () { dataType = document.getElementById("dataType").value; ParameterChanged(); });
+	//Event listeners--------
+
+	//--------Change paramters
+	function ChangeTimeUnit(time) {
+        document.getElementById(timeUnit + "Btn").classList.remove("pure-button-active");
+        document.getElementById(time + "Btn").classList.add("pure-button-active");
+		timeUnit = time;
+
+		mixedChart.options.scales.x.time.unit = timeUnit;
+		areaChart.options.scales.x.time.unit = timeUnit
+
+		ChangeDataOfCharts();
+
+	}
+
+	function ChangeEndpoint(endpoint) {
+		selectedEndpoint = endpoint;
+		ChangeDataOfCharts();
+	}
+
+	function ChangeDataOfCharts() {
+		//Note(Tom): If time unit is minute, then we need to see data of specific hour
+		if (timeUnit === 'minute') {
+			SetDateAndTimes();
+
+			mixedChart.data.datasets[0].data = FilterWithEndpointAndTime(GetCountRequestData());
+			ParameterChanged();
+
+			areaChart.data.datasets[0].data = FilterWithEndpointAndTime(GetDbExecTimeData());
+			areaChart.data.datasets[1].data = FilterWithEndpointAndTime(GetRenderTimeData());
+			areaChart.data.datasets[2].data = FilterWithEndpointAndTime(GetAverageData());
+			areaChart.data.datasets[3].data = FilterWithEndpointAndTime(GetPercentile95Data());
+			areaChart.data.datasets[4].data = FilterWithEndpointAndTime(GetPercentile99Data());
+		}
+		else {
+			mixedChart.data.datasets[0].data = FilterWithEndpoint(GetCountRequestData());
+			mixedChart.data.datasets[1].data = FilterWithEndpoint(GetAverageData());
+
+			areaChart.data.datasets[0].data = FilterWithEndpoint(GetDbExecTimeData());
+			areaChart.data.datasets[1].data = FilterWithEndpoint(GetRenderTimeData());
+			areaChart.data.datasets[2].data = FilterWithEndpoint(GetAverageData());
+			areaChart.data.datasets[3].data = FilterWithEndpoint(GetPercentile95Data());
+			areaChart.data.datasets[4].data = FilterWithEndpoint(GetPercentile99Data());
+			
+		}
+
+		mixedChart.update();
+		areaChart.update();
+	}
+
+	function GetPercentile95Data() {
+		return selectedData
+			.map(a => ({ x: a.timestamp, y: a.percentile95 * 1000, endpoint: a.endpoint }));
+	}
+
+	function GetAverageData() {
+		return selectedData
+			.map(a => ({ x: a.timestamp, y: a.average * 1000, endpoint: a.endpoint }));
+	}
+
+	function GetPercentile99Data() {
+		return selectedData
+			.map(a => ({ x: a.timestamp, y: a.percentile99 * 1000, endpoint: a.endpoint }));
+	}
+
+	function GetCountRequestData() {
+		return selectedData
+			.map(a => ({ x: a.timestamp, y: a.percentile95 * 1000, endpoint: a.endpoint }));
+	}
+
+	function GetDbExecTimeData() {
+		return selectedData
+			.map(a => ({ x: a.timestamp, y: a.dbExecTime * 1000, endpoint: a.endpoint }));
+	}
+
+	function GetRenderTimeData() {
+		return selectedData
+			.map(a => ({ x: a.timestamp, y: a.renderTime * 1000, endpoint: a.endpoint }));
+	}
+
+	function GetMedianData(){
+		return selectedData
+			.map(a => ({ x: a.timestamp, y: a.median * 1000, endpoint: a.endpoint }));
+	}
+
+	function SetDateAndTimes() {
+		time = document.getElementById("time").value.slice(0, -2) + '00';
+		dateTime = new Date(document.getElementById("date").value + 'T' + time);
+		maxDateTime = new Date(dateTime);
+		maxDateTime.setHours(maxDateTime.getHours() + 1);
+	}
 
 
-    const data = {
-        //labels: labels,
-        datasets: [{
-            label: selectedEndpoint,
-            backgroundColor: 'rgb(255, 99, 132)',
-            borderColor: 'rgb(255, 99, 132)',
-            data: averages.filter(a => a.endpoint === selectedEndpoint),
-        }]
-    };
 
-    const config = {
-        type: 'bar',
-        data: data,
-        options: {
-            scales: {
-                x: {
-                    type: 'time',
-                    time: {
-                        unit: timeUnit
-                    }
-                },
-                y: {
-                    beginAtZero: true
-                }
-            }
-        }
-    };
+	function FilterWithEndpoint(data) {
+		return data.filter(a => a.endpoint === selectedEndpoint);
+	}
 
-    const myChart = new Chart(
-        document.getElementById('myChart'),
-        config
-    );
+	function FilterWithEndpointAndTime(data) {
+		return data.filter(a => a.endpoint === selectedEndpoint && new Date(a.x) >= dateTime && new Date(a.x) < maxDateTime)
+	}
+
+	function ParameterChanged() {
+		let data;
+		switch (dataType) {
+			case 'Average':
+				data = GetAverageData();
+				break;
+			case 'Median':
+				data = GetMedianData();
+				break;
+			case 'Percentile 95':
+				data = GetPercentile95Data();
+				break;
+			case 'Percentile 99':
+				data = GetPercentile99Data();
+				break;
+			case 'Db exec time':
+				data = GetDbExecTimeData();
+				break;
+			case 'Render time':
+				data = GetRenderTimeData();
+				break;
+			default:
+				data = GetAverageData();
+		}
+
+		if (timeUnit === 'minute') {
+			SetDateAndTimes();
+			data = FilterWithEndpointAndTime(data);
+		}
+		else {
+			data = FilterWithEndpoint(data);
+		}
+
+		mixedChart.data.datasets[1].data = data;
+		mixedChart.data.datasets[1].label = dataType;
+		mixedChart.options.plugins.title.text = "Count requests and " + dataType;
+		
+		mixedChart.update();
+	}
+
+	//Change parameters--------
 
 </script>
