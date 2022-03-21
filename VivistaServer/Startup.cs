@@ -105,6 +105,12 @@ namespace VivistaServer
 			});
 #if !VIVISTA_DONT_COLLECT_PERF_DATA
 			Task.Run(CollectPeriodicStatistics);
+#else
+			Console.WriteLine(Environment.NewLine);
+			Console.WriteLine(Environment.NewLine);
+			Console.WriteLine("WARNING: Running Vivista without collecting performance data!");
+			Console.WriteLine(Environment.NewLine);
+			Console.WriteLine(Environment.NewLine);
 #endif
 
 			app.Run(async (context) =>
