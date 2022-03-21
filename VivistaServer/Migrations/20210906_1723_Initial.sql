@@ -3,6 +3,9 @@
 -- and may require manual changes to the script to ensure changes are applied in the correct order.
 -- Please report an issue for any failure with the reproduction steps.
 BEGIN;
+
+CREATE EXTENSION pg_trgm;
+
 CREATE SEQUENCE public.bug_reports_id_seq
     INCREMENT 1
     START 1
