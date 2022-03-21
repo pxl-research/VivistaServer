@@ -120,7 +120,7 @@ namespace VivistaServer
 				var startDate = new DateTime(date.Year, date.Month, date.Day);
 				var endDate = startDate.AddDays(1);
 				await using var connection = Database.OpenNewConnection();
-				return await Database.QueryAsync<RequestData>(connection, "SELECT * FROM statistics_minutes WHERE @startDate <= timestamp AND @endDate > timestamp ORDER BY timestamp", context, new { startDate, endDate });
+				return await Database.QueryAsync<RequestData>(connection, "SELECT median, average, timestamp, countrequests, percentile95, percentile99, endpoint, render_time as renderTime, db_exec_time as dbExecTime FROM statistics_minutes WHERE @startDate <= timestamp AND @endDate > timestamp ORDER BY timestamp", context, new { startDate, endDate });
 			});
 
 			var hourData = Task.Run(async () =>
@@ -128,14 +128,14 @@ namespace VivistaServer
 				var startDate = date.RoundUp(TimeSpan.FromHours(24)).AddDays(-(int)date.DayOfWeek);
 				var endDate = startDate.AddDays(7);
 				await using var connection = Database.OpenNewConnection();
-				return await Database.QueryAsync<RequestData>(connection, "SELECT * FROM statistics_hours WHERE @startDate <= timestamp AND @endDate > timestamp ORDER BY timestamp", context, new { startDate, endDate });
+				return await Database.QueryAsync<RequestData>(connection, "SELECT median, average, timestamp, countrequests, percentile95, percentile99, endpoint, render_time as renderTime, db_exec_time as dbExecTime FROM statistics_hours WHERE @startDate <= timestamp AND @endDate > timestamp ORDER BY timestamp", context, new { startDate, endDate });
 			});
 			var dayData = Task.Run(async () =>
 			{
 				var startDate = new DateTime(date.Year, date.Month, 1);
 				var endDate = startDate.AddMonths(1);
                 await using var connection = Database.OpenNewConnection();
-				return await Database.QueryAsync<RequestData>(connection, "SELECT * FROM statistics_days WHERE @startDate <= timestamp AND @endDate > timestamp ORDER BY timestamp", context, new { startDate, endDate });
+				return await Database.QueryAsync<RequestData>(connection, "SELECT median, average, timestamp, countrequests, percentile95, percentile99, endpoint, render_time as renderTime, db_exec_time as dbExecTime FROM statistics_days WHERE @startDate <= timestamp AND @endDate > timestamp ORDER BY timestamp", context, new { startDate, endDate });
 			});
 
 			var endpoints = Task.Run(async () =>
@@ -321,7 +321,7 @@ namespace VivistaServer
             var endTime = startTime.AddHours(1);
 
             var minutesData = (List<RequestData>)connection.Query<RequestData>(
-                @"SELECT median, average, timestamp, countrequests, percentile95, percentile99, endpoint, render_time, db_exec_time as dbExecTime
+                @"SELECT median, average, timestamp, countrequests, percentile95, percentile99, endpoint, render_time as renderTime, db_exec_time as dbExecTime
                     FROM statistics_minutes  
                     WHERE timestamp >= @startTime AND timestamp < @endTime;",
                 new { startTime, endTime });
@@ -399,7 +399,7 @@ namespace VivistaServer
             var endTime = startTime.AddDays(1);
 
             var hoursData = (List<RequestData>)connection.Query<RequestData>(
-                @"SELECT median, average, timestamp, countrequests, percentile95, percentile99, endpoint, render_time, db_exec_time as dbExecTime
+                @"SELECT median, average, timestamp, countrequests, percentile95, percentile99, endpoint, render_time as renderTime, db_exec_time as dbExecTime
                     FROM statistics_hours  
                     WHERE timestamp >= @startTime AND timestamp < @endTime;",
                 new { startTime, endTime });
