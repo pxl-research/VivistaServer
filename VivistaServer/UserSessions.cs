@@ -93,10 +93,16 @@ namespace VivistaServer
 
 			try
 			{
-				session = await Database.QuerySingleAsync<Session>(connection,"select expiry, userid from sessions where token = @token", context, new {token});
+				session = await Database.QuerySingleOrDefaultAsync<Session>(connection,"select expiry, userid from sessions where token = @token", context, new {token});
 			}
 			catch
 			{
+				return Session.noSession;
+			}
+
+			if (session == null)
+			{
+				context.Response.Cookies.Delete("session");
 				return Session.noSession;
 			}
 
@@ -118,6 +124,7 @@ namespace VivistaServer
 			try
 			{
 				cache.Remove(token);
+				context.Response.Cookies.Delete("session");
 				await Database.ExecuteAsync(connection,"delete from sessions where token=@token", context, new {token});
 			}
 			catch
