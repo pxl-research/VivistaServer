@@ -4,6 +4,7 @@ using System.IO;
 using System.Runtime.ExceptionServices;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
@@ -35,8 +36,6 @@ namespace VivistaServer
 			CheckForFfmpeg();
 
 			CreateDataDirectoryIfNeeded();
-
-			RegisterGlobalExceptionLogger();
 		}
 
 		public void CheckForFfmpeg()
@@ -53,19 +52,6 @@ namespace VivistaServer
 			Directory.CreateDirectory(VideoController.baseFilePath);
 		}
 
-		public void RegisterGlobalExceptionLogger()
-		{
-			AppDomain.CurrentDomain.FirstChanceException += ExceptionLogger;
-			void ExceptionLogger(object source, FirstChanceExceptionEventArgs e)
-			{
-#if DEBUG
-				Console.WriteLine(e.Exception.Message);
-				Console.WriteLine(e.Exception.StackTrace);
-#endif
-				DashboardController.AddUnCaughtException();
-			}
-		}
-
 		public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
 		{
 			if (env.IsDevelopment())
@@ -75,9 +61,21 @@ namespace VivistaServer
 			}
 			else
 			{
+				app.UseExceptionHandler(exceptionHandlerApp =>
+				{
+					exceptionHandlerApp.Run(async context =>
+					{
+						var exceptionHandler = context.Features.Get<IExceptionHandlerPathFeature>();
+						//NOTE(Simon): This will only happen in the live version, so that we can keep Developer Exception Pages working locally
+						DashboardController.AddUnCaughtException();
+						await CommonController.WriteError(context, "The server encountered an unexpected error", StatusCodes.Status500InternalServerError, exceptionHandler?.Error);
+					});
+				});
+
 				app.UseHsts();
 				CommonController.baseURL = "https://vivista.net";
 			}
+
 
 			CommonController.wwwroot = env.WebRootPath;
 			app.UseStaticFiles();
