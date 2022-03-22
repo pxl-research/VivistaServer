@@ -417,7 +417,7 @@ namespace VivistaServer
 						throw new Exception("Something went wrong while writing new user to db");
 					}
 
-					await EmailClient.SendEmailConfirmationMail(email, verificationToken);
+					EmailClient.SendEmailConfirmationMail(email, verificationToken);
 				}
 				else
 				{

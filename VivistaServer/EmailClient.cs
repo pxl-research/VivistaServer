@@ -31,7 +31,7 @@ namespace VivistaServer
 			return await SendMail(message);
 		}
 
-		public static async Task<bool> SendEmailConfirmationMail(string receiver, string token)
+		public static async void SendEmailConfirmationMail(string receiver, string token)
 		{
 			var url = $"{CommonController.baseURL}/verify_email?email={WebUtility.UrlEncode(receiver)}&token={WebUtility.UrlEncode(token)}";
 
@@ -46,7 +46,10 @@ namespace VivistaServer
 
 			message.Body = builder.ToMessageBody();
 
-			return await SendMail(message);
+			if (await SendMail(message) == false)
+			{
+				CommonController.LogDebug("Couldn't send email confirmation to user");
+			}
 		}
 
 		private static async Task<bool> SendMail(MimeMessage message)
@@ -59,8 +62,10 @@ namespace VivistaServer
 				await client.SendAsync(message);
 				await client.DisconnectAsync(true);
 			}
-			catch
+			catch (Exception e)
 			{
+				CommonController.LogDebug(e.Message);
+				CommonController.LogDebug(e.StackTrace);
 				return false;
 			}
 
