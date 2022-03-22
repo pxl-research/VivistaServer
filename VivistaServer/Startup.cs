@@ -122,13 +122,11 @@ namespace VivistaServer
 				var requestTime = Stopwatch.StartNew();
 
 				var watch = Stopwatch.StartNew();
-				var authenticateTask = UserSessions.GetLoggedInUser(context);
 
 				PrintDebugData(context);
 
 				SetJSONContentType(context);
 
-				await authenticateTask;
 				watch.Stop();
 				CommonController.LogDebug($"request preamble: {watch.Elapsed.TotalMilliseconds} ms");
 
