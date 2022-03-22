@@ -67,34 +67,27 @@
 	}
 </style>
 <script>
-	//------Retrieve and initialize data
 	let minuteData = {{ minuteData | json}};
 	let hourData = {{ hourData | json}};
 	let dayData = {{ dayData | json}};
 	let endpoints = {{ endpoints | json }};
 	let selectedEndpoint = endpoints[0];
-	console.log(dayData);
-
-
 	let timeUnit = "minute";
 	let selectedData = minuteData;
-	//Retrieve and initialize data------
+	let dataType = document.getElementById("dataType").value;
 
-	//------Date paramter
+	//Date paramter
 	const queryString = new URLSearchParams(window.location.search).get("date");
 	document.getElementById("date").value = queryString;
 	if (document.getElementById("date").value === "") {
 		document.getElementById("date").value = new Date().toISOString().slice(0, 10);
 	}
-
 	let time;
 	let dateTime;
 	let maxDateTime;
 	SetDateAndTimes();
-	//Date paramter------
-	let dataType = document.getElementById("dataType").value;
 
-	//------Configure charts
+	//Configure charts
 	const countRequest = {
 		label: 'Number of requests from endpoint',
 		borderColor: 'hsl(350, 60%, 50%)',
@@ -103,7 +96,7 @@
 		order: 1,
 		yAxisID: 'y',
 	};
-	//Mixed chart
+
 	const dataMixedChart = {
 		//labels: labels,
 		datasets: [
@@ -119,6 +112,7 @@
 				label: 'Average in ms',
 				borderColor: 'hsl(250, 60%, 33%)',
 				backgroundColor: 'hsl(250, 60%, 33%)',
+				pointRadius: 4,
 				data: selectedData.map(a => ({ x: a.timestamp, y: a.average * 1000, endpoint: a.endpoint })).filter(a => a.endpoint === selectedEndpoint && new Date(a.x) >= dateTime && new Date(a.x) < maxDateTime),
 				type: 'line',
 				order: 0,
@@ -151,11 +145,17 @@
 				},
 				y: {
 					beginAtZero: true,
-					position: 'left'
+					position: 'left',
+					precision: 0
 				},
 				y1: {
 					beginAtZero: true,
-					position: 'right'
+					position: 'right',
+					ticks: {
+						callback: function (value, index, values) {
+							return value + ' ms';
+						}
+					}
 				}
 			}
 		}
@@ -165,7 +165,6 @@
 		configMixedChart
 	);
 
-	//Area chart
 	const dataAreaChart = {
 		datasets: [
 			{
@@ -173,36 +172,48 @@
 				data: selectedData.map(a => ({ x: a.timestamp, y: a.dbExecTime * 1000, endpoint: a.endpoint })).filter(a => a.endpoint === selectedEndpoint && new Date(a.x) >= dateTime && new Date(a.x) < maxDateTime),
 				borderColor: 'hsl(330, 60%, 33%)',
 				backgroundColor: 'hsl(330, 60%, 33%)',
-				fill: true
+				fill: true,
+				pointRadius: 4
 			},
 			{
 				label: 'Render time in ms',
 				data: selectedData.map(a => ({ x: a.timestamp, y: a.renderTime * 1000, endpoint: a.endpoint })).filter(a => a.endpoint === selectedEndpoint && new Date(a.x) >= dateTime && new Date(a.x) < maxDateTime),
 				borderColor: 'hsl(50, 60%, 67%)',
 				backgroundColor: 'hsl(50, 60%, 67%)',
-				fill: true
-			}
-			,
+				fill: true,
+				pointRadius: 4
+			},
+			{
+				label: 'Median in ms',
+				data: selectedData.map(a => ({ x: a.timestamp, y: a.median * 1000, endpoint: a.endpoint })).filter(a => a.endpoint === selectedEndpoint && new Date(a.x) >= dateTime && new Date(a.x) < maxDateTime),
+				borderColor: 'hsl(140, 75%, 27%)',
+				backgroundColor: 'hsl(140, 75%, 27%)',
+				fill: true,
+				pointRadius: 4
+			},
 			{
 				label: 'Average in ms',
 				data: selectedData.map(a => ({ x: a.timestamp, y: a.average * 1000, endpoint: a.endpoint })).filter(a => a.endpoint === selectedEndpoint && new Date(a.x) >= dateTime && new Date(a.x) < maxDateTime),
 				borderColor: 'hsl(350, 60%, 50%)',
 				backgroundColor: 'hsl(350, 60%, 50%)',
-				fill: true
+				fill: true,
+				pointRadius: 4
 			},
 			{
 				label: '95 Percentile in ms',
 				data: selectedData.map(a => ({ x: a.timestamp, y: a.percentile95 * 1000, endpoint: a.endpoint })).filter(a => a.endpoint === selectedEndpoint && new Date(a.x) >= dateTime && new Date(a.x) < maxDateTime),
 				borderColor: 'hsl(250, 60%, 33%)',
 				backgroundColor: 'hsl(250, 60%, 33%)',
-				fill: true
+				fill: true,
+				pointRadius: 4
 			},
 			{
 				label: '99 Percentile in ms',
 				data: selectedData.map(a => ({ x: a.timestamp, y: a.percentile99 * 1000, endpoint: a.endpoint })).filter(a => a.endpoint === selectedEndpoint && new Date(a.x) >= dateTime && new Date(a.x) < maxDateTime),
 				borderColor: 'hsl(170, 43%, 46%)',
 				backgroundColor: 'hsl(170, 43%, 46%)',
-				fill: true
+				fill: true,
+				pointRadius: 4
 			}
 
 		]
@@ -215,7 +226,7 @@
 			plugins: {
 				title: {
 					display: true,
-					text: 'Average, percentile 95, percentile 99, render time and db exec time'
+					text: 'Db exec time, render time, median, average, percentile 95 and percentile 99'
 				},
 			},
 			interaction: {
@@ -252,9 +263,8 @@
 		document.getElementById('areaChart'),
 		configAreaChart
 	);
-	//Configure charts------
 
-	//--------Event listeners
+	//Event listeners
 	document.getElementById("minuteBtn").addEventListener("click", function () {
 		selectedData = minuteData;
 		ChangeTimeUnit("minute");
@@ -272,9 +282,8 @@
 	document.getElementById("endpoint").addEventListener("change", function () { ChangeEndpoint(document.getElementById("endpoint").value) });
 	document.getElementById("time").addEventListener("blur", function () { selectedData = minuteData; ChangeDataOfCharts(); });
 	document.getElementById("dataType").addEventListener("change", function () { dataType = document.getElementById("dataType").value; ParameterChanged(); });
-	//Event listeners--------
 
-	//--------Change paramters
+	//Change paramters
 	function ChangeTimeUnit(time) {
         document.getElementById(timeUnit + "Btn").classList.remove("pure-button-active");
         document.getElementById(time + "Btn").classList.add("pure-button-active");
@@ -302,9 +311,10 @@
 
 			areaChart.data.datasets[0].data = FilterWithEndpointAndTime(GetDbExecTimeData());
 			areaChart.data.datasets[1].data = FilterWithEndpointAndTime(GetRenderTimeData());
-			areaChart.data.datasets[2].data = FilterWithEndpointAndTime(GetAverageData());
-			areaChart.data.datasets[3].data = FilterWithEndpointAndTime(GetPercentile95Data());
-			areaChart.data.datasets[4].data = FilterWithEndpointAndTime(GetPercentile99Data());
+			areaChart.data.datasets[2].data = FilterWithEndpointAndTime(GetMedianData());
+			areaChart.data.datasets[3].data = FilterWithEndpointAndTime(GetAverageData());
+			areaChart.data.datasets[4].data = FilterWithEndpointAndTime(GetPercentile95Data());
+			areaChart.data.datasets[5].data = FilterWithEndpointAndTime(GetPercentile99Data());
 		}
 		else {
 			mixedChart.data.datasets[0].data = FilterWithEndpoint(GetCountRequestData());
@@ -312,9 +322,10 @@
 
 			areaChart.data.datasets[0].data = FilterWithEndpoint(GetDbExecTimeData());
 			areaChart.data.datasets[1].data = FilterWithEndpoint(GetRenderTimeData());
-			areaChart.data.datasets[2].data = FilterWithEndpoint(GetAverageData());
-			areaChart.data.datasets[3].data = FilterWithEndpoint(GetPercentile95Data());
-			areaChart.data.datasets[4].data = FilterWithEndpoint(GetPercentile99Data());
+			areaChart.data.datasets[2].data = FilterWithEndpointAndTime(GetMedianData());
+			areaChart.data.datasets[3].data = FilterWithEndpoint(GetAverageData());
+			areaChart.data.datasets[4].data = FilterWithEndpoint(GetPercentile95Data());
+			areaChart.data.datasets[5].data = FilterWithEndpoint(GetPercentile99Data());
 			
 		}
 
@@ -339,7 +350,7 @@
 
 	function GetCountRequestData() {
 		return selectedData
-			.map(a => ({ x: a.timestamp, y: a.percentile95 * 1000, endpoint: a.endpoint }));
+			.map(a => ({ x: a.timestamp, y: a.countrequests, endpoint: a.endpoint }));
 	}
 
 	function GetDbExecTimeData() {
@@ -363,8 +374,6 @@
 		maxDateTime = new Date(dateTime);
 		maxDateTime.setHours(maxDateTime.getHours() + 1);
 	}
-
-
 
 	function FilterWithEndpoint(data) {
 		return data.filter(a => a.endpoint === selectedEndpoint);
@@ -414,6 +423,5 @@
 		mixedChart.update();
 	}
 
-	//Change parameters--------
 
 </script>
