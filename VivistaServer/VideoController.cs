@@ -259,7 +259,7 @@ namespace VivistaServer
 
 				var video = await GetVideo(guid, connection, context);
 
-				if (video.isPublic)
+				if (UserCanViewVideo(video, null))
 				{
 					try
 					{
@@ -606,6 +606,7 @@ namespace VivistaServer
 			}
 		}
 
+		//TODO(Simon): redirect to login if not logged in. Add returnurl to login
 		[Route("GET", "/edit_video")]
 		private static async Task EditVideoGet(HttpContext context)
 		{
@@ -938,7 +939,7 @@ namespace VivistaServer
 			{
 				case VideoPrivacy.Public:
 				case VideoPrivacy.Unlisted:
-				case VideoPrivacy.Private when video.userid == user.userid:
+				case VideoPrivacy.Private when video.userid == user?.userid:
 					return true;
 				default:
 					return false;
