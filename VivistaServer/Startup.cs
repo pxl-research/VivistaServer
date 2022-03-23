@@ -138,11 +138,8 @@ namespace VivistaServer
 
 				var requestInfo = new RequestInfo
 				{
-					path = context.Request.Path,
-					method = context.Request.Method,
-					query = context.Request.Query,
-					form = form
-
+					query = (QueryCollection)context.Request.Query,
+					form = (FormCollection)form
 				};
 
 				var request = new Request
@@ -192,7 +189,7 @@ namespace VivistaServer
 			while (true)
 			{
 #if DEBUG
-				var nextTime = DateTime.UtcNow.RoundUp(TimeSpan.FromSeconds(60));
+				var nextTime = DateTime.UtcNow.RoundUp(TimeSpan.FromSeconds(30));
 #else
 				var nextTime = DateTime.UtcNow.RoundUp(TimeSpan.FromMinutes(1));
 #endif

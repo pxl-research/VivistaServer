@@ -60,10 +60,16 @@ namespace VivistaServer
     //NOTE(Tom): Needs to be in a separate class for serialization to bson
     public class RequestInfo
     {
-        public PathString path { get; set; }
-        public string method { get; set; }
-        public IQueryCollection query { get; set; }
-        public IFormCollection form { get; set; }
+        public QueryCollection query { get; set; }
+        public FormCollection form { get; set; }
+    }
+
+    public class Outlier
+	{
+        public DateTime timestamp;
+        public float seconds;
+        public string reqinfo;
+        public string endpoint;
     }
 
     public class DashboardController
@@ -138,14 +144,46 @@ namespace VivistaServer
 				return await Database.QueryAsync<RequestData>(connection, "SELECT median, average, timestamp, countrequests, percentile95, percentile99, endpoint, render_time as renderTime, db_exec_time as dbExecTime FROM statistics_days WHERE @startDate <= timestamp AND @endDate > timestamp ORDER BY timestamp", context, new { startDate, endDate });
 			});
 
-			var endpoints = Task.Run(async () =>
+            var generalMinuteData = Task.Run(async () =>
+            {
+                var startDate = new DateTime(date.Year, date.Month, date.Day);
+                var endDate = startDate.AddDays(1);
+                await using var connection = Database.OpenNewConnection();
+                return await Database.QueryAsync<GeneralData>(connection, "SELECT timestamp, downloads, views, private_memory as privateMemory, working_set as workingSet, virtual_memory as virtualMemory, uploads, uncaught_exceptions as uncaughtExceptions, count_total_requests as countTotalRequests FROM statistics_general_minutes WHERE @startDate <= timestamp AND @endDate > timestamp ORDER BY timestamp", context, new { startDate, endDate });
+            });
+
+            var generalHourData = Task.Run(async () =>
+            {
+                var startDate = date.RoundUp(TimeSpan.FromHours(24)).AddDays(-(int)date.DayOfWeek);
+                var endDate = startDate.AddDays(7);
+                await using var connection = Database.OpenNewConnection();
+                return await Database.QueryAsync<GeneralData>(connection, "SELECT timestamp, downloads, views, private_memory as privateMemory, working_set as workingSet, virtual_memory as virtualMemory, uploads, uncaught_exceptions as uncaughtExceptions, count_total_requests as countTotalRequests FROM statistics_general_hours WHERE @startDate <= timestamp AND @endDate > timestamp ORDER BY timestamp", context, new { startDate, endDate });
+            });
+
+            var generalDayData = Task.Run(async () =>
+            {
+                var startDate = new DateTime(date.Year, date.Month, 1);
+                var endDate = startDate.AddMonths(1);
+                await using var connection = Database.OpenNewConnection();
+                return await Database.QueryAsync<GeneralData>(connection, "SELECT timestamp, downloads, views, private_memory as privateMemory, working_set as workingSet, virtual_memory as virtualMemory, uploads, uncaught_exceptions as uncaughtExceptions, count_total_requests as countTotalRequests FROM statistics_general_days WHERE @startDate <= timestamp AND @endDate > timestamp ORDER BY timestamp", context, new { startDate, endDate });
+            });
+
+            var endpoints = Task.Run(async () =>
 			{
 				await using var connection = Database.OpenNewConnection();
 				return await Database.QueryAsync<string>(connection, "SELECT endpoint FROM statistics_minutes UNION SELECT endpoint FROM statistics_hours UNION SELECT endpoint FROM statistics_days ORDER BY endpoint;",
 	                context);
 			});
 
-			Task.WaitAll(userTask, videoTask, downloadTask, minuteData, hourData, dayData);
+			var outliers = Task.Run(async () =>
+			{
+				var startDate = new DateTime(date.Year, date.Month, 1);
+				var endDate = startDate.AddMonths(1);
+				await using var connection = Database.OpenNewConnection();
+				return await Database.QueryAsync<Outlier>(connection, "SELECT timestamp, seconds, endpoint, reqinfo FROM statistics_outliers WHERE @startDate <= timestamp AND @endDate > timestamp ORDER BY timestamp", context, new { startDate, endDate });
+			});
+
+			Task.WaitAll(userTask, videoTask, downloadTask, minuteData, hourData, dayData, endpoints, generalDayData, generalHourData, generalMinuteData, outliers);
 
 			var templateContext = new TemplateContext(new
             {
@@ -157,10 +195,21 @@ namespace VivistaServer
                 //TODO(Tom & Simon): check why select is necessary 
                 minuteData = minuteData.Result.Select(d => new { d.median, d.average, d.timestamp, d.countrequests, d.percentile95, d.percentile99, d.endpoint, d.renderTime, d.dbExecTime }).ToList(),
 				hourData = hourData.Result.Select(d => new { d.median, d.average, d.timestamp, d.countrequests, d.percentile95, d.percentile99, d.endpoint, d.renderTime, d.dbExecTime }).ToList(),
-				dayData = dayData.Result.Select(d => new { d.median, d.average, d.timestamp, d.countrequests, d.percentile95, d.percentile99, d.endpoint, d.renderTime, d.dbExecTime }).ToList()
+				dayData = dayData.Result.Select(d => new { d.median, d.average, d.timestamp, d.countrequests, d.percentile95, d.percentile99, d.endpoint, d.renderTime, d.dbExecTime }).ToList(),
+                generalMinuteData = generalMinuteData.Result.Select(g => new {g.timestamp, g.downloads, g.views, g.privateMemory, g.workingSet, g.virtualMemory, g.uploads, g.uncaughtExceptions, g.countTotalRequests}).ToList(),
+                generalHourData = generalHourData.Result.Select(g => new { g.timestamp, g.downloads, g.views, g.privateMemory, g.workingSet, g.virtualMemory, g.uploads, g.uncaughtExceptions, g.countTotalRequests }).ToList(),
+                generalDayData = generalDayData.Result.Select(g => new { g.timestamp, g.downloads, g.views, g.privateMemory, g.workingSet, g.virtualMemory, g.uploads, g.uncaughtExceptions, g.countTotalRequests }).ToList(),
+                outliers = outliers.Result.Select(o => new {o.timestamp, o.seconds, o.endpoint,o.reqinfo }).ToList()
             });
 
             await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\dashboard.liquid", templateContext));
+        }
+
+        [Route("GET", "/admin/outliers")]
+        private static async Task OutliersPost(HttpContext context)
+		{
+            SetHTMLContentType(context);
+            await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\outliers.liquid", new TemplateContext{}));
         }
 
         public static void AddDownloads()
@@ -276,8 +325,8 @@ namespace VivistaServer
                         if (req.seconds > outlierThreshold)
                         {
                             var reqinfo = SerializeToBson(req.requestInfo);
-                            connection.Execute(@"insert into statistics_outliers(timestamp, seconds, reqinfo) values(@timestamp, @seconds, @reqinfo::jsonb);",
-                                new { timestamp = req.timestamp, ms = req.seconds, reqinfo = reqinfo });
+                            connection.Execute(@"insert into statistics_outliers(timestamp, seconds, reqinfo, endpoint) values(@timestamp, @seconds, @reqinfo::jsonb, @endpoint);",
+                                new { timestamp = req.timestamp, seconds = req.seconds, reqinfo = reqinfo, endpoint = req.endpoint });
                         }
                     }
                 }
