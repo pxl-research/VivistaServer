@@ -199,7 +199,8 @@ namespace VivistaServer
                 generalMinuteData = generalMinuteData.Result.Select(g => new {g.timestamp, g.downloads, g.views, g.privateMemory, g.workingSet, g.virtualMemory, g.uploads, g.uncaughtExceptions, g.countTotalRequests}).ToList(),
                 generalHourData = generalHourData.Result.Select(g => new { g.timestamp, g.downloads, g.views, g.privateMemory, g.workingSet, g.virtualMemory, g.uploads, g.uncaughtExceptions, g.countTotalRequests }).ToList(),
                 generalDayData = generalDayData.Result.Select(g => new { g.timestamp, g.downloads, g.views, g.privateMemory, g.workingSet, g.virtualMemory, g.uploads, g.uncaughtExceptions, g.countTotalRequests }).ToList(),
-                outliers = outliers.Result.Select(o => new {o.timestamp, o.seconds, o.endpoint,o.reqinfo }).ToList()
+                outliers = outliers.Result.Select(o => new {o.timestamp, o.seconds, o.endpoint,o.reqinfo }).ToList(),
+                countOutliers = outliers.Result.ToList().Count
             });
 
             await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\dashboard.liquid", templateContext));
@@ -319,7 +320,7 @@ namespace VivistaServer
                     {
 	                    float outlierThreshold = 0;
                         outlierThreshold = percentilesPerEndpoint.ContainsKey(req.endpoint)
-                            ? percentilesPerEndpoint[req.endpoint] * 2
+                            ? percentilesPerEndpoint[req.endpoint] * 1.5f
                             : float.MaxValue;
 
                         if (req.seconds > outlierThreshold)
