@@ -105,6 +105,7 @@ namespace VivistaServer
 			});
 #if !VIVISTA_DONT_COLLECT_PERF_DATA
 			Task.Run(CollectPeriodicStatistics);
+			Task.Run(RoleController.LoadRoles);
 #endif
 
 			app.Run(async (context) =>

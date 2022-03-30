@@ -4,6 +4,8 @@ using Dapper;
 using Microsoft.AspNetCore.Http;
 using System.Runtime.Caching;
 using Npgsql;
+using System.Collections;
+using System.Collections.Generic;
 
 namespace VivistaServer
 {
@@ -16,12 +18,29 @@ namespace VivistaServer
 		public static Session noSession = new Session { userid = -1, expiry = DateTime.MinValue };
 	}
 
+	public class Role
+	{
+		public int id;
+		public string name { get; set; }
+	}
+
 	public class User
 	{
 		public int userid;
 		public string username;
 		public string email;
 		public string pictureId;
+		private List<int> roles;
+
+
+		public async Task<List<int>> GetRoles(NpgsqlConnection connection, HttpContext context)
+		{
+			if(roles == null)
+			{
+				roles = (List<int>)await Database.QueryAsync<int>(connection, "SELECT roleid FROM user_roles WHERE userid = @userid", context,new { userid = userid });
+			}
+			return roles;
+		}
 	}
 
 	public class UserSessions
@@ -140,7 +159,6 @@ namespace VivistaServer
 
 			return token;
 		}
-
 		public static void SetSessionCookie(HttpContext context, string token)
 		{
 			var cookies = context.Response.Cookies;

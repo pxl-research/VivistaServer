@@ -120,6 +120,7 @@ namespace VivistaServer
 					context = new TemplateContext();
 					context.Options.MemberAccessStrategy = defaultAccessStrategy;
 					context.Options.Scope.SetValue("User", FluidValue.Create(user, context.Options));
+					context.Options.Scope.SetValue("IsAdmin", FluidValue.Create(RoleController.IsUserAdmin(httpContext), context.Options));
 					AddDefaultFilters(context);
 
 					result = await template.RenderAsync();
@@ -130,6 +131,7 @@ namespace VivistaServer
 					//NOTE(cont.): This block prevents having to do it manually.
 					context.Options.MemberAccessStrategy = defaultAccessStrategy;
 					context.Options.Scope.SetValue("User", FluidValue.Create(user, context.Options));
+					context.Options.Scope.SetValue("IsAdmin", FluidValue.Create(RoleController.IsUserAdmin(httpContext), context.Options));
 					AddDefaultFilters(context);
 
 					result = await template.RenderAsync(context);

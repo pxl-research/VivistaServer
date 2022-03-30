@@ -735,6 +735,40 @@ input.toggle + label:active::after {
 	visibility: hidden;
 }
 
+.chartBox {
+	width: 50%;
+	min-height: 500px;
+	min-width: 500px;
+	display: block;
+	margin-left: auto;
+	margin-right: auto;
+}
+
+.table-center {
+	margin-left: auto;
+	margin-right: auto;
+}
+
+	.table-center td{
+		text-align: center;
+		vertical-align: central;
+	}
+	.table-center th {
+		text-align: center;
+		vertical-align: central;
+	}
+
+
+.center-text {
+	text-align: center;
+}
+
+.display-center {
+	display: block;
+	margin-left: auto;
+	margin-right: auto;
+}
+
 @media screen and (min-width:48em) {
 	.pure-menu-image-link {
 		padding: 0 2em;

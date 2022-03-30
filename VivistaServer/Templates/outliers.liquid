@@ -1,8 +1,8 @@
-﻿<div class="pure-g center">
+﻿<div class="pure-g center center-text">
 	<div class="pure-u-1" >
 		<h1>Outliers</h1>
 
-		<table class="pure-table pure-table-horizontal " style="width:100%;" id="outlierTabel">
+		<table class="pure-table table-center" id="outlierTabel">
 			<thead>
 				<tr>
 					<th>Request time in ms</th>
@@ -57,7 +57,7 @@
 			console.log(outliers[i]);
 
 			let row = document.createElement('tr');
-			let tdRequestTime = document.createElement('tr');
+			let tdRequestTime = document.createElement('td');
 			tdRequestTime.innerHTML = outliers[i].y.toString();
 
 			let tdTimestamp = document.createElement('td');
