@@ -89,6 +89,41 @@ footer a:hover {
 	color: var(--main-font);
 }
 
+.chartBox {
+	width: 50%;
+	min-height: 500px;
+	min-width: 500px;
+	display: block;
+	margin-left: auto;
+	margin-right: auto;
+}
+
+.table-center {
+	margin-left: auto;
+	margin-right: auto;
+}
+
+.table-center td {
+	text-align: center;
+	vertical-align: central;
+}
+
+.table-center th {
+	text-align: center;
+	vertical-align: central;
+}
+
+
+.center-text {
+	text-align: center;
+}
+
+.display-center {
+	display: block;
+	margin-left: auto;
+	margin-right: auto;
+}
+
 .center {
 	justify-content: center;
 }
@@ -733,40 +768,6 @@ input.toggle + label:active::after {
 
 .hidden {
 	visibility: hidden;
-}
-
-.chartBox {
-	width: 50%;
-	min-height: 500px;
-	min-width: 500px;
-	display: block;
-	margin-left: auto;
-	margin-right: auto;
-}
-
-.table-center {
-	margin-left: auto;
-	margin-right: auto;
-}
-
-	.table-center td{
-		text-align: center;
-		vertical-align: central;
-	}
-	.table-center th {
-		text-align: center;
-		vertical-align: central;
-	}
-
-
-.center-text {
-	text-align: center;
-}
-
-.display-center {
-	display: block;
-	margin-left: auto;
-	margin-right: auto;
 }
 
 @media screen and (min-width:48em) {

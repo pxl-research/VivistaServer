@@ -87,7 +87,8 @@ namespace VivistaServer
 		[Route("GET", "/admin/dashboard")]
 		private static async Task DashboardGet(HttpContext context)
 		{
-			if (await RoleController.IsUserAdmin(context))
+			using var connection = Database.OpenNewConnection();
+			if (await User.IsUserAdmin(context, connection))
 			{
 
 				var searchQuery = context.Request.Query["date"].ToString();

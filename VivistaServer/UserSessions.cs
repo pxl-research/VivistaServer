@@ -41,6 +41,26 @@ namespace VivistaServer
 			}
 			return roles;
 		}
+
+		public static async Task<bool> IsUserAdmin(HttpContext context, NpgsqlConnection connection)
+		{
+			return await IsUserSpecificRole(context, "Admin", connection);
+		}
+
+		public static async Task<bool> IsUserSpecificRole(HttpContext context, string role, NpgsqlConnection connection)
+		{
+			var user = await UserSessions.GetLoggedInUser(context);
+			if (user != null)
+			{
+				var roles = await user.GetRoles(connection, context);
+				var adminId = RoleController.GetRoleId(role);
+				if (roles != null && roles.Contains(adminId))
+				{
+					return true;
+				}
+			}
+			return false;
+		}
 	}
 
 	public class UserSessions

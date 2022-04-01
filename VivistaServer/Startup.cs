@@ -87,6 +87,11 @@ namespace VivistaServer
 				{
 					return null;
 				}
+
+				//NOTE(Tom): Is for initialization
+				context.Items[DashboardController.RENDER_TIME] = 0f;
+				context.Items[DashboardController.DB_EXEC_TIME] = 0f;
+
 				var guid = new Guid(context.Request.Headers["guid"]);
 				string path = Path.Combine(VideoController.baseFilePath, guid.ToString());
 				return new DefaultTusConfiguration
@@ -105,6 +110,9 @@ namespace VivistaServer
 			});
 #if !VIVISTA_DONT_COLLECT_PERF_DATA
 			Task.Run(CollectPeriodicStatistics);
+			
+#endif
+#if !VIVISTA_DONT_COLLECT_ROLES
 			Task.Run(RoleController.LoadRoles);
 #endif
 

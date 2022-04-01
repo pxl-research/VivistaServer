@@ -18,7 +18,8 @@ namespace VivistaServer
 		[Route("GET", "/admin/role")]
 		private static async Task OpenRolesPage(HttpContext context)
 		{
-			if (await IsUserAdmin(context))
+			using var connection = Database.OpenNewConnection();
+			if (await User.IsUserAdmin(context, connection))
 			{
 				await LoadRolesPage(context);
 			}
@@ -31,14 +32,14 @@ namespace VivistaServer
 		[Route("POST", "/admin/role")]
 		private static async Task AddAdmin(HttpContext context)
 		{
-			if (await IsUserAdmin(context))
+			using var connection = Database.OpenNewConnection();
+			if (await User.IsUserAdmin(context, connection))
 			{
 				int roleid = GetRoleId("Admin");
 
 				var form = context.Request.Form;
 				var username = form["username"].ToString();
 
-				using var connection = Database.OpenNewConnection();
 				int userid = 0;
 				userid = await Database.QuerySingleOrDefaultAsync<int>(connection, "SELECT userId FROM USERS WHERE username = @username;", context, new { username });
 				if (userid > 0)
@@ -67,11 +68,11 @@ namespace VivistaServer
 		[Route("GET", "/admin/deleteAdmin")]
 		private static async Task DeleteAdmin(HttpContext context)
 		{
-			if (await IsUserAdmin(context))
+			using var connection = Database.OpenNewConnection();
+			if (await User.IsUserAdmin(context, connection))
 			{
 				var username = context.Request.Query["username"].ToString();
 
-				using var connection = Database.OpenNewConnection();
 				var userid = await Database.QuerySingleOrDefaultAsync<int>(connection, "SELECT userid FROM users WHERE username = @username;", context, new { username });
 
 				var roleid = GetRoleId("Admin");
@@ -180,22 +181,6 @@ namespace VivistaServer
 			{
 				return false;
 			}
-		}
-
-		public async static Task<bool> IsUserAdmin(HttpContext context)
-		{
-			var user = await UserSessions.GetLoggedInUser(context);
-			if (user != null)
-			{
-				using var connection = Database.OpenNewConnection();
-				var roles = await user.GetRoles(connection, context);
-				var adminId = RoleController.GetRoleId("Admin");
-				if (roles != null && roles.Contains(adminId))
-				{
-					return true;
-				}
-			}
-			return false;
 		}
 	}
 }

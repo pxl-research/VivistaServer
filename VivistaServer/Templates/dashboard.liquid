@@ -160,6 +160,9 @@
 	let outliers = {{ outliers | json}}
 	let selectedOutliers = [];
 
+	const kb = 1024;
+	const mb = kb * 1024;
+
 	for (let i = 0; i < outliers.length; i++) {
 		outliers[i].reqinfo = JSON.parse(outliers[i].reqinfo);
 	}
@@ -168,14 +171,14 @@
 	outliers.forEach(o => {
 		let row = document.createElement('tr');
 		let tdRequestTime = document.createElement('td');
-		tdRequestTime.innerHTML = o.seconds * 1000;
+		tdRequestTime.innerText = o.seconds * 1000;
 		let tdTimestamp = document.createElement('td');
 		let dateTime = new Date(o.timestamp);
-		let formatedDateTime = (dateTime.getDate()) + '-' + (dateTime.getMonth() + 1) + '-' + dateTime.getFullYear() + ' ' + dateTime.getHours() + ":" + dateTime.getMinutes() + ":" + dateTime.getSeconds();
+		let formatedDateTime = dateTime.toLocaleString();
 
-		tdTimestamp.innerHTML = formatedDateTime.toString();
+		tdTimestamp.innerText = formatedDateTime.toString();
 		let tdEndpoint = document.createElement('td');
-		tdEndpoint.innerHTML = o.endpoint;
+		tdEndpoint.innerText = o.endpoint;
 
 		row.appendChild(tdRequestTime);
 		row.appendChild(tdTimestamp);
@@ -259,7 +262,7 @@
 		label: 'Number of requests from endpoint',
 		borderColor: 'hsl(350, 60%, 50%)',
 		backgroundColor: 'hsl(350, 60%, 50%)',
-		data: selectedData.map(a => ({ x: a.timestamp, y: a.countrequests, endpoint: a.endpoint })).filter(a => a.endpoint === selectedEndpoint && new Date(a.x) >= dateTime && new Date(a.x) < maxDateTime),
+		data: FilterWithEndpointAndTime(GetCountRequestData()),
 		order: 1,
 		yAxisID: 'y',
 	};
@@ -280,7 +283,7 @@
 				borderColor: 'hsl(250, 60%, 33%)',
 				backgroundColor: 'hsl(250, 60%, 33%)',
 				pointRadius: 4,
-				data: FilterWithEndpointAndTime(GetAverageData()),
+				data: FilterWithEndpointAndTime(GetDataInMs("average")),
 				type: 'line',
 				order: 0,
 				yAxisID: 'y1',
@@ -301,12 +304,8 @@
 		type: 'bar',
 		data: dataMixedChart,
 		options: {
-			plugins: {
-				title: {
-					display: true,
-					text: 'Count requests and average'
-				},
-			},
+			animation: false,
+			normalized: true,
 			scales: {
 				x: {
 					type: 'time',
@@ -326,6 +325,7 @@
 					ticks: {
 						precision: 0
 					},
+					min: 0
 				},
 				y1: {
 					beginAtZero: true,
@@ -334,7 +334,8 @@
 						callback: function (value, index, values) {
 							return value + ' ms';
 						}
-					}
+					},
+					min: 0
 				}
 			}
 		}
@@ -348,7 +349,7 @@
 		datasets: [
 			{
 				label: 'Db exec time in ms',
-				data: FilterWithEndpointAndTime(GetDbExecTimeData()),
+				data: FilterWithEndpointAndTime(GetDataInMs("dbExecTime")),
 				borderColor: 'hsl(330, 60%, 33%)',
 				backgroundColor: 'hsl(330, 60%, 33%)',
 				fill: true,
@@ -356,7 +357,7 @@
 			},
 			{
 				label: 'Render time in ms',
-				data: FilterWithEndpointAndTime(GetRenderTimeData()),
+				data: FilterWithEndpointAndTime(GetDataInMs("renderTime")),
 				borderColor: 'hsl(50, 60%, 67%)',
 				backgroundColor: 'hsl(50, 60%, 67%)',
 				fill: true,
@@ -364,7 +365,7 @@
 			},
 			{
 				label: 'Median in ms',
-				data: FilterWithEndpointAndTime(GetMedianData()),
+				data: FilterWithEndpointAndTime(GetDataInMs("median")),
 				borderColor: 'hsl(140, 75%, 27%)',
 				backgroundColor: 'hsl(140, 75%, 27%)',
 				fill: true,
@@ -372,14 +373,14 @@
 			},
 			{
 				label: 'Average in ms',
-				data: FilterWithEndpointAndTime(GetAverageData()),
+				data: FilterWithEndpointAndTime(GetDataInMs("average")),
 				backgroundColor: 'hsl(350, 60%, 50%)',
 				fill: true,
 				pointRadius: 4
 			},
 			{
 				label: '95 Percentile in ms',
-				data: FilterWithEndpointAndTime(GetPercentile95Data()),
+				data: FilterWithEndpointAndTime(GetDataInMs("percentile95")),
 				borderColor: 'hsl(250, 60%, 33%)',
 				backgroundColor: 'hsl(250, 60%, 33%)',
 				fill: true,
@@ -387,7 +388,7 @@
 			},
 			{
 				label: '99 Percentile in ms',
-				data: FilterWithEndpointAndTime(GetPercentile99Data()),
+				data: FilterWithEndpointAndTime(GetDataInMs("percentile99")),
 				borderColor: 'hsl(170, 43%, 46%)',
 				backgroundColor: 'hsl(170, 43%, 46%)',
 				fill: true,
@@ -399,14 +400,10 @@
 	const configAreaChart  = {
 		type: 'line',
 		data: dataAreaChart,
+		normalized: true,
 		options: {
 			responsive: true,
-			plugins: {
-				title: {
-					display: true,
-					text: 'Db exec time, render time, median, average, percentile 95 and percentile 99'
-				},
-			},
+			animation: false,
 			interaction: {
 				mode: 'nearest',
 				axis: 'x',
@@ -432,7 +429,8 @@
 						callback: function (value, index, values) {
 							return value + ' ms';
 						}
-					}
+					},
+					min: 0
 				}
 			}
 		}
@@ -446,7 +444,7 @@
 		datasets: [
 			{
 				label: 'Downloads',
-				data: FilterWithTime(GetDownloads()),
+				data: FilterWithTime(GetGeneralCountData("downloads")),
 				backgroundColor: 'hsl(350, 60%, 50%)',
 			}
 		]
@@ -454,13 +452,9 @@
 	const configBarChart = {
 		type: 'bar',
 		data: dataBarChart,
+		normalized: true,
 		options: {
-			plugins: {
-				title: {
-					display: true,
-					text: 'Downloads'
-				},
-			},
+			animation: false,
 			responsive: true,
 			scales: {
 				x: {
@@ -479,7 +473,8 @@
 					ticks: {
 						precision: 0
 					},
-					beginAtZero: true
+					beginAtZero: true,
+					min: 0
 				}
 			}
 		}
@@ -493,7 +488,7 @@
 		datasets: [
 			{
 				label: 'Private memory in mb',
-				data: FilterWithTime(GetPrivateMemory()),
+				data: FilterWithTime(GetGenralMemoryData("privateMemory")),
 				backgroundColor: 'hsl(170, 43%, 46%)',
 			}
 		]
@@ -503,13 +498,9 @@
 		type: 'bar',
 		data: dataBarChartMemory,
 		options: {
-			plugins: {
-				title: {
-					display: true,
-					text: 'Private Memory in mb'
-				},
-			},
+			animation: false,
 			responsive: true,
+			normalized:true,
 			scales: {
 				x: {
 					type: 'time',
@@ -530,7 +521,8 @@
 							return value + ' mb';
 						}
 					},
-					beginAtZero: true
+					beginAtZero: true,
+					min: 0
 				}
 			}
 		}
@@ -596,23 +588,23 @@
 			mixedChart.data.datasets[0].data = FilterWithEndpointAndTime(GetCountRequestData());
 			mixedChart.data.datasets[2].data = FilterWithEndpointAndTime(GetOutliersSeconds());
 
-			areaChart.data.datasets[0].data = FilterWithEndpointAndTime(GetDbExecTimeData());
-			areaChart.data.datasets[1].data = FilterWithEndpointAndTime(GetRenderTimeData());
-			areaChart.data.datasets[2].data = FilterWithEndpointAndTime(GetMedianData());
-			areaChart.data.datasets[3].data = FilterWithEndpointAndTime(GetAverageData());
-			areaChart.data.datasets[4].data = FilterWithEndpointAndTime(GetPercentile95Data());
-			areaChart.data.datasets[5].data = FilterWithEndpointAndTime(GetPercentile99Data());
+			areaChart.data.datasets[0].data = FilterWithEndpointAndTime(GetDataInMs("dbExecTime"));
+			areaChart.data.datasets[1].data = FilterWithEndpointAndTime(GetDataInMs("renderTime"));
+			areaChart.data.datasets[2].data = FilterWithEndpointAndTime(GetDataInMs("median"));
+			areaChart.data.datasets[3].data = FilterWithEndpointAndTime(getAverage("average"));
+			areaChart.data.datasets[4].data = FilterWithEndpointAndTime(GetDataInMs("percentile95"));
+			areaChart.data.datasets[5].data = FilterWithEndpointAndTime(GetDataInMs("percentile99"));
 		}
 		else {
 			mixedChart.data.datasets[0].data = FilterWithEndpoint(GetCountRequestData());
 			mixedChart.data.datasets[2].data = {};
 
-			areaChart.data.datasets[0].data = FilterWithEndpoint(GetDbExecTimeData());
-			areaChart.data.datasets[1].data = FilterWithEndpoint(GetRenderTimeData());
-			areaChart.data.datasets[2].data = FilterWithEndpointAndTime(GetMedianData());
-			areaChart.data.datasets[3].data = FilterWithEndpoint(GetAverageData());
-			areaChart.data.datasets[4].data = FilterWithEndpoint(GetPercentile95Data());
-			areaChart.data.datasets[5].data = FilterWithEndpoint(GetPercentile99Data());
+			areaChart.data.datasets[0].data = FilterWithEndpoint(GetDataInMs("dbExecTime"));
+			areaChart.data.datasets[1].data = FilterWithEndpoint(GetDataInMs("renderTime"));
+			areaChart.data.datasets[2].data = FilterWithEndpointAndTime(GetDataInMs("median"));
+			areaChart.data.datasets[3].data = FilterWithEndpoint(getAverage("average"));
+			areaChart.data.datasets[4].data = FilterWithEndpoint(GetDataInMs("percentile95"));
+			areaChart.data.datasets[5].data = FilterWithEndpoint(GetDataInMs("percentile99"));
 		}
 		ParameterChanged();
 		GeneralParameterChanged();
@@ -624,28 +616,29 @@
 	}
 
 
-	function GetPercentile95Data() {
+
+	function GetDataInMs(y) {
 		if (selectedData === null) {
 			return null;
 		}
 		return selectedData
-			.map(a => ({ x: a.timestamp, y: a.percentile95 * 1000, endpoint: a.endpoint }));
+			.map(a => ({ x: a.timestamp, y: a[y] * 1000, endpoint: a.endpoint }));
 	}
 
-	function GetAverageData() {
-		if (selectedData === null) {
+	function GetGeneralCountData(y) {
+		if (selectedGeneralData === null) {
 			return null;
 		}
-		return selectedData
-			.map(a => ({ x: a.timestamp, y: a.average * 1000, endpoint: a.endpoint }));
+		return selectedGeneralData
+			.map(a => ({ x: a.timestamp, y: a[y] }));
 	}
 
-	function GetPercentile99Data() {
-		if (selectedData === null) {
+	function GetGenralMemoryData(y) {
+		if (selectedGeneralData === null) {
 			return null;
 		}
-		return selectedData
-			.map(a => ({ x: a.timestamp, y: a.percentile99 * 1000, endpoint: a.endpoint }));
+		return selectedGeneralData
+			.map(a => ({ x: a.timestamp, y: (a[y] / mb) }));
 	}
 
 	function GetCountRequestData() {
@@ -656,101 +649,12 @@
 			.map(a => ({ x: a.timestamp, y: a.countrequests, endpoint: a.endpoint }));
 	}
 
-	function GetDbExecTimeData() {
-		if (selectedData === null) {
-			return null;
-		}
-		return selectedData
-			.map(a => ({ x: a.timestamp, y: a.dbExecTime * 1000, endpoint: a.endpoint }));
-	}
-
-	function GetRenderTimeData() {
-		if (selectedData === null) {
-			return null;
-		}
-		return selectedData
-			.map(a => ({ x: a.timestamp, y: a.renderTime * 1000, endpoint: a.endpoint }));
-	}
-
-	function GetMedianData() {
-		if (selectedData === null) {
-			return null;
-		}
-		return selectedData
-			.map(a => ({ x: a.timestamp, y: a.median * 1000, endpoint: a.endpoint }));
-	}
-
-	function GetDownloads() {
-		if (selectedGeneralData === null) {
-			return null;
-		}
-		return selectedGeneralData
-			.map(a => ({ x: a.timestamp, y: a.downloads }));
-	}
-
-	function GetUploads() {
-		if (selectedGeneralData === null) {
-			return null;
-		}
-		return selectedGeneralData
-			.map(a => ({ x: a.timestamp, y: a.uploads }));
-	}
-
-	function GetViews() {
-		if (selectedGeneralData === null) {
-			return null;
-		}
-		return selectedGeneralData
-			.map(a => ({ x: a.timestamp, y: a.views }));
-	}
-
-	function GetUncaughtExceptions() {
-		if (selectedGeneralData === null) {
-			return null;
-		}
-		return selectedGeneralData
-			.map(a => ({ x: a.timestamp, y: a.uncaughtExceptions }));
-	}
-
-	function GetCountTotalRequests() {
-		if (selectedGeneralData === null) {
-			return null;
-		}
-		return selectedGeneralData
-			.map(a => ({ x: a.timestamp, y: a.countTotalRequests }));
-	}
-
 	function GetOutliersSeconds() {
 		if (outliers === null) {
 			return null;
 		}
 		return outliers.map(a => ({ x: a.timestamp, y: a.seconds * 1000, endpoint: a.endpoint, reqinfo: a.reqinfo }));
 	}
-
-	function GetPrivateMemory() {
-		if (selectedGeneralData === null) {
-			return null;
-		}
-		return selectedGeneralData
-			.map(a => ({ x: a.timestamp, y: (a.privateMemory / 1024) / 1024 }));
-	}
-
-	function GetWorkingSet() {
-		if (selectedGeneralData === null) {
-			return null;
-		}
-		return selectedGeneralData
-			.map(a => ({ x: a.timestamp, y: (a.workingSet / 1024) / 1024  }));
-	}
-
-	function GetVirtualMemory() {
-		if (selectedGeneralData === null) {
-			return null;
-		}
-		return selectedGeneralData
-			.map(a => ({ x: a.timestamp, y: (a.virtualMemory / 1024) / 1024  }));
-	}
-
 
 	function SetDateAndTimes() {
 		time = document.getElementById("time").value.slice(0, -2) + '00';
@@ -784,25 +688,25 @@
 		let data;
 		switch (dataType) {
 			case 'Average':
-				data = GetAverageData();
+				data = GetDataInMs("average");
 				break;
 			case 'Median':
-				data = GetMedianData();
+				data = GetDataInMs("median");
 				break;
 			case 'Percentile 95':
-				data = GetPercentile95Data();
+				data = GetDataInMs("percentile95");
 				break;
 			case 'Percentile 99':
-				data = GetPercentile99Data();
+				data = GetDataInMs("percentile99");
 				break;
 			case 'Db exec time':
-				data = GetDbExecTimeData();
+				data = GetDataInMs("dbExecTime");
 				break;
 			case 'Render time':
-				data = GetRenderTimeData();
+				data = GetDataInMs("renderTime");
 				break;
 			default:
-				data = GetAverageData();
+				data = GetDataInMs("average");
 		}
 
 		if (timeUnit === 'minute') {
@@ -825,22 +729,22 @@
 
 		switch (generalDataType) {
 			case 'Downloads':
-				data = GetDownloads();
+				data = GetGeneralCountData("downloads");
 				break;
 			case 'Views':
-				data = GetViews();
+				data = GetGeneralCountData("views");
 				break;
 			case 'Uploads':
-				data = GetUploads();
+				data = GetGeneralCountData("uploads");
 				break;
 			case 'Uncaught exceptions':
-				data = GetUncaughtExceptions();
+				data = GetGeneralCountData("uncaughtExceptions");
 				break;
 			case 'Count total requests':
-				data = GetCountTotalRequests();
+				data = GetGeneralCountData("countTotalRequests");
 				break;
 			default:
-				data = GetDownloads();
+				data = GetGeneralCountData("downloads");
 				break;
 		}
 
@@ -862,16 +766,16 @@
 
 		switch (generalDataTypeMemory) {
 			case 'Private memory':
-				data = GetPrivateMemory();
+				data = GetGenralMemoryData("privateMemory");
 				break;
 			case 'Working set':
-				data = GetWorkingSet();
+				data = GetGenralMemoryData("workingSet");
 				break;
 			case 'Virtual memory':
-				data = GetVirtualMemory();
+				data = GetGenralMemoryData("virtualMemory");
 				break;
 			default:
-				data = GetPrivateMemory();
+				data = GetGenralMemoryData("privateMemory");
 				break;
 		}
 
@@ -892,7 +796,7 @@
 	let outlierTable = document.getElementById('outlierTabel');
 	let outlierTableBody = document.getElementById('outlierTabelBody');
 
-	function clickOurlierHandler(click) {
+	function clickOutlierHandler(click) {
 		const points = mixedChart.getElementsAtEventForMode(click, 'nearest', { intersect: true }, true);
 		if (points.length) {
 			const firstPoint = points[0];
@@ -903,14 +807,14 @@
 
 					let row = document.createElement('tr');
 					let tdRequestTime = document.createElement('td');
-					tdRequestTime.innerHTML = outlier.y;
+					tdRequestTime.innerText = outlier.y;
 					let tdTimestamp = document.createElement('td');
 					let dateTime = new Date(outlier.x);
-					let formatedDateTime = (dateTime.getDate()) + '-' + (dateTime.getMonth() + 1) + '-' + dateTime.getFullYear() + ' ' + dateTime.getHours() + ":" + dateTime.getMinutes() + ":" + dateTime.getSeconds();
+					formatedDateTime = dateTime.toLocaleString();
 
-					tdTimestamp.innerHTML = formatedDateTime.toString();
+					tdTimestamp.innerText = formatedDateTime.toString();
 					let tdEndpoint = document.createElement('td');
-					tdEndpoint.innerHTML = outlier.endpoint;
+					tdEndpoint.innerText = outlier.endpoint;
 
 					row.appendChild(tdRequestTime);
 					row.appendChild(tdTimestamp);
@@ -921,10 +825,7 @@
 		}
 	}
 
-	function DeleteRow(row) {
-		console.log(row);
-	}
-	ctx.onclick = clickOurlierHandler;
+	ctx.onclick = clickOutlierHandler;
 
 	function NavigateToOutliers() {
 		if (selectedOutliers.length > 0) {

@@ -21,11 +21,9 @@
 
 
 <script>
-	let outliers = JSON.parse(sessionStorage.getItem('outliers'));
-	console.log(outliers);
-	PrintOutliers();
-
-	function PrintOutliers() {
+	InsertOutliers();
+	function InsertOutliers() {
+		let outliers = JSON.parse(sessionStorage.getItem('outliers'));
 		let outlierTableBody = document.getElementById('outlierTabelBody');
 		let i = 0;
 		outliers.forEach(a => {
@@ -53,8 +51,6 @@
 
 			outliers[i].reqinfo.form = textForm;
 			outliers[i].reqinfo.query = query;
-
-			console.log(outliers[i]);
 
 			let row = document.createElement('tr');
 			let tdRequestTime = document.createElement('td');
