@@ -18,7 +18,7 @@ namespace VivistaServer
 		public static Session noSession = new Session { userid = -1, expiry = DateTime.MinValue };
 	}
 
-	public class Role
+	public struct Role
 	{
 		public int id;
 		public string name { get; set; }
@@ -44,7 +44,7 @@ namespace VivistaServer
 
 		public static async Task<bool> IsUserAdmin(HttpContext context, NpgsqlConnection connection)
 		{
-			return await IsUserSpecificRole(context, "Admin", connection);
+			return await IsUserSpecificRole(context, "admin", connection);
 		}
 
 		public static async Task<bool> IsUserSpecificRole(HttpContext context, string role, NpgsqlConnection connection)
@@ -54,7 +54,7 @@ namespace VivistaServer
 			{
 				var roles = await user.GetRoles(connection, context);
 				var adminId = RoleController.GetRoleId(role);
-				if (roles != null && roles.Contains(adminId))
+				if (roles.Contains(adminId))
 				{
 					return true;
 				}

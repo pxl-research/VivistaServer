@@ -352,7 +352,7 @@ namespace VivistaServer
 				{
 					if (await UpdatePassword(user.email, password, connection, context))
 					{
-						var templateContext = new TemplateContext(new {success = true, message = ""});
+						var templateContext = new TemplateContext(new { success = true, message = "" });
 						await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\settings.liquid", templateContext));
 					}
 					else
@@ -407,15 +407,22 @@ namespace VivistaServer
 				if (!userExists)
 				{
 					string verificationToken = Tokens.NewVerifyEmailToken();
-					int querySuccess = await Database.ExecuteAsync(connection,@"insert into users (username, email, pass, verification_token)
-																	values (@username, @email, @hashedPassword, @verificationToken)", 
-                                                                    context,
+					int querySuccess = await Database.ExecuteAsync(connection, @"insert into users (username, email, pass, verification_token)
+																	values (@username, @email, @hashedPassword, @verificationToken)",
+																	context,
 																new { username, email, hashedPassword, verificationToken });
 
 					if (querySuccess == 0)
 					{
 						throw new Exception("Something went wrong while writing new user to db");
 					}
+
+					var roleid = RoleController.GetRoleId("user");
+					var userid = await UserIdFromEmail(email, connection, context);
+					int queryRoleSucces = await Database.ExecuteAsync(connection, @"insert into user_roles (userid, roleid)
+																	values (@userid, @roleid)",
+																	context,
+																new { userid, roleid });
 
 					await EmailClient.SendEmailConfirmationMail(email, verificationToken);
 				}
@@ -482,7 +489,7 @@ namespace VivistaServer
 
 		public static async Task<User> UserFromUsername(string username, NpgsqlConnection connection, HttpContext context)
 		{
-			return await Database.QuerySingleAsync<User>(connection, "select userid, username from users where username=@username", context,new { username });
+			return await Database.QuerySingleAsync<User>(connection, "select userid, username from users where username=@username", context, new { username });
 		}
 
 
@@ -491,7 +498,7 @@ namespace VivistaServer
 			int? id;
 			try
 			{
-				id = await Database.QueryFirstOrDefaultAsync<int?>(connection,"select userid from users where email = @email", context, new { email });
+				id = await Database.QueryFirstOrDefaultAsync<int?>(connection, "select userid from users where email = @email", context, new { email });
 			}
 			catch
 			{
@@ -534,7 +541,7 @@ namespace VivistaServer
 
 			try
 			{
-				rows = await Database.ExecuteAsync(connection, "update users set pass = @hashedPassword where email = @email", context,new { email, hashedPassword });
+				rows = await Database.ExecuteAsync(connection, "update users set pass = @hashedPassword where email = @email", context, new { email, hashedPassword });
 			}
 			catch
 			{
@@ -570,10 +577,10 @@ namespace VivistaServer
 
 			if (userid != -1)
 			{
-				await Database.ExecuteAsync(connection,@"insert into password_reset_tokens (token, expiry, userid) 
+				await Database.ExecuteAsync(connection, @"insert into password_reset_tokens (token, expiry, userid) 
 											values (@token, @expiry, @userId)
 											on conflict(userid)
-											do update set token=@token, expiry=@expiry", context,new { token, expiry, userid });
+											do update set token=@token, expiry=@expiry", context, new { token, expiry, userid });
 				return token;
 			}
 
@@ -616,7 +623,7 @@ namespace VivistaServer
 			string storedPassword;
 			try
 			{
-				storedPassword = await Database.QuerySingleAsync<string>(connection,"select pass from users where email = @email", context, new { email });
+				storedPassword = await Database.QuerySingleAsync<string>(connection, "select pass from users where email = @email", context, new { email });
 			}
 			catch
 			{

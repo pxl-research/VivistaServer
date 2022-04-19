@@ -35,7 +35,7 @@ namespace VivistaServer
 			using var connection = Database.OpenNewConnection();
 			if (await User.IsUserAdmin(context, connection))
 			{
-				int roleid = GetRoleId("Admin");
+				int roleid = GetRoleId("admin");
 
 				var form = context.Request.Form;
 				var username = form["username"].ToString();
@@ -75,7 +75,7 @@ namespace VivistaServer
 
 				var userid = await Database.QuerySingleOrDefaultAsync<int>(connection, "SELECT userid FROM users WHERE username = @username;", context, new { username });
 
-				var roleid = GetRoleId("Admin");
+				var roleid = GetRoleId("admin");
 				var loggedInUser = await UserSessions.GetLoggedInUser(context);
 				if (userid > 0)
 				{
@@ -109,7 +109,7 @@ namespace VivistaServer
 
 		private static async Task LoadRolesPage(HttpContext context, string error = "", string success = "")
 		{
-			var roleid = GetRoleId("Admin");
+			var roleid = GetRoleId("admin");
 
 			SetHTMLContentType(context);
 			var adminTask = Task.Run(async () =>
@@ -136,6 +136,7 @@ namespace VivistaServer
 
 		public static int GetRoleId(string role)
 		{
+			Debug.Assert(role.ToLower() == role, "Role needs to be written in lowercase");
 			int roleid = 0;
 			try
 			{
@@ -143,7 +144,7 @@ namespace VivistaServer
 				{
 					if (r.name == role)
 					{
-						roleid = (int)r.id;
+						roleid = r.id;
 					}
 				}
 			}
@@ -170,7 +171,7 @@ namespace VivistaServer
 #endif
 		}
 
-		public async static Task<bool> UserRoleExist(int userid, int roleid, NpgsqlConnection connection, HttpContext context)
+		public static async Task<bool> UserRoleExist(int userid, int roleid, NpgsqlConnection connection, HttpContext context)
 		{
 			try
 			{
