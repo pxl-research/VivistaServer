@@ -591,7 +591,7 @@
 			areaChart.data.datasets[0].data = FilterWithEndpointAndTime(GetDataInMs("dbExecTime"));
 			areaChart.data.datasets[1].data = FilterWithEndpointAndTime(GetDataInMs("renderTime"));
 			areaChart.data.datasets[2].data = FilterWithEndpointAndTime(GetDataInMs("median"));
-			areaChart.data.datasets[3].data = FilterWithEndpointAndTime(getAverage("average"));
+			areaChart.data.datasets[3].data = FilterWithEndpointAndTime(GetDataInMs("average"));
 			areaChart.data.datasets[4].data = FilterWithEndpointAndTime(GetDataInMs("percentile95"));
 			areaChart.data.datasets[5].data = FilterWithEndpointAndTime(GetDataInMs("percentile99"));
 		}
@@ -602,7 +602,7 @@
 			areaChart.data.datasets[0].data = FilterWithEndpoint(GetDataInMs("dbExecTime"));
 			areaChart.data.datasets[1].data = FilterWithEndpoint(GetDataInMs("renderTime"));
 			areaChart.data.datasets[2].data = FilterWithEndpointAndTime(GetDataInMs("median"));
-			areaChart.data.datasets[3].data = FilterWithEndpoint(getAverage("average"));
+			areaChart.data.datasets[3].data = FilterWithEndpoint(GetDataInMs("average"));
 			areaChart.data.datasets[4].data = FilterWithEndpoint(GetDataInMs("percentile95"));
 			areaChart.data.datasets[5].data = FilterWithEndpoint(GetDataInMs("percentile99"));
 		}
