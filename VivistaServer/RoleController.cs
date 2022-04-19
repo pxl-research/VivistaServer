@@ -25,7 +25,7 @@ namespace VivistaServer
 			}
 			else
 			{
-				CommonController.Write404(context);
+				await CommonController.Write404(context);
 			}
 		}
 
@@ -61,7 +61,7 @@ namespace VivistaServer
 			}
 			else
 			{
-				CommonController.Write404(context);
+				await CommonController.Write404(context);
 			}
 		}
 
@@ -103,7 +103,7 @@ namespace VivistaServer
 			}
 			else
 			{
-				CommonController.Write404(context);
+				await CommonController.Write404(context);
 			}
 		}
 
