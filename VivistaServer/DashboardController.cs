@@ -122,7 +122,7 @@ namespace VivistaServer
 				var downloadTask = Task.Run(async () =>
 				{
 					await using var connection = Database.OpenNewConnection();
-					return await Database.QueryAsync<int>(connection, "SELECT SUM(downloads) FROM videos;", context);
+					return await Database.QueryAsync<int>(connection, "SELECT COALESCE(SUM(downloads), 0) FROM videos;", context);
 				});
 
 				var minuteData = Task.Run(async () =>
