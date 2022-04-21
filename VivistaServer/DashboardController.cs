@@ -429,6 +429,10 @@ namespace VivistaServer
 				}
 				Console.WriteLine($"{DateTime.UtcNow}: \t aggregate hour data succesful");
 			}
+			else
+			{
+				Console.WriteLine($"{DateTime.UtcNow}: \t No hour data to aggregate");
+			}
 
 			if (minutesGeneralData.Count > 0)
 			{
@@ -455,6 +459,10 @@ namespace VivistaServer
 
 					});
 				Console.WriteLine($"{DateTime.UtcNow}: \t aggregate general hour data succesful");
+			}
+			else
+			{
+				Console.WriteLine($"{DateTime.UtcNow}: \t No general hour data to aggregate");
 			}
 		}
 
@@ -510,6 +518,10 @@ namespace VivistaServer
 				}
 				Console.WriteLine($"{DateTime.UtcNow}: \t aggregate day data succesful");
 			}
+			else
+			{
+				Console.WriteLine($"{DateTime.UtcNow}: \t No day data to aggregate");
+			}
 
 			if (hoursGeneralData.Count > 0)
 			{
@@ -534,6 +546,10 @@ namespace VivistaServer
 						countTotalRequests = generalData.countTotalRequests
 					});
 				Console.WriteLine($"{DateTime.UtcNow}: \t aggregate general day data succesful");
+			}
+			else
+			{
+				Console.WriteLine($"{DateTime.UtcNow}: \t No general day data to aggregate");
 			}
 
 			//Delete old data
