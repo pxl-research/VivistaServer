@@ -18,6 +18,8 @@
 							<input type="date" id="date" name="date" />
 							<input type="time" id="time" name="time" value="09:00" />
 						</div>
+						<button class="pure-button" id="previousTime"><<</button>
+						<button class="pure-button" id="nextTime">>></button>
 					</div>
 				</div>
 				<div class="pure-u-1-3" style="min-width:350px;">
@@ -181,6 +183,15 @@
 	let allOutliersTable = document.getElementById("allOutliersTable");
 	let alOutliersTableBody = document.getElementById("allOutliersTableBody");
 	NextPage();
+	var today = new Date();
+	if (today.getHours().toString().length === 1) {
+		document.getElementById("time").value = "0" + today.getHours().toString() + ":00"
+	}
+	else {
+		document.getElementById("time").value = today.getHours().toString() + ":00";
+	}
+	
+
 	function NextPage() {
 		if (index < outliers.length) {
 			let count = allOutliersTable.rows.length;
@@ -224,8 +235,8 @@
 
 
 	let generalDataOfDay = {{ generalMinuteData | json}};
-	let generalDataOfWeek = {{ generalDataOfWeek | json}};
-	let generalDataOfMonth = {{ generalDataOfMonth | json}};
+	let generalDataOfWeek = {{ generalHourData | json}};
+	let generalDataOfMonth = {{ generalDayData | json}};
 
 
 	let selectedEndpoint = endpoints[0];
@@ -299,6 +310,8 @@
 			scales: {
 				x: {
 					type: 'time',
+					min: GiveMinHours(),
+					max: GiveMaxHours(),
 					time: {
 						unit: timeUnit,
 						displayFormats: {
@@ -306,8 +319,8 @@
 							hour: 'MMM dd - hh:mm',
 							day: 'MMM dd'
 
-						}
-					}
+						},
+					},
 				},
 				y: {
 					beginAtZero: true,
@@ -330,6 +343,7 @@
 			}
 		}
 	};
+
 	const mixedChart = new Chart(
 		document.getElementById('mixedChart'),
 		configMixedChart
@@ -402,6 +416,8 @@
 			scales: {
 				x: {
 					type: 'time',
+					min: GiveMinHours(),
+					max: GiveMaxHours(),
 					time: {
 						unit: timeUnit,
 						displayFormats: {
@@ -446,6 +462,8 @@
 		options: {
 			animation: false,
 			responsive: true,
+			min: GiveMinHours(),
+			max: GiveMaxHours(),
 			scales: {
 				x: {
 					type: 'time',
@@ -494,6 +512,8 @@
 			scales: {
 				x: {
 					type: 'time',
+					min: GiveMinHours(),
+					max: GiveMaxHours(),
 					time: {
 						unit: timeUnit,
 						displayFormats: {
@@ -542,13 +562,51 @@
 
 	document.getElementById("date").addEventListener("change", function () { location.href = "/admin/dashboard?date=" + document.getElementById("date").value;});
 	document.getElementById("endpoint").addEventListener("change", function () { ChangeEndpoint(document.getElementById("endpoint").value) });
-	document.getElementById("time").addEventListener("blur", function () { selectedData = dataOfDay; ChangeDataOfCharts(); });
+	document.getElementById("time").addEventListener("blur", function () {
+		document.getElementById("time").value = document.getElementById("time").value.slice(0, -2) + "00";
+		time = document.getElementById("time").value;
+		selectedData = dataOfDay;
+		ChangeDataOfCharts();
+	});
 	document.getElementById("dataType").addEventListener("change", function () { dataType = document.getElementById("dataType").value; ParameterChanged(); });
 	document.getElementById("generalDataType").addEventListener("change", function () { generalDataType = document.getElementById("generalDataType").value; GeneralParameterChanged(); });
 	document.getElementById("generalDataTypeMemory").addEventListener("change", function () { generalDataTypeMemory = document.getElementById("generalDataTypeMemory").value; GeneralParameterMemoryChanged(); });
 	document.getElementById("outliersButton").addEventListener("click", function () { NavigateToOutliers() });
 	document.getElementById("nextPage").addEventListener("click", function () { NextPage() });
 	document.getElementById("previousPage").addEventListener("click", function () { PreviousPage() });
+	document.getElementById("previousTime").addEventListener("click", function () { PreviousOrNextTime(-1) });
+	document.getElementById("nextTime").addEventListener("click", function () { PreviousOrNextTime(1) });
+
+	function PreviousOrNextTime(t) {
+		if (timeUnit === "minute") {
+			let newTime = document.getElementById("time").value.slice(0, -3);
+			newTime = parseInt(newTime);
+			if (newTime == 23 && t > 0) {
+				return;
+			}
+			if (newTime == 0 && t < 0) {
+				return;
+			}
+			newTime += t;
+			if (newTime < 10) {
+				document.getElementById("time").value = "0" + newTime + ":00";
+			} else {
+				document.getElementById("time").value = newTime + ":00";
+			}
+			time = document.getElementById("time").value;
+			selectedData = dataOfDay;
+			ChangeDataOfCharts();
+		}
+		else if (timeUnit === "hour") {
+			dateTime.setDate(dateTime.getDate() + (t * 7));
+			location.href = "/admin/dashboard?date=" + dateTime.toLocaleDateString('en-CA');
+		}
+		else if (timeUnit === "day") {
+			dateTime.setMonth(dateTime.getMonth() + t);
+			location.href = "/admin/dashboard?date=" + dateTime.toLocaleDateString('en-CA');
+		}
+	}
+
 
 	//Change paramters
 	function ChangeTimeUnit(time) {
@@ -574,6 +632,15 @@
 		//Note(Tom): If time unit is minute, then we need to see data of specific hour
 		if (timeUnit === 'minute') {
 			SetDateAndTimes();
+			mixedChart.options.scales.x.min = GiveMinHours();
+			mixedChart.options.scales.x.max = GiveMaxHours();
+			areaChart.options.scales.x.min = GiveMinHours();
+			areaChart.options.scales.x.max = GiveMaxHours();
+			barChart.options.scales.x.min = GiveMinHours();
+			barChart.options.scales.x.max = GiveMaxHours();
+			barChartMemory.options.scales.x.min = GiveMinHours();
+			barChartMemory.options.scales.x.min = GiveMaxHours();
+
 
 			mixedChart.data.datasets[0].data = FilterWithEndpointAndTime(GetCountRequestData());
 			mixedChart.data.datasets[2].data = FilterWithEndpointAndTime(GetOutliersSeconds());
@@ -586,6 +653,26 @@
 			areaChart.data.datasets[5].data = FilterWithEndpointAndTime(GetDataInMs("percentile99"));
 		}
 		else {
+			if (timeUnit == "day") {
+				mixedChart.options.scales.x.min = GiveMinMonth();
+				mixedChart.options.scales.x.max = GiveMaxMonth();
+				areaChart.options.scales.x.min = GiveMinMonth();
+				areaChart.options.scales.x.max = GiveMaxMonth();
+				barChart.options.scales.x.min = GiveMinMonth();
+				barChart.options.scales.x.max = GiveMaxMonth();
+				barChartMemory.options.scales.x.min = GiveMinMonth();
+				barChartMemory.options.scales.x.min = GiveMaxMonth();
+			}
+			else {
+				mixedChart.options.scales.x.min = GiveMinWeek();
+				mixedChart.options.scales.x.max = GiveMaxWeek();
+				areaChart.options.scales.x.min = GiveMinWeek();
+				areaChart.options.scales.x.max = GiveMaxWeek();
+				barChart.options.scales.x.min = GiveMinWeek();
+				barChart.options.scales.x.max = GiveMaxWeek();
+				barChartMemory.options.scales.x.min = GiveMinWeek();
+				barChartMemory.options.scales.x.min = GiveMaxWeek();
+			}
 			mixedChart.data.datasets[0].data = FilterWithEndpoint(GetCountRequestData());
 			mixedChart.data.datasets[2].data = {};
 
@@ -605,7 +692,50 @@
 		barChart.update();
 	}
 
+	function GiveMinHours() {
+		let newDate = new Date(dateTime);
+		let timeHours = parseInt(time.substring(0, 2));
+		newDate.setHours(timeHours);
+		return newDate;
+	}
 
+	function GiveMaxHours() {
+		let newDate = new Date(dateTime);
+		let timeHours = parseInt(time.substring(0, 2));
+		newDate.setHours(timeHours);
+		newDate.setHours(newDate.getHours() + 1);
+		newDate.setMilliseconds(-1);
+		return newDate;
+	}
+
+	function GiveMinWeek() {
+		let newDate = new Date(dateTime);
+		let dayOfWeek = newDate.getDay();
+		return new Date(dateTime.getFullYear(), dateTime.getMonth(), newDate.getDate() - dayOfWeek + 1);
+	}
+
+	function GiveMaxWeek() {
+		let newDate = new Date(dateTime);
+		let dayOfWeek = newDate.getDay();
+
+		newDate = new Date(dateTime.getFullYear(), dateTime.getMonth(), newDate.getDate() + (6 - dayOfWeek) + 2);
+		newDate.setMilliseconds(-1)
+		return newDate;
+
+	}
+
+	function GiveMinMonth() {
+		return new Date(dateTime.getFullYear(), dateTime.getMonth(), 1);
+	}
+
+	function GiveMaxMonth() {
+		let newDate = new Date(dateTime);
+		newDate = new Date(dateTime.getFullYear(), dateTime.getMonth(), 1);
+		newDate.setMonth(newDate.getMonth() + 1)
+		newDate.setMilliseconds(-1);
+		return newDate;
+		
+	}
 
 	function GetDataInMs(y) {
 		if (selectedData === null) {
@@ -743,11 +873,9 @@
 			data = FilterWithTime(data);
 		}
 
-
 		barChart.data.datasets[0].data = data;
 		barChart.data.datasets[0].label = generalDataType;
 		barChart.options.plugins.title.text = generalDataType;
-
 		barChart.update();
 	}
 

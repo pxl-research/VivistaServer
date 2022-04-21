@@ -206,8 +206,8 @@ namespace VivistaServer
 				await Task.Delay(delay);
 
 				Task.Run(DashboardController.AddMinuteData);
-
-				if (DateTime.UtcNow.Hour > lastHours.Hour)
+				//lastHours=lastHours.AddHours(-1);
+				if (DateTime.UtcNow.Hour >= lastHours.Hour)
 				{
 					Task.Run(() => DashboardController.AddHourData(lastHours));
 					lastHours = DateTime.UtcNow;

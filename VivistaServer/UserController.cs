@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
 using Dapper;
@@ -369,6 +370,89 @@ namespace VivistaServer
 			}
 		}
 
+		[Route("GET", "/delete_yourself")]
+		private static async Task GetDeleteYourself(HttpContext context)
+		{
+			SetHTMLContentType(context);
+			var user = await UserSessions.GetLoggedInUser(context);
+
+			if (user != null)
+			{
+				using var connection = Database.OpenNewConnection();
+
+				var result = await DeleteYourself(user.userid, connection, context);
+				if (String.IsNullOrEmpty(result))
+				{
+					context.Response.Redirect("/");
+				}
+				else
+				{
+					var templateContext = new TemplateContext(new { success = false, error = result });
+					await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\settings.liquid", templateContext));
+				}
+			}
+			else
+			{
+				await CommonController.Write404(context);
+			}
+		}
+
+		[Route("GET", "/admin/deleteUser")]
+		private static async Task GetDeleteUser(HttpContext context)
+		{
+			SetHTMLContentType(context);
+			using var connection = Database.OpenNewConnection();
+			if (await User.IsUserAdmin(context, connection))
+			{
+				var username = context.Request.Query["username"].ToString();
+
+				var userid = await Database.QuerySingleOrDefaultAsync<int>(connection, "SELECT userid FROM users WHERE username = @username;", context, new { username });
+				if(userid == 0)
+				{
+					await RoleController.LoadRolesPage(context, $"{username} doesn't exist.");
+				}
+				var result = await DeleteUser(userid, connection, context);
+				if (String.IsNullOrEmpty(result))
+				{
+					await RoleController.LoadRolesPage(context, "", $"{username} is deleted.");
+				}
+				else
+				{
+					await RoleController.LoadRolesPage(context, result);
+				}
+
+				//var roleid = GetRoleId("admin");
+				//var loggedInUser = await UserSessions.GetLoggedInUser(context);
+				//if (userid > 0)
+				//{
+				//	if (loggedInUser.userid != userid)
+				//	{
+				//		try
+				//		{
+				//			await Database.ExecuteAsync(connection, "DELETE FROM user_roles WHERE userid = @userid AND roleid = @roleid;", context, new { userid, roleid });
+				//			await LoadRolesPage(context, "", $"{username} his admin role is deleted.");
+				//		}
+				//		catch (Exception ex)
+				//		{
+				//			await LoadRolesPage(context, "Something went wrong");
+				//		}
+				//	}
+				//	else
+				//	{
+				//		await LoadRolesPage(context, "You can't delete your own admin role.");
+				//	}
+				//}
+				//else
+				//{
+				//	await LoadRolesPage(context, "User doesn't exist");
+				//}
+			}
+			else
+			{
+				await CommonController.Write404(context);
+			}
+		}
+
 
 
 		private static async Task<(bool success, string result)> RegisterWithForm(HttpContext context)
@@ -632,5 +716,59 @@ namespace VivistaServer
 
 			return BCrypt.Net.BCrypt.Verify(password, storedPassword);
 		}
+
+		private static async Task<string> DeleteYourself(int id, NpgsqlConnection connection, HttpContext context)
+		{
+			try
+			{
+				var adminRoleId = RoleController.GetRoleId("admin");
+				if (await User.IsUserAdmin(context, connection))
+				{
+					var admins = (List<int>)await Database.QueryAsync<int>(connection, "SELECT userid FROM user_roles WHERE roleid = @adminRoleId;", context, new { adminRoleId });
+					if (admins.Count < 1)
+					{
+						return "You can't delete the last admin!";
+					}
+				}
+				await Database.ExecuteAsync(connection, "DELETE FROM sessions where userid = @id;", context, new { id });
+				await Database.ExecuteAsync(connection, "DELETE FROM user_roles where userid = @id;", context, new { id });
+				await Database.ExecuteAsync(connection, "DELETE FROM users where userid = @id;", context, new { id });
+
+				await UserSessions.InvalidateSession(context.Request.Cookies["session"], connection, context);
+				context.Response.Cookies.Delete("session");
+
+				return "";
+			}
+			catch
+			{
+				return "Something went wrong";
+			}
+		}
+
+		private static async Task<string> DeleteUser(int id, NpgsqlConnection connection, HttpContext context)
+		{
+			try
+			{
+				var user = await UserSessions.GetLoggedInUser(context);
+				if(user.userid == id)
+				{
+					return "You can only delete yourself in Settings!";
+				}
+				var adminId = RoleController.GetRoleId("admin");
+				var admins = (List<int>) await Database.QueryAsync<int>(connection, "SELECT userid FROM user_roles WHERE userid = @id AND roleid = @adminId", context, new { id, adminId });
+				if(admins.Count == 1)
+				{
+					return "You can't delete another admin!";
+				}
+				await Database.ExecuteAsync(connection, "DELETE FROM sessions where userid = @id;", context, new { id });
+				await Database.ExecuteAsync(connection, "DELETE FROM user_roles where userid = @id;", context, new { id });
+				await Database.ExecuteAsync(connection, "DELETE FROM users where userid = @id;", context, new { id });
+				return "";
+			} catch(Exception ex)
+			{
+				return "Something went wrong";
+			}
+		}
+
 	}
 }

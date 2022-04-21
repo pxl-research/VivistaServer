@@ -91,8 +91,9 @@ footer a:hover {
 
 .chartBox {
 	width: 50%;
-	min-height: 500px;
-	min-width: 500px;
+	min-height: 300px;
+	min-width: 300px;
+	max-height:400px;
 	display: block;
 	margin-left: auto;
 	margin-right: auto;

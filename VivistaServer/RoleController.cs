@@ -107,7 +107,7 @@ namespace VivistaServer
 			}
 		}
 
-		private static async Task LoadRolesPage(HttpContext context, string error = "", string success = "")
+		public static async Task LoadRolesPage(HttpContext context, string error = "", string success = "")
 		{
 			var roleid = GetRoleId("admin");
 
