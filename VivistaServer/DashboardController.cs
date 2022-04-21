@@ -5,10 +5,8 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
-using Npgsql;
 using static VivistaServer.CommonController;
 using JsonSerializer = System.Text.Json.JsonSerializer;
 
@@ -251,7 +249,6 @@ namespace VivistaServer
 			{
 				cachedRequests.Add(request);
 			}
-
 		}
 
 
@@ -260,6 +257,7 @@ namespace VivistaServer
 			using var connection = Database.OpenNewConnection();
 			if (cachedRequests.Count > 0)
 			{
+				Console.WriteLine($"{DateTime.UtcNow}: \t aggregating minute data for {cachedRequests.Count} requests");
 				var groupedRequests = cachedRequests.GroupBy(s => s.endpoint).Select(grp => grp.ToList()).ToList();
 				var timestamp = new DateTime();
 
@@ -369,6 +367,11 @@ namespace VivistaServer
 				uploads = 0;
 				uncaughtExceptions = 0;
 
+				Console.WriteLine($"{DateTime.UtcNow}: \t aggregate minutedata succesful");
+			}
+			else
+			{
+				Console.WriteLine($"{DateTime.UtcNow}: \t No minute data to aggregate");
 			}
 		}
 
@@ -395,6 +398,7 @@ namespace VivistaServer
 
 			if (minutesData.Count > 0)
 			{
+				Console.WriteLine($"{DateTime.UtcNow}: \t aggregating hour data for {minutesData.Count} datapoints");
 				var groupedData = minutesData.GroupBy(s => s.endpoint).Select(grp => grp.ToList()).ToList();
 				foreach (var specificEndpointList in groupedData)
 				{
@@ -423,10 +427,12 @@ namespace VivistaServer
 						});
 
 				}
+				Console.WriteLine($"{DateTime.UtcNow}: \t aggregate hour data succesful");
 			}
 
 			if (minutesGeneralData.Count > 0)
 			{
+				Console.WriteLine($"{DateTime.UtcNow}: \t aggregating hour data for {minutesGeneralData.Count} general datapoints");
 				var timestamp = minutesGeneralData[0].timestamp;
 				timestamp = startTime.RoundUp(TimeSpan.FromMinutes(60)).AddHours(-1);
 
@@ -448,6 +454,7 @@ namespace VivistaServer
 						countTotalRequests = generalData.countTotalRequests
 
 					});
+				Console.WriteLine($"{DateTime.UtcNow}: \t aggregate general hour data succesful");
 			}
 		}
 
@@ -474,6 +481,7 @@ namespace VivistaServer
 
 			if (hoursData.Count > 0)
 			{
+				Console.WriteLine($"{DateTime.UtcNow}: \t aggregating day data for {hoursData.Count} datapoints");
 				var groupedData = hoursData.GroupBy(s => s.endpoint).Select(grp => grp.ToList()).ToList();
 				foreach (var specificEndpointList in groupedData)
 				{
@@ -500,6 +508,7 @@ namespace VivistaServer
 							dbExecTime = dayData.dbExecTime
 						});
 				}
+				Console.WriteLine($"{DateTime.UtcNow}: \t aggregate day data succesful");
 			}
 
 			if (hoursGeneralData.Count > 0)
@@ -524,6 +533,7 @@ namespace VivistaServer
 						uncaughtExceptions = generalData.uncaughtExceptions,
 						countTotalRequests = generalData.countTotalRequests
 					});
+				Console.WriteLine($"{DateTime.UtcNow}: \t aggregate general day data succesful");
 			}
 
 			//Delete old data
