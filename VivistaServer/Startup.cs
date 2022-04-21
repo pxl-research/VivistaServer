@@ -199,7 +199,7 @@ namespace VivistaServer
 			var lastDay = DateTime.UtcNow;
 			while (true)
 			{
-				Console.WriteLine($"{DateTime.UtcNow}: Writing statistics to db");
+				Console.WriteLine($"{DateTime.UtcNow}: Writing minute statistics to db");
 #if DEBUG
 				//NOTE(Simon): Add a little margin to account for rounding errors in Task.Delay. If ran without margin, Task.Delay would sometimes be done too early causing many rapid runs of the AddMinuteData Task
 				var nextTime = DateTime.UtcNow.RoundUp(TimeSpan.FromSeconds(30)) + TimeSpan.FromSeconds(1);
@@ -213,12 +213,14 @@ namespace VivistaServer
 				Task.Run(DashboardController.AddMinuteData);
 				if (DateTime.UtcNow.Hour >= lastHours.Hour)
 				{
+					Console.WriteLine($"{DateTime.UtcNow}: Writing hours statistics to db");
 					Task.Run(() => DashboardController.AddHourData(lastHours));
 					lastHours = DateTime.UtcNow;
 				}
 
 				if (DateTime.UtcNow.Day > lastDay.Day)
 				{
+					Console.WriteLine($"{DateTime.UtcNow}: Writing day statistics to db");
 					Task.Run(() => DashboardController.AddDayData(lastDay));
 					lastDay = DateTime.UtcNow;
 				}
