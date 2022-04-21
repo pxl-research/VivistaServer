@@ -211,17 +211,19 @@ namespace VivistaServer
 				await Task.Delay(delay);
 
 				Task.Run(DashboardController.AddMinuteData);
-				if (DateTime.UtcNow.Hour >= lastHours.Hour)
+				if (DateTime.UtcNow.Hour != lastHours.Hour)
 				{
 					Console.WriteLine($"{DateTime.UtcNow}: Writing hours statistics to db");
-					Task.Run(() => DashboardController.AddHourData(lastHours));
+					var hoursTemp = lastHours;
+					Task.Run(() => DashboardController.AddHourData(hoursTemp));
 					lastHours = DateTime.UtcNow;
 				}
 
-				if (DateTime.UtcNow.Day > lastDay.Day)
+				if (DateTime.UtcNow.Day != lastDay.Day)
 				{
 					Console.WriteLine($"{DateTime.UtcNow}: Writing day statistics to db");
-					Task.Run(() => DashboardController.AddDayData(lastDay));
+					var dayTemp = lastDay;
+					Task.Run(() => DashboardController.AddDayData(dayTemp));
 					lastDay = DateTime.UtcNow;
 				}
 			}
