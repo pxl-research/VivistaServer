@@ -51,7 +51,7 @@ namespace VivistaServer
 
 	public class EndpointPercentile
 	{
-		public float percentile95;
+		public float percentile99;
 		public string endpoint;
 	}
 
@@ -321,15 +321,15 @@ namespace VivistaServer
 
 					//Outliers
 					var percentilesPerEndpoint = connection.Query<EndpointPercentile>(
-						@"SELECT avg(percentile95) as percentile95, endpoint
+						@"SELECT avg(percentile99) as percentile99, endpoint
                         FROM statistics_days
-                        GROUP BY endpoint;").ToDictionary(p => p.endpoint, p => p.percentile95);
+                        GROUP BY endpoint;").ToDictionary(p => p.endpoint, p => p.percentile99);
 
 					foreach (var req in cachedRequests)
 					{
 						float outlierThreshold = 0;
 						outlierThreshold = percentilesPerEndpoint.ContainsKey(req.endpoint)
-							? percentilesPerEndpoint[req.endpoint] * 1.5f
+							? percentilesPerEndpoint[req.endpoint] * 2f
 							: float.MaxValue;
 
 						if (req.seconds > outlierThreshold)
