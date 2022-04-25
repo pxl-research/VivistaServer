@@ -725,7 +725,7 @@ namespace VivistaServer
 				if (await User.IsUserAdmin(context, connection))
 				{
 					var admins = (List<int>)await Database.QueryAsync<int>(connection, "SELECT userid FROM user_roles WHERE roleid = @adminRoleId;", context, new { adminRoleId });
-					if (admins.Count < 1)
+					if (admins.Count <= 1)
 					{
 						return "You can't delete the last admin!";
 					}

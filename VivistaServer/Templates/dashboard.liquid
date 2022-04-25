@@ -6,7 +6,7 @@
 				<div class="pure-u-1-3" style="min-width:350px;">
 					<strong>Choose timespan:</strong>
 					<div class="pure-button-group">
-						<button id="minuteBtn" class="pure-button pure-button-active">Hour</button>
+						<button id="minuteBtn" class="pure-button">Hour</button>
 						<button id="hourBtn" class="pure-button">Week</button>
 						<button id="dayBtn" class="pure-button">Month</button>
 					</div>
@@ -51,6 +51,8 @@
 				</select>
 			</div>
 			<canvas id="mixedChart"></canvas>
+		</div>
+		<div>
 			<br>
 			<h3>Count outliers this month: {{countOutliers}}</h3>
 			<strong>Outliers of this month</strong>
@@ -86,7 +88,6 @@
 			<button id="outliersButton" class="pure-button">View details of outliers</button>
 		</div>
 
-
 		<h2>Area Time chart</h2>
 		<div class="chartBox center">
 			<canvas id="areaChart"></canvas>
@@ -105,7 +106,7 @@
 			</div>
 			<canvas id="barChart"></canvas>
 		</div>
-
+		<br />
 		<h2>Memory data chart</h2>
 		<div class="chartBox">
 			<div class="pure-form">
@@ -118,7 +119,7 @@
 			<canvas id="barChartMemory"></canvas>
 		</div>
 
-
+		<br/>
 		<h2>Total count of users, videos and downloads</h2>
 		<div>
 			<table class="pure-table table-center">
@@ -145,6 +146,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 <script>
+	const urlParams = new URLSearchParams(window.location.search);
 	let dataOfDay = {{ minuteData | json}};
 	let dataOfWeek = {{ hourData | json}};
 	let dataOfMonth = {{ dayData | json}};
@@ -180,17 +182,22 @@
 
 	//Pagination
 	let index = 0;
+	let numberOfRecords = 5;
 	let allOutliersTable = document.getElementById("allOutliersTable");
 	let alOutliersTableBody = document.getElementById("allOutliersTableBody");
 	NextPage();
 	var today = new Date();
-	if (today.getHours().toString().length === 1) {
+	let timeParam = urlParams.get('time');
+	if (timeParam != undefined) {
+		document.getElementById("time").value = timeParam;
+	}
+	else if (today.getHours().toString().length === 1) {
 		document.getElementById("time").value = "0" + today.getHours().toString() + ":00"
 	}
 	else {
 		document.getElementById("time").value = today.getHours().toString() + ":00";
 	}
-	
+
 
 	function NextPage() {
 		if (index < outliers.length) {
@@ -200,17 +207,17 @@
 			}
 
 			let max = 0;
-			if ((index + 5) > outliers.length) {
+			if ((index + numberOfRecords) > outliers.length) {
 				max = outliers.length;
 			}
 			else {
-				max = index + 5;
+				max = index + numberOfRecords;
 			}
 			InsertRows(max);
 		}
 	}
 	function PreviousPage() {
-		if ((index - 5) > 0) {
+		if ((index - numberOfRecords) > 0) {
 			let count = allOutliersTable.rows.length;
 			for (let i = 1; i < count; i++) {
 				allOutliersTable.deleteRow(1);
@@ -218,8 +225,8 @@
 			//Note(Tom): Has one row of th
 			count = count - 1;
 
-			index = index - count - 5;
-			let max = index + 5;
+			index = index - count - numberOfRecords;
+			let max = index + numberOfRecords;
 			InsertRows(max);
 		}
 	}
@@ -240,7 +247,17 @@
 
 
 	let selectedEndpoint = endpoints[0];
-	let timeUnit = "minute";
+	let timeUnitParam = urlParams.get('timeunit');
+	let timeUnit = '';
+	if (timeUnitParam === "hour") {
+		timeUnit = "hour";
+	} else if (timeUnitParam === "day") {
+		timeUnit = "day"
+	} else {
+		timeUnit = "minute";
+	}
+	document.getElementById(timeUnit + "Btn").classList.add("pure-button-active");
+	
 	let selectedData = dataOfDay;
 	let selectedGeneralData = generalDataOfDay;
 	let dataType = document.getElementById("dataType").value;
@@ -276,7 +293,7 @@
 				borderColor: 'hsl(350, 60%, 50%)',
 				backgroundColor: 'hsl(350, 60%, 50%)',
 				data: FilterWithEndpointAndTime(GetCountRequestData()),
-				order: 1,
+				order: 2,
 				yAxisID: 'y',
 			},
 			{
@@ -286,7 +303,7 @@
 				pointRadius: 4,
 				data: FilterWithEndpointAndTime(GetDataInMs("average")),
 				type: 'line',
-				order: 0,
+				order: 1,
 				yAxisID: 'y1',
 			},
 			{
@@ -296,7 +313,7 @@
 				pointRadius: 7,
 				data: FilterWithEndpointAndTime(GetOutliersSeconds()),
 				type: 'scatter',
-				order: 2,
+				order: 0,
 				yAxisID: 'y1'
 			}
 		]
@@ -582,9 +599,13 @@
 			let newTime = document.getElementById("time").value.slice(0, -3);
 			newTime = parseInt(newTime);
 			if (newTime == 23 && t > 0) {
+				dateTime.setDate(dateTime.getDate() + 1);
+				location.href = "/admin/dashboard?date=" + dateTime.toLocaleDateString('en-CA') + "&time=00:00";
 				return;
 			}
 			if (newTime == 0 && t < 0) {
+				dateTime.setDate(dateTime.getDate() -1);
+				location.href = "/admin/dashboard?date=" + dateTime.toLocaleDateString('en-CA') + "&time=23:00";
 				return;
 			}
 			newTime += t;
@@ -599,11 +620,11 @@
 		}
 		else if (timeUnit === "hour") {
 			dateTime.setDate(dateTime.getDate() + (t * 7));
-			location.href = "/admin/dashboard?date=" + dateTime.toLocaleDateString('en-CA');
+			location.href = "/admin/dashboard?date=" + dateTime.toLocaleDateString('en-CA') + "&timeunit=hour&time=" + time ;
 		}
 		else if (timeUnit === "day") {
 			dateTime.setMonth(dateTime.getMonth() + t);
-			location.href = "/admin/dashboard?date=" + dateTime.toLocaleDateString('en-CA');
+			location.href = "/admin/dashboard?date=" + dateTime.toLocaleDateString('en-CA') + "&timeunit=day&time=" + time;
 		}
 	}
 
