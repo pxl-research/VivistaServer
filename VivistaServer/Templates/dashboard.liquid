@@ -69,6 +69,7 @@
 			</table>
 			<button class="pure-button" id="previousPage"><<</button>
 			<button class="pure-button" id="nextPage">>></button>
+			<input class="pure-form" id="countPages" type="number" value="5" />
 
 			<br>
 			<br>
@@ -102,6 +103,8 @@
 					<option value="Uploads">Uploads</option>
 					<option value="Uncaught exceptions">Uncaught exceptions</option>
 					<option value="Count total requests">Count total requests</option>
+					<option value="Items in user cache">Items in user cache</option>>
+					<option value="Items in upload cache">Items in upload cache</option>>
 				</select>
 			</div>
 			<canvas id="barChart"></canvas>
@@ -119,7 +122,7 @@
 			<canvas id="barChartMemory"></canvas>
 		</div>
 
-		<br/>
+		<br />
 		<h2>Total count of users, videos and downloads</h2>
 		<div>
 			<table class="pure-table table-center">
@@ -197,10 +200,18 @@
 	else {
 		document.getElementById("time").value = today.getHours().toString() + ":00";
 	}
+	document.getElementById("countPages").addEventListener("change", function () {
+		if (document.getElementById("countPages").value != '') {
+			numberOfRecords = parseInt(document.getElementById("countPages").value);
+			ChangeNumberOfRecords();
+		} else {
+			document.getElementById("countPages").value = numberOfRecords;
+		}
 
 
+	});
 	function NextPage() {
-		if (index < outliers.length) {
+		if (index < (outliers.length - 1)) {
 			let count = allOutliersTable.rows.length;
 			for (let i = 1; i < count; i++) {
 				allOutliersTable.deleteRow(1);
@@ -226,23 +237,46 @@
 			count = count - 1;
 
 			index = index - count - numberOfRecords;
-			let max = index + numberOfRecords;
-			InsertRows(max);
+			InsertRows();
 		}
 	}
-	function InsertRows(max) {
+	function ChangeNumberOfRecords() {
+
+		let count = allOutliersTable.rows.length;
+		for (let i = 1; i < count; i++) {
+			allOutliersTable.deleteRow(1);
+		}
+
+		let de = index / numberOfRecords;
+			
+		de = Math.floor(de);
+		if (index >= outlierRows.length) {
+			index = de * numberOfRecords - numberOfRecords;
+		}
+		else {
+			index = de * numberOfRecords;
+		}
+		if (index <= numberOfRecords) {
+			index = 0;
+		}
+		InsertRows();
+
+	}
+	function InsertRows() {
+		index = parseInt(index);
+		let max = index + numberOfRecords;
+		if (max > outlierRows.length) {
+			max = (outlierRows.length);
+		}
 		for (let i = index; i < max; i++) {
 			allOutliersTable.appendChild(outlierRows[i]);
 		}
 		index = max;
 	}
 
-
-
 	let generalDataOfDay = {{ generalMinuteData | json}};
 	let generalDataOfWeek = {{ generalHourData | json}};
 	let generalDataOfMonth = {{ generalDayData | json}};
-
 
 	let selectedEndpoint = endpoints[0];
 	let timeUnitParam = urlParams.get('timeunit');
@@ -264,7 +298,7 @@
 	}
 
 	document.getElementById(timeUnit + "Btn").classList.add("pure-button-active");
-	
+
 	let dataType = document.getElementById("dataType").value;
 	let generalDataType = document.getElementById("generalDataType").value;
 	let generalDataTypeMemory = document.getElementById("generalDataTypeMemory").value;
@@ -279,8 +313,6 @@
 	let dateTime;
 	let maxDateTime;
 	SetDateAndTimes();
-
-
 
 	//Configure charts
 	const countRequest = {
@@ -565,7 +597,6 @@
 		configBarChartMemory
 	);
 
-
 	//Event listeners
 	document.getElementById("minuteBtn").addEventListener("click", function () {
 		selectedData = dataOfDay;
@@ -582,8 +613,6 @@
 		selectedGeneralData = generalDataOfMonth;
 		ChangeTimeUnit("day");
 	});
-
-
 
 	document.getElementById("date").addEventListener("change", function () { location.href = "/admin/dashboard?date=" + document.getElementById("date").value;});
 	document.getElementById("endpoint").addEventListener("change", function () { ChangeEndpoint(document.getElementById("endpoint").value) });
@@ -770,7 +799,7 @@
 		newDate.setMonth(newDate.getMonth() + 1)
 		newDate.setMilliseconds(-1);
 		return newDate;
-		
+
 	}
 
 	function GetDataInMs(y) {
@@ -898,6 +927,12 @@
 				break;
 			case 'Count total requests':
 				data = GetGeneralCountData("countTotalRequests");
+				break;
+			case 'Items in user cache':
+				data = GetGeneralCountData("countItemsUserCache");
+				break;
+			case 'Items in upload cache':
+				data = GetGeneralCountData("countItemsUploadCache");
 				break;
 			default:
 				data = GetGeneralCountData("downloads");

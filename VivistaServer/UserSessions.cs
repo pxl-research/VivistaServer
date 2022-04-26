@@ -74,6 +74,11 @@ namespace VivistaServer
 			SlidingExpiration = TimeSpan.FromMinutes(20)
 		};
 
+		public static long GetItemsInUserCache()
+		{
+			return cache.GetCount();
+		}
+
 		public static async Task<User> GetLoggedInUser(HttpContext context)
 		{
 			CommonController.LogDebug("Begin searching for logged in user");
