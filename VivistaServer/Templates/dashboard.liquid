@@ -26,7 +26,7 @@
 					<div class="pure-form">
 						<strong>Choose endpoint:</strong>
 						<div>
-							<select id="endpoint">
+							<select id="endpoint" style="max-width: 350px;">
 								{% for endpoint in endpoints %}
 								<option value="{{endpoint}}">{{endpoint}}</option>
 								{% endfor %}
@@ -265,7 +265,7 @@
 	let generalDataTypeMemory = document.getElementById("generalDataTypeMemory").value;
 
 	//Date paramter
-	const queryString = new URLSearchParams(window.location.search).get("date");
+	const queryString = urlParams.get("date");
 	document.getElementById("date").value = queryString;
 	if (document.getElementById("date").value === "") {
 		document.getElementById("date").value = new Date().toISOString().slice(0, 10);
@@ -286,7 +286,6 @@
 	};
 
 	const dataMixedChart = {
-		//labels: labels,
 		datasets: [
 			{
 				label: 'Number of requests from endpoint',
@@ -298,8 +297,8 @@
 			},
 			{
 				label: 'Average in ms',
-				borderColor: 'hsl(250, 60%, 33%)',
-				backgroundColor: 'hsl(250, 60%, 33%)',
+				borderColor: 'hsl(50, 60%, 67%)',
+				backgroundColor: 'hsl(50, 60%, 67%)',
 				pointRadius: 4,
 				data: FilterWithEndpointAndTime(GetDataInMs("average")),
 				type: 'line',
