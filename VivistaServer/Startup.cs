@@ -136,7 +136,7 @@ namespace VivistaServer
 				CommonController.LogDebug($"request preamble: {watch.Elapsed.TotalMilliseconds} ms");
 
 				await router.RouteAsync(context.Request, context);
-
+				requestTime.Stop();
 				IFormCollection form = null;
 
 				//NOTE(Tom): Do no not allow to show password in database

@@ -231,10 +231,8 @@
 		}
 	}
 	function InsertRows(max) {
-		let indexInsert = 0;
 		for (let i = index; i < max; i++) {
 			allOutliersTable.appendChild(outlierRows[i]);
-			indexInsert++;
 		}
 		index = max;
 	}
@@ -249,17 +247,24 @@
 	let selectedEndpoint = endpoints[0];
 	let timeUnitParam = urlParams.get('timeunit');
 	let timeUnit = '';
+	let selectedData;
+	let selectedGeneralData;
 	if (timeUnitParam === "hour") {
 		timeUnit = "hour";
+		selectedData = dataOfWeek;
+		selectedGeneralData = generalDataOfWeek;
 	} else if (timeUnitParam === "day") {
 		timeUnit = "day"
+		selectedData = dataOfMonth;
+		selectedGeneralData = generalDataOfMonth;
 	} else {
 		timeUnit = "minute";
+		selectedData = dataOfDay;
+		selectedGeneralData = generalDataOfDay;
 	}
+
 	document.getElementById(timeUnit + "Btn").classList.add("pure-button-active");
 	
-	let selectedData = dataOfDay;
-	let selectedGeneralData = generalDataOfDay;
 	let dataType = document.getElementById("dataType").value;
 	let generalDataType = document.getElementById("generalDataType").value;
 	let generalDataTypeMemory = document.getElementById("generalDataTypeMemory").value;
@@ -274,6 +279,8 @@
 	let dateTime;
 	let maxDateTime;
 	SetDateAndTimes();
+
+
 
 	//Configure charts
 	const countRequest = {
@@ -576,6 +583,8 @@
 		ChangeTimeUnit("day");
 	});
 
+
+
 	document.getElementById("date").addEventListener("change", function () { location.href = "/admin/dashboard?date=" + document.getElementById("date").value;});
 	document.getElementById("endpoint").addEventListener("change", function () { ChangeEndpoint(document.getElementById("endpoint").value) });
 	document.getElementById("time").addEventListener("blur", function () {
@@ -628,19 +637,26 @@
 	}
 
 
+
+	if (timeUnit != "minute") {
+		ChangeDataOfChartsAndChangeTimeUnit();
+	}
 	//Change paramters
 	function ChangeTimeUnit(time) {
         document.getElementById(timeUnit + "Btn").classList.remove("pure-button-active");
         document.getElementById(time + "Btn").classList.add("pure-button-active");
 		timeUnit = time;
+		ChangeDataOfChartsAndChangeTimeUnit();
 
+	}
+
+	function ChangeDataOfChartsAndChangeTimeUnit() {
 		mixedChart.options.scales.x.time.unit = timeUnit;
 		areaChart.options.scales.x.time.unit = timeUnit;
 		barChart.options.scales.x.time.unit = timeUnit;
 		barChartMemory.options.scales.x.time.unit = timeUnit;
 
 		ChangeDataOfCharts();
-
 	}
 
 	function ChangeEndpoint(endpoint) {
