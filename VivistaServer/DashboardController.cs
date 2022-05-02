@@ -257,11 +257,45 @@ namespace VivistaServer
 		public static void AddMinuteData()
 		{
 			using var connection = Database.OpenNewConnection();
-			if (cachedRequests.Count > 0)
+			var count = cachedRequests.Count;
+			if (count > 0)
 			{
-				Console.WriteLine($"{DateTime.UtcNow}: \t aggregating minute data for {cachedRequests.Count} requests");
-				var groupedRequests = cachedRequests.GroupBy(s => s.endpoint).Select(grp => grp.ToList()).ToList();
+				//Note(Tom): Add tempOutliers so lock can close fast
+				var tempOutliers = new List<Request>();
+				var groupedRequests = new List<List<Request>>();
 				var timestamp = new DateTime();
+				lock (cachedRequestLock)
+				{
+					Console.WriteLine($"{DateTime.UtcNow}: \t aggregating minute data for {count} requests");
+					groupedRequests = cachedRequests.GroupBy(s => s.endpoint).Select(grp => grp.ToList()).ToList();
+					//Outliers
+					var percentilesPerEndpoint = connection.Query<EndpointPercentile>(
+						@"SELECT avg(percentile99) as percentile99, endpoint
+                        FROM statistics_days
+                        GROUP BY endpoint;").ToDictionary(p => p.endpoint, p => p.percentile99);
+					
+					foreach (var req in cachedRequests)
+					{
+						float outlierThreshold = 0;
+						outlierThreshold = percentilesPerEndpoint.ContainsKey(req.endpoint)
+							? percentilesPerEndpoint[req.endpoint] * 2f
+							: float.MaxValue;
+
+						if (req.seconds > outlierThreshold)
+						{
+							tempOutliers.Add(req);
+						}
+					}
+					cachedRequests.Clear();
+				}
+				foreach(var req in tempOutliers)
+				{
+					var reqinfo = SerializeToBson(req.requestInfo);
+					connection.Execute(@"insert into statistics_outliers(timestamp, seconds, reqinfo, endpoint) values(@timestamp, @seconds, @reqinfo::jsonb, @endpoint);",
+						new { timestamp = req.timestamp, seconds = req.seconds, reqinfo = reqinfo, endpoint = req.endpoint });
+				}
+
+
 
 				//timestamp
 				timestamp = groupedRequests[0][0].timestamp;
@@ -321,26 +355,7 @@ namespace VivistaServer
 						});
 
 
-					//Outliers
-					var percentilesPerEndpoint = connection.Query<EndpointPercentile>(
-						@"SELECT avg(percentile99) as percentile99, endpoint
-                        FROM statistics_days
-                        GROUP BY endpoint;").ToDictionary(p => p.endpoint, p => p.percentile99);
 
-					foreach (var req in cachedRequests)
-					{
-						float outlierThreshold = 0;
-						outlierThreshold = percentilesPerEndpoint.ContainsKey(req.endpoint)
-							? percentilesPerEndpoint[req.endpoint] * 2f
-							: float.MaxValue;
-
-						if (req.seconds > outlierThreshold)
-						{
-							var reqinfo = SerializeToBson(req.requestInfo);
-							connection.Execute(@"insert into statistics_outliers(timestamp, seconds, reqinfo, endpoint) values(@timestamp, @seconds, @reqinfo::jsonb, @endpoint);",
-								new { timestamp = req.timestamp, seconds = req.seconds, reqinfo = reqinfo, endpoint = req.endpoint });
-						}
-					}
 				}
 
 				Process.GetCurrentProcess().Refresh();
@@ -363,12 +378,11 @@ namespace VivistaServer
 						virtualMemory,
 						uploads,
 						uncaughtExceptions,
-						countTotalRequests = cachedRequests.Count,
+						countTotalRequests = count,
 						countUserCache,
 						countUploadCache
 
 					});
-				cachedRequests.Clear();
 				downloads = 0;
 				views = 0;
 				uploads = 0;
@@ -380,6 +394,7 @@ namespace VivistaServer
 			{
 				Console.WriteLine($"{DateTime.UtcNow}: \t No minute data to aggregate");
 			}
+
 		}
 
 		public static void AddHourData(DateTime startTime)
