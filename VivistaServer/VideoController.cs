@@ -1270,9 +1270,9 @@ namespace VivistaServer
 			return 0;
 		}
 
-		public static long GetItemsInUploadCache()
+		public static int GetItemsInUploadCache()
 		{
-			return uploadAuthorisationCache.GetCount();
+			return (int)uploadAuthorisationCache.GetCount();
 		}
 	}
 }

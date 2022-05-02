@@ -47,8 +47,8 @@ namespace VivistaServer
 		public int uploads;
 		public int uncaughtExceptions;
 		public long countTotalRequests;
-		public long countItemsUserCache;
-		public long countItemsUploadCache;
+		public int countItemsUserCache;
+		public int countItemsUploadCache;
 	}
 
 	public class EndpointPercentile
@@ -383,6 +383,7 @@ namespace VivistaServer
 						countUploadCache
 
 					});
+
 				downloads = 0;
 				views = 0;
 				uploads = 0;
@@ -619,8 +620,8 @@ namespace VivistaServer
 			var countUploads = 0;
 			var countUncaughtExceptions = 0;
 			long totalRequests = 0;
-			long countItemsUserCache = 0;
-			long countItemsUploadCache = 0;
+			int countItemsUserCache = 0;
+			int countItemsUploadCache = 0;
 
 			foreach (var g in generalData)
 			{

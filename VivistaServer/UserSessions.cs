@@ -74,9 +74,9 @@ namespace VivistaServer
 			SlidingExpiration = TimeSpan.FromMinutes(20)
 		};
 
-		public static long GetItemsInUserCache()
+		public static int GetItemsInUserCache()
 		{
-			return cache.GetCount();
+			return (int)cache.GetCount();
 		}
 
 		public static async Task<User> GetLoggedInUser(HttpContext context)
