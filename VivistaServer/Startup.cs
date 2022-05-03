@@ -193,27 +193,23 @@ namespace VivistaServer
 		//TODO(Simon): Minute data should probably work similarly to hour/day, so we don't have to rely on the margin after rounding.
 		private static async Task CollectPeriodicStatistics()
 		{
-			Console.WriteLine($"{DateTime.UtcNow}: Starting CollectPeriodicStatistics Task");
 #pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
 			var lastHours = DateTime.UtcNow;
 			var lastDay = DateTime.UtcNow;
 			while (true)
 			{
-				Console.WriteLine($"{DateTime.UtcNow}: Writing minute statistics to db");
 #if DEBUG
 				//NOTE(Simon): Add a little margin to account for rounding errors in Task.Delay. If ran without margin, Task.Delay would sometimes be done too early causing many rapid runs of the AddMinuteData Task
-				var nextTime = DateTime.UtcNow.RoundUp(TimeSpan.FromSeconds(30)) + TimeSpan.FromSeconds(1);
+				var nextTime = DateTime.UtcNow.RoundUp(TimeSpan.FromSeconds(60)) + TimeSpan.FromSeconds(1);
 #else
 				var nextTime = DateTime.UtcNow.RoundUp(TimeSpan.FromMinutes(1)) + TimeSpan.FromSeconds(1);
 #endif
-				Console.WriteLine($"{DateTime.UtcNow}: Waiting until {nextTime}"); 
 				var delay = nextTime - DateTime.UtcNow;
 				await Task.Delay(delay);
 
 				Task.Run(DashboardController.AddMinuteData);
 				if (DateTime.UtcNow.Hour != lastHours.Hour)
 				{
-					Console.WriteLine($"{DateTime.UtcNow}: Writing hours statistics to db");
 					var hoursTemp = lastHours;
 					Task.Run(() => DashboardController.AddHourData(hoursTemp));
 					lastHours = DateTime.UtcNow;
@@ -221,7 +217,6 @@ namespace VivistaServer
 
 				if (DateTime.UtcNow.Day != lastDay.Day)
 				{
-					Console.WriteLine($"{DateTime.UtcNow}: Writing day statistics to db");
 					var dayTemp = lastDay;
 					Task.Run(() => DashboardController.AddDayData(dayTemp));
 					lastDay = DateTime.UtcNow;
