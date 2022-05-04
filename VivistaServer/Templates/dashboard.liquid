@@ -517,11 +517,11 @@
 		options: {
 			animation: false,
 			responsive: true,
-			min: GiveMinHours(),
-			max: GiveMaxHours(),
 			scales: {
 				x: {
 					type: 'time',
+					min: GiveMinHours(),
+					max: GiveMaxHours(),
 					time: {
 						unit: timeUnit,
 						displayFormats: {
