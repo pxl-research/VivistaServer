@@ -335,10 +335,6 @@ footer a:hover {
 	background-color: var(--button-download-bg-active);
 }
 
-.video-info-image .play-icon {
-	line-height: 0;
-}
-
 .video-info .title { 
 	font-size: 1.5em;
 }
@@ -755,6 +751,24 @@ input.toggle + label:active::after {
 	cursor: default;
 	color: var(--main-font);
 }
+
+
+
+.svg-icon {
+  display: inline-flex;
+  align-self: center;
+}
+
+.svg-icon svg {
+  height:1em;
+  width:1em;
+}
+.svg-icon svg {
+  top: .125em;
+  position: relative;
+}
+
+
 
 #logo {
 	display: none;
