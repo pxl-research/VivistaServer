@@ -37,10 +37,13 @@ function InitPlayButton() {
 	var button = document.getElementsByClassName("download-button")[0];
 
 	if (button != undefined) {
-		button.addEventListener("click", function () {
+		button.addEventListener("click", function (event) {
 			var message = document.getElementsByClassName("install-message")[0];
 			message.classList.remove("hidden");
-			window.location = button.dataset.uri;
+
+			if (!event.originalTarget.classList.contains("install-download-anchor")) {
+				window.location = button.dataset.uri;
+			}
 		});
 	}
 }
