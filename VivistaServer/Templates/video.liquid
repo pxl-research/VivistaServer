@@ -18,7 +18,7 @@
 		<p class="view-stats">{{ video.length | format_seconds }} • {{ video.downloadsize | format_bytes }} • {{ video.views | format_number: "N0" }} views • {{ video.downloads | format_number: "N0" }} downloads</p>
 		<div class="user">
 			<a class="username" href="/user?name={{ video.username | escape }}">
-				<img class="profile-picture-small" src="/profile_pictures/{{ User.pictureId }}">
+				<img class="profile-picture-small" src="/profile_pictures/{{ video.userPicture }}">
 				{{ video.username | escape }}
 			</a>
 			{% if userOwnsVideo %}

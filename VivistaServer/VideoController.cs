@@ -32,6 +32,7 @@ namespace VivistaServer
 			public Guid id;
 			public int userid;
 			public string username;
+			public string userPicture;
 			public DateTime timestamp;
 			public long downloadsize;
 			public int views;
@@ -137,7 +138,7 @@ namespace VivistaServer
 				videos.totalcount = await Database.QuerySingleAsync<int>(connection, @"select count(*) from videos v
 								inner join users u on v.userid = u.userid
 								where (@userid::int is NULL or v.userid=@userid)
-								and (@uploadDate::timestamp is NULL or v.timestamp>=@uploadDate)", context, new {userid, uploadDate});
+								and (@uploadDate::timestamp is NULL or v.timestamp>=@uploadDate)", context, new { userid, uploadDate });
 				videos.videos = await GetIndexVideos(IndexTab.MostWatched, count, offset, connection, context);
 
 				videos.count = videos.videos.AsList().Count;
@@ -343,7 +344,7 @@ namespace VivistaServer
 
 						video.title = meta.title;
 						video.description = meta.description;
-						
+
 						CommonController.LogDebug($"Video Privacy: {video.privacy}");
 						CommonController.LogDebug($"Video Size: {video.downloadsize}");
 						CommonController.LogDebug($"Video length: {video.length}");
@@ -351,7 +352,7 @@ namespace VivistaServer
 						if (await AddOrUpdateVideo(video, connection, context))
 						{
 							CommonController.LogDebug("Database row updated succesfully");
-							await context.Response.WriteAsJsonAsync(new { success = true});
+							await context.Response.WriteAsJsonAsync(new { success = true });
 
 							CleanPartialUploads(video.id);
 							DashboardController.AddUpload();
@@ -444,16 +445,16 @@ namespace VivistaServer
 				var user = await UserSessions.GetLoggedInUser(context);
 
 				if (video != null && UserCanViewVideo(video, user))
-                {
-                    bool userOwnsVideo = false;
-                    if (user != null)
-                    {
-                        userOwnsVideo = UserOwnsVideo(video, user.userid);
+				{
+					bool userOwnsVideo = false;
+					if (user != null)
+					{
+						userOwnsVideo = UserOwnsVideo(video, user.userid);
 					}
-					
+
 					var relatedVideos = new List<Video>();
 
-					var templateContext = new TemplateContext(new { video, relatedVideos, userOwnsVideo});
+					var templateContext = new TemplateContext(new { video, relatedVideos, userOwnsVideo });
 					await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\video.liquid", templateContext));
 					await AddVideoView(video.id, context, connection);
 
@@ -533,7 +534,7 @@ namespace VivistaServer
 
 					var pagination = new Pagination(numVideos, countPerPage, offset);
 
-					var templateContext = new TemplateContext(new {videos = await VideosTask, user, pagination});
+					var templateContext = new TemplateContext(new { videos = await VideosTask, user, pagination });
 
 					await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\user.liquid", templateContext));
 				}
@@ -562,7 +563,7 @@ namespace VivistaServer
 				var video = await GetVideo(videoId, connection, context);
 				if (UserOwnsVideo(video, user.userid))
 				{
-					var templateContext = new TemplateContext(new {video});
+					var templateContext = new TemplateContext(new { video });
 					await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\deleteVideoConfirm.liquid", templateContext));
 				}
 				else
@@ -659,7 +660,7 @@ namespace VivistaServer
 					video.tags = deduplicatedTags.ToList();
 					if (Int32.TryParse(form["privacy"], out var privacyInt))
 					{
-						video.privacy = (VideoPrivacy) privacyInt;
+						video.privacy = (VideoPrivacy)privacyInt;
 					}
 
 					await AddOrUpdateVideo(video, connection, context);
@@ -715,7 +716,7 @@ namespace VivistaServer
 				var normalizedQuery = searchQuery.NormalizeForSearch();
 
 				var channels = await FindUsersFuzzy(normalizedQuery, 3, connection, context);
-				var videos  = await FindVideosFuzzy(normalizedQuery, 20, connection, context);
+				var videos = await FindVideosFuzzy(normalizedQuery, 20, connection, context);
 
 				bool hasResults = channels.Any() || videos.Any();
 
@@ -843,8 +844,8 @@ namespace VivistaServer
 		{
 			try
 			{
-				var videos = await Database.QueryAsync<Video>(connection, 
-                                                            @"select * from videos
+				var videos = await Database.QueryAsync<Video>(connection,
+															@"select * from videos
 																where userid=@userid
 																order by timestamp desc
 																limit @count
@@ -863,7 +864,7 @@ namespace VivistaServer
 			try
 			{
 				var videos = await Database.QueryAsync<Video>(connection,
-                                                                @"select * from videos
+																@"select * from videos
 																where userid=@userid and privacy=@privacy
 																order by timestamp desc
 																limit @count
@@ -881,8 +882,8 @@ namespace VivistaServer
 		{
 			try
 			{
-				int totalcount = await Database.QuerySingleAsync<int>(connection, 
-                                                                    @"select count(*) from videos
+				int totalcount = await Database.QuerySingleAsync<int>(connection,
+																	@"select count(*) from videos
 																		where userid=@userid", context, new { userid });
 				return totalcount;
 			}
@@ -896,10 +897,10 @@ namespace VivistaServer
 		{
 			try
 			{
-				int totalcount = await Database.QuerySingleAsync<int>(connection, 
-                                                                    @"select count(*) from videos
+				int totalcount = await Database.QuerySingleAsync<int>(connection,
+																	@"select count(*) from videos
 																		where userid=@userid and privacy=@privacy",
-																	    context, 
+																		context,
 																		new { userid, privacy = VideoPrivacy.Public });
 				return totalcount;
 			}
@@ -914,10 +915,10 @@ namespace VivistaServer
 			int count;
 			try
 			{
-				count = await Database.QuerySingleAsync<int>(connection, 
-                                                                @"select count(*) from videos where id=@guid and userid=@userId", 
-																context, 
-                                                                new { guid, userId });
+				count = await Database.QuerySingleAsync<int>(connection,
+																@"select count(*) from videos where id=@guid and userid=@userId",
+																context,
+																new { guid, userId });
 			}
 			catch
 			{
@@ -950,10 +951,10 @@ namespace VivistaServer
 			int count;
 			try
 			{
-				count = await Database.QuerySingleAsync<int>(connection, 
-                                                                @"select count(*) from videos where id=@guid", 
-                                                                context,
-                                                                new { guid });
+				count = await Database.QuerySingleAsync<int>(connection,
+																@"select count(*) from videos where id=@guid",
+																context,
+																new { guid });
 			}
 			catch
 			{
@@ -967,12 +968,12 @@ namespace VivistaServer
 		{
 			try
 			{
-				var video = await Database.QuerySingleAsync<Video>(connection, 
-                                                    @"select v.*, u.username from videos v
+				var video = await Database.QuerySingleAsync<Video>(connection,
+													@"select v.*, u.username, u.pictureid as userpicture from videos v
 													inner join users u on v.userid = u.userid
-													where v.id=@videoid::uuid", 
-                                                    context,
-                                                    new {videoid});
+													where v.id=@videoid::uuid",
+													context,
+													new { videoid });
 
 				return video;
 			}
@@ -987,40 +988,40 @@ namespace VivistaServer
 			if (tab == IndexTab.New)
 			{
 				return await Database.QueryAsync<Video>(connection,
-                            @"select v.*, u.username from videos v
+							@"select v.*, u.username from videos v
 								inner join users u on v.userid = u.userid
 								where privacy=@privacy
 								order by v.timestamp desc
 								limit @count
-								offset @offset", 
-                                context,
-                            new { count, offset, privacy = VideoPrivacy.Public });
+								offset @offset",
+								context,
+							new { count, offset, privacy = VideoPrivacy.Public });
 			}
 
 			if (tab == IndexTab.MostWatched)
 			{
 				return await Database.QueryAsync<Video>(connection,
-                                @"select v.*, u.username from videos v
+								@"select v.*, u.username from videos v
 								inner join users u on v.userid = u.userid
 								where privacy=@privacy
 								order by v.views desc
 								limit @count
-								offset @offset", 
+								offset @offset",
 								context,
-                                new { count, offset, privacy = VideoPrivacy.Public });
+								new { count, offset, privacy = VideoPrivacy.Public });
 			}
 
 			if (tab == IndexTab.Popular)
 			{
 				return await Database.QueryAsync<Video>(connection,
-                            @"select v.*, u.username from videos v
+							@"select v.*, u.username from videos v
 								inner join users u on v.userid = u.userid
 								where privacy=@privacy
 								order by v.views desc
 								limit @count
-								offset @offset", 
-							    context,
-                            new { count, offset, privacy = VideoPrivacy.Public });
+								offset @offset",
+								context,
+							new { count, offset, privacy = VideoPrivacy.Public });
 			}
 
 			return null;
@@ -1032,12 +1033,12 @@ namespace VivistaServer
 			{
 				var timestamp = DateTime.UtcNow;
 				await Database.ExecuteAsync(connection,
-                                            @"INSERT INTO videos (id, userid, title, description, length, downloadsize, timestamp, privacy)
+											@"INSERT INTO videos (id, userid, title, description, length, downloadsize, timestamp, privacy)
 												VALUES (@id::uuid, @userid, @title, @description, @length, @downloadsize, @timestamp, @privacy)
 												ON CONFLICT(id) DO UPDATE
 												SET title=@title, description=@description, length=@length, downloadsize=@downloadsize, privacy=@privacy",
 												context,
-                                                new {video.id, video.userid, video.title, video.description, video.length, video.downloadsize, timestamp, video.privacy});
+												new { video.id, video.userid, video.title, video.description, video.length, video.downloadsize, timestamp, video.privacy });
 
 				if (video.tags != null && video.tags.Count > 0)
 				{
@@ -1057,11 +1058,11 @@ namespace VivistaServer
 			try
 			{
 				var success = await Database.ExecuteAsync(connection,
-                                                            @"update videos
+															@"update videos
 															set privacy=@privacy
-															where id=@videoid::uuid", 
-                                                            context,
-                                                        new { videoid, privacy = (int)privacy });
+															where id=@videoid::uuid",
+															context,
+														new { videoid, privacy = (int)privacy });
 
 				return success > 0;
 			}
@@ -1082,12 +1083,12 @@ namespace VivistaServer
 			{
 				try
 				{
-					var success = await Database.ExecuteAsync(connection, 
-                                                        @"update videos
+					var success = await Database.ExecuteAsync(connection,
+														@"update videos
 															set views = views + 1
-															where id=@videoid::uuid", 
-                                                            context,
-                                                        new {videoid});
+															where id=@videoid::uuid",
+															context,
+														new { videoid });
 
 					viewHistoryCache.Add(ip.ToString(), new object(), DateTimeOffset.Now.AddMinutes(5));
 
@@ -1107,11 +1108,11 @@ namespace VivistaServer
 			try
 			{
 				var success = await Database.ExecuteAsync(connection,
-                                                        @"update videos
+														@"update videos
 															set downloads = downloads + 1
-															where id=@videoid:uuid", 
-                                                            context,
-                                                        new { videoid });
+															where id=@videoid:uuid",
+															context,
+														new { videoid });
 				DashboardController.AddDownloads();
 				return success > 0;
 			}
@@ -1126,10 +1127,10 @@ namespace VivistaServer
 			try
 			{
 				var result = await Database.ExecuteAsync(connection,
-                                                        @"delete from videos
-															where id=@videoid::uuid", 
-                                                            context,
-                                                        new { videoid });
+														@"delete from videos
+															where id=@videoid::uuid",
+															context,
+														new { videoid });
 
 				uploadAuthorisationCache.Remove(videoid.ToString());
 
@@ -1147,13 +1148,13 @@ namespace VivistaServer
 			try
 			{
 				var result = await Database.QueryAsync<User>(connection,
-                                                            @"SELECT *
+															@"SELECT *
 															  from users
 															  where username % @query
 															  order by similarity(username, @query) desc, username
-															  limit @count", 
-                                                                context,
-                                                            new { query, count });
+															  limit @count",
+																context,
+															new { query, count });
 
 				return result;
 			}
@@ -1169,14 +1170,14 @@ namespace VivistaServer
 			try
 			{
 				var result = await Database.QueryAsync<Video>(connection,
-                                                            @"select ts_rank(search, websearch_to_tsquery('english', @query)) as rank, v.*, u.username
+															@"select ts_rank(search, websearch_to_tsquery('english', @query)) as rank, v.*, u.username
 																from videos v
 																inner join users u on v.userid = u.userid
 																where search @@ to_tsquery('english', @query)
 																order by rank
 																limit @count",
-                                                                context,
-                                                                new {query, count});
+																context,
+																new { query, count });
 				return result;
 			}
 			catch (Exception e)
