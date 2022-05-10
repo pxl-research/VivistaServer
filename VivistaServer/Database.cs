@@ -12,60 +12,60 @@ namespace VivistaServer
 	{
 		public static NpgsqlConnection OpenNewConnection()
 		{
-            CommonController.LogDebug("Opening new SQL connection");
+			CommonController.LogDebug("Opening new SQL connection");
 			var conn = new NpgsqlConnection(GetPgsqlConfig());
 			conn.Open();
-            return conn;
-        }
+			return conn;
+		}
 
-        public static async Task<IEnumerable<T>> QueryAsync<T>(NpgsqlConnection conn, string sql, HttpContext context, object param = null)
-        {
-            var watch = Stopwatch.StartNew();
-			var result =  await conn.QueryAsync<T>(sql, param);
+		public static async Task<IEnumerable<T>> QueryAsync<T>(NpgsqlConnection conn, string sql, HttpContext context, object param = null)
+		{
+			var watch = Stopwatch.StartNew();
+			var result = await conn.QueryAsync<T>(sql, param);
 			watch.Stop();
-            DashboardController.AddDbExecTimeToRequest(context, watch.Elapsed.TotalSeconds);
-            return result;
-        }
+			DashboardController.AddDbExecTimeToRequest(context, watch.Elapsed.TotalSeconds);
+			return result;
+		}
 
-        public static async Task<int> ExecuteAsync(NpgsqlConnection conn, string sql, HttpContext context, object param = null)
-        {
-            var watch = Stopwatch.StartNew();
-            var result = await conn.ExecuteAsync(sql, param);
-            watch.Stop();
-            DashboardController.AddDbExecTimeToRequest(context, watch.Elapsed.TotalSeconds);
-            return result;
-        }
+		public static async Task<int> ExecuteAsync(NpgsqlConnection conn, string sql, HttpContext context, object param = null)
+		{
+			var watch = Stopwatch.StartNew();
+			var result = await conn.ExecuteAsync(sql, param);
+			watch.Stop();
+			DashboardController.AddDbExecTimeToRequest(context, watch.Elapsed.TotalSeconds);
+			return result;
+		}
 
-        public static async Task<T> QuerySingleAsync<T>(NpgsqlConnection conn, string sql, HttpContext context, object param = null)
-        {
-            var watch = Stopwatch.StartNew();
-            var result = await conn.QuerySingleAsync<T>(sql, param);
-            watch.Stop();
-            DashboardController.AddDbExecTimeToRequest(context, watch.Elapsed.TotalSeconds);
-            return result;
-        }
+		public static async Task<T> QuerySingleAsync<T>(NpgsqlConnection conn, string sql, HttpContext context, object param = null)
+		{
+			var watch = Stopwatch.StartNew();
+			var result = await conn.QuerySingleAsync<T>(sql, param);
+			watch.Stop();
+			DashboardController.AddDbExecTimeToRequest(context, watch.Elapsed.TotalSeconds);
+			return result;
+		}
 
-        public static async Task<T> QueryFirstOrDefaultAsync<T>(NpgsqlConnection conn, string sql, HttpContext context, object param = null)
-        {
-            var watch = Stopwatch.StartNew();
-            var result = await conn.QueryFirstOrDefaultAsync<T>(sql, param);
-            watch.Stop();
-            DashboardController.AddDbExecTimeToRequest(context, watch.Elapsed.TotalSeconds);
-            return result;
-        }
+		public static async Task<T> QueryFirstOrDefaultAsync<T>(NpgsqlConnection conn, string sql, HttpContext context, object param = null)
+		{
+			var watch = Stopwatch.StartNew();
+			var result = await conn.QueryFirstOrDefaultAsync<T>(sql, param);
+			watch.Stop();
+			DashboardController.AddDbExecTimeToRequest(context, watch.Elapsed.TotalSeconds);
+			return result;
+		}
 
-        public static async Task<T> QuerySingleOrDefaultAsync<T>(NpgsqlConnection conn, string sql, HttpContext context, object param = null)
-        {
-            var watch = Stopwatch.StartNew();
-            var result = await conn.QuerySingleOrDefaultAsync<T>(sql, param);
-            watch.Stop();
-            DashboardController.AddDbExecTimeToRequest(context, watch.Elapsed.TotalSeconds);
-            return result;
-        }
+		public static async Task<T> QuerySingleOrDefaultAsync<T>(NpgsqlConnection conn, string sql, HttpContext context, object param = null)
+		{
+			var watch = Stopwatch.StartNew();
+			var result = await conn.QuerySingleOrDefaultAsync<T>(sql, param);
+			watch.Stop();
+			DashboardController.AddDbExecTimeToRequest(context, watch.Elapsed.TotalSeconds);
+			return result;
+		}
 
-        //NOTE(Simon): Use GetPgsqlConfig() instead of this directly, it handles caching of this variable.
-        private static string connectionString;
-        private static string GetPgsqlConfig()
+		//NOTE(Simon): Use GetPgsqlConfig() instead of this directly, it handles caching of this variable.
+		private static string connectionString;
+		private static string GetPgsqlConfig()
 		{
 			if (string.IsNullOrEmpty(connectionString))
 			{

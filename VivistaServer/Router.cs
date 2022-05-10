@@ -129,5 +129,10 @@ namespace VivistaServer
 			}
 		}
 #endif
+
+		public bool RouteExists(HttpRequest request)
+		{
+			return routes.TryGetValue(new Route(request.Method, request.Path), out _);
+		}
 	}
 }

@@ -713,6 +713,11 @@ namespace VivistaServer
 			int count = values.Length;
 			float desiredIndex = (count - 1) * percentile + 1;
 
+			if (values.Length == 1)
+			{
+				return values[0];
+			}
+
 			int realIndex = (int)desiredIndex;
 			float t = desiredIndex % realIndex;
 			return Lerp(values[realIndex - 1], values[realIndex], t);

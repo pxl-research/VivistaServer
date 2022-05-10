@@ -137,28 +137,31 @@ namespace VivistaServer
 				requestTime.Stop();
 				IFormCollection form = null;
 
-				//NOTE(Tom): Do no not allow to show password in database
-				if (context.Request.HasFormContentType && !context.Request.Form.ContainsKey("password"))
+				if (router.RouteExists(context.Request))
 				{
-					form = context.Request.Form;
+					//NOTE(Tom): Do no not allow to show password in database
+					if (context.Request.HasFormContentType && !context.Request.Form.ContainsKey("password"))
+					{
+						form = context.Request.Form;
+					}
+
+					var requestInfo = new RequestInfo
+					{
+						query = (QueryCollection)context.Request.Query,
+						form = (FormCollection)form
+					};
+
+					var request = new Request
+					{
+						seconds = (float)requestTime.Elapsed.TotalSeconds,
+						requestInfo = requestInfo,
+						endpoint = $"/{context.Request.Method}:  {context.Request.Path.Value}",
+						renderTime = (float)context.Items[DashboardController.RENDER_TIME],
+						dbExecTime = (float)context.Items[DashboardController.DB_EXEC_TIME]
+
+					};
+					DashboardController.AddRequestToCache(request);
 				}
-
-				var requestInfo = new RequestInfo
-				{
-					query = (QueryCollection)context.Request.Query,
-					form = (FormCollection)form
-				};
-
-				var request = new Request
-				{
-					seconds = (float)requestTime.Elapsed.TotalSeconds,
-					requestInfo = requestInfo,
-					endpoint = $"/{context.Request.Method}:  {context.Request.Path.Value}",
-					renderTime = (float)context.Items[DashboardController.RENDER_TIME],
-					dbExecTime = (float)context.Items[DashboardController.DB_EXEC_TIME]
-
-				};
-				DashboardController.AddRequestToCache(request);
 			});
 		}
 
