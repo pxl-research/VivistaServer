@@ -15,7 +15,7 @@ using tusdotnet.Models;
 using tusdotnet.Models.Configuration;
 using tusdotnet.Stores;
 using static VivistaServer.CommonController;
-
+using Dapper;
 
 namespace VivistaServer
 {
@@ -25,6 +25,9 @@ namespace VivistaServer
 
 		public void ConfigureServices(IServiceCollection services)
 		{
+			using var connection = Database.OpenNewConnection();
+			connection.Execute(@"INSERT INTO server_restart (timestamp) 
+											VALUES(@timestamp);", new { timestamp = DateTime.Now });
 			services.Configure<FormOptions>(config => { config.MultipartBodyLengthLimit = long.MaxValue; });
 
 			router = new Router();

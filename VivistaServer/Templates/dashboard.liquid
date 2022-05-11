@@ -154,7 +154,13 @@
 	let dataOfWeek = {{ hourData | json}};
 	let dataOfMonth = {{ dayData | json}};
 	let endpoints = {{ endpoints | json }};
-	let outliers = {{ outliers | json}}
+	let outliers = {{ outliers | json}};
+	let serverRestartDateTime = {{ serverRestart | json}};
+	let serverRestart = [];
+	serverRestartDateTime.forEach(a => {
+		serverRestart.push({ x: a, y: 0});
+	})
+
 	let selectedOutliers = [];
 
 	const kb = 1024;
@@ -278,7 +284,21 @@
 	let generalDataOfWeek = {{ generalHourData | json}};
 	let generalDataOfMonth = {{ generalDayData | json}};
 
-	let selectedEndpoint = endpoints[0];
+	let endpointParam = urlParams.get('endpoint');
+	let selectedEndpoint;
+	if (endpointParam !== null) {
+		let indexEndpoint = endpoints.indexOf(endpointParam);
+		if (indexEndpoint != undefined) {
+			document.getElementById("endpoint").selectedIndex = indexEndpoint;
+			selectedEndpoint = endpointParam;
+		}
+		else {
+			selectedEndpoint = endpoints[0];
+		}
+	} else
+	{
+		selectedEndpoint = endpoints[0];
+	}
 	let timeUnitParam = urlParams.get('timeunit');
 	let timeUnit = '';
 	let selectedData;
@@ -331,7 +351,7 @@
 				borderColor: 'hsl(350, 60%, 50%)',
 				backgroundColor: 'hsl(350, 60%, 50%)',
 				data: FilterWithEndpointAndTime(GetCountRequestData()),
-				order: 2,
+				order: 3,
 				yAxisID: 'y',
 			},
 			{
@@ -348,8 +368,18 @@
 				label: 'outliers',
 				borderColor: 'hsl(170, 43%, 46%)',
 				backgroundColor: 'hsl(170, 43%, 46%)',
-				pointRadius: 7,
+				pointRadius: 6,
 				data: FilterWithEndpointAndTime(GetOutliersSeconds()),
+				type: 'scatter',
+				order: 2,
+				yAxisID: 'y1'
+			},
+			{
+				label: 'Server restart',
+				borderColor: 'hsl(250, 100%, 73%)',
+				backgroundColor: 'hsl(250, 100%, 73%)',
+				pointRadius: 10,
+				data: serverRestart,
 				type: 'scatter',
 				order: 0,
 				yAxisID: 'y1'
@@ -394,7 +424,7 @@
 						}
 					},
 					min: 0
-				}
+				},
 			}
 		}
 	};
@@ -614,7 +644,7 @@
 		ChangeTimeUnit("day");
 	});
 
-	document.getElementById("date").addEventListener("change", function () { location.href = "/admin/dashboard?date=" + document.getElementById("date").value;});
+	document.getElementById("date").addEventListener("change", function () { location.href = "/admin/dashboard?date=" + document.getElementById("date").value + "&endpoint=" + selectedEndpoint;});
 	document.getElementById("endpoint").addEventListener("change", function () { ChangeEndpoint(document.getElementById("endpoint").value) });
 	document.getElementById("time").addEventListener("blur", function () {
 		document.getElementById("time").value = document.getElementById("time").value.slice(0, -2) + "00";
@@ -637,12 +667,12 @@
 			newTime = parseInt(newTime);
 			if (newTime == 23 && t > 0) {
 				dateTime.setDate(dateTime.getDate() + 1);
-				location.href = "/admin/dashboard?date=" + dateTime.toLocaleDateString('en-CA') + "&time=00:00";
+				location.href = "/admin/dashboard?date=" + dateTime.toLocaleDateString('en-CA') + "&time=00:00" + "&endpoint=" + selectedEndpoint;
 				return;
 			}
 			if (newTime == 0 && t < 0) {
 				dateTime.setDate(dateTime.getDate() -1);
-				location.href = "/admin/dashboard?date=" + dateTime.toLocaleDateString('en-CA') + "&time=23:00";
+				location.href = "/admin/dashboard?date=" + dateTime.toLocaleDateString('en-CA') + "&time=23:00" + "&endpoint=" + selectedEndpoint;
 				return;
 			}
 			newTime += t;
@@ -657,11 +687,11 @@
 		}
 		else if (timeUnit === "hour") {
 			dateTime.setDate(dateTime.getDate() + (t * 7));
-			location.href = "/admin/dashboard?date=" + dateTime.toLocaleDateString('en-CA') + "&timeunit=hour&time=" + time ;
+			location.href = "/admin/dashboard?date=" + dateTime.toLocaleDateString('en-CA') + "&timeunit=hour&time=" + time + "&endpoint=" + selectedEndpoint;
 		}
 		else if (timeUnit === "day") {
 			dateTime.setMonth(dateTime.getMonth() + t);
-			location.href = "/admin/dashboard?date=" + dateTime.toLocaleDateString('en-CA') + "&timeunit=day&time=" + time;
+			location.href = "/admin/dashboard?date=" + dateTime.toLocaleDateString('en-CA') + "&timeunit=day&time=" + time + "&endpoint=" + selectedEndpoint;
 		}
 	}
 
@@ -706,9 +736,9 @@
 			barChartMemory.options.scales.x.min = GiveMinHours();
 			barChartMemory.options.scales.x.min = GiveMaxHours();
 
-
 			mixedChart.data.datasets[0].data = FilterWithEndpointAndTime(GetCountRequestData());
 			mixedChart.data.datasets[2].data = FilterWithEndpointAndTime(GetOutliersSeconds());
+			mixedChart.data.datasets[3].data = serverRestart;
 
 			areaChart.data.datasets[0].data = FilterWithEndpointAndTime(GetDataInMs("dbExecTime"));
 			areaChart.data.datasets[1].data = FilterWithEndpointAndTime(GetDataInMs("renderTime"));
