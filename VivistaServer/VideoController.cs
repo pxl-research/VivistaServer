@@ -32,6 +32,7 @@ namespace VivistaServer
 			public Guid id;
 			public int userid;
 			public string username;
+			public string userPicture;
 			public DateTime timestamp;
 			public long downloadsize;
 			public int views;
@@ -969,7 +970,7 @@ namespace VivistaServer
 			try
 			{
 				var video = await Database.QuerySingleAsync<Video>(connection,
-													@"select v.*, u.username from videos v
+													@"select v.*, u.username, u.pictureid as userpicture from videos v
 													inner join users u on v.userid = u.userid
 													where v.id=@videoid::uuid",
 													context,
@@ -1269,6 +1270,11 @@ namespace VivistaServer
 			}
 
 			return 0;
+		}
+
+		public static int GetItemsInUploadCache()
+		{
+			return (int)uploadAuthorisationCache.GetCount();
 		}
 	}
 }

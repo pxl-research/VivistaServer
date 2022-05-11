@@ -85,6 +85,11 @@ namespace VivistaServer
 				{
 					return null;
 				}
+
+				//NOTE(Tom): Is for initialization
+				context.Items[DashboardController.RENDER_TIME] = 0f;
+				context.Items[DashboardController.DB_EXEC_TIME] = 0f;
+
 				var guid = new Guid(context.Request.Headers["guid"]);
 				string path = Path.Combine(VideoController.baseFilePath, guid.ToString());
 				return new DefaultTusConfiguration
@@ -103,12 +108,10 @@ namespace VivistaServer
 			});
 #if !VIVISTA_DONT_COLLECT_PERF_DATA
 			Task.Run(CollectPeriodicStatistics);
-#else
-			Console.WriteLine(Environment.NewLine);
-			Console.WriteLine(Environment.NewLine);
-			Console.WriteLine("WARNING: Running Vivista without collecting performance data!");
-			Console.WriteLine(Environment.NewLine);
-			Console.WriteLine(Environment.NewLine);
+			
+#endif
+#if !VIVISTA_DONT_COLLECT_ROLES
+			Task.Run(RoleController.LoadRoles);
 #endif
 
 			app.Run(async (context) =>
@@ -119,17 +122,17 @@ namespace VivistaServer
 
 				var requestTime = Stopwatch.StartNew();
 
-				var watch = Stopwatch.StartNew();
+				var authenticateTask = UserSessions.GetLoggedInUser(context);
 
 				PrintDebugData(context);
 
 				SetJSONContentType(context);
 
-				watch.Stop();
-				CommonController.LogDebug($"request preamble: {watch.Elapsed.TotalMilliseconds} ms");
+				await authenticateTask;
+				CommonController.LogDebug($"request preamble: {requestTime.Elapsed.TotalMilliseconds} ms");
 
 				await router.RouteAsync(context.Request, context);
-
+				requestTime.Stop();
 				IFormCollection form = null;
 
 				//NOTE(Tom): Do no not allow to show password in database
@@ -140,11 +143,8 @@ namespace VivistaServer
 
 				var requestInfo = new RequestInfo
 				{
-					path = context.Request.Path,
-					method = context.Request.Method,
-					query = context.Request.Query,
-					form = form
-
+					query = (QueryCollection)context.Request.Query,
+					form = (FormCollection)form
 				};
 
 				var request = new Request
@@ -186,6 +186,7 @@ namespace VivistaServer
 #endif
 		}
 
+		//TODO(Simon): Minute data should probably work similarly to hour/day, so we don't have to rely on the margin after rounding.
 		private static async Task CollectPeriodicStatistics()
 		{
 #pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
@@ -194,24 +195,26 @@ namespace VivistaServer
 			while (true)
 			{
 #if DEBUG
-				var nextTime = DateTime.UtcNow.RoundUp(TimeSpan.FromSeconds(60));
+				//NOTE(Simon): Add a little margin to account for rounding errors in Task.Delay. If ran without margin, Task.Delay would sometimes be done too early causing many rapid runs of the AddMinuteData Task
+				var nextTime = DateTime.UtcNow.RoundUp(TimeSpan.FromSeconds(60)) + TimeSpan.FromSeconds(1);
 #else
-				var nextTime = DateTime.UtcNow.RoundUp(TimeSpan.FromMinutes(1));
+				var nextTime = DateTime.UtcNow.RoundUp(TimeSpan.FromMinutes(1)) + TimeSpan.FromSeconds(1);
 #endif
 				var delay = nextTime - DateTime.UtcNow;
 				await Task.Delay(delay);
 
 				Task.Run(DashboardController.AddMinuteData);
-
-				if (DateTime.UtcNow.Hour > lastHours.Hour)
+				if (DateTime.UtcNow.Hour != lastHours.Hour)
 				{
-					Task.Run(() => DashboardController.AddHourData(lastHours));
+					var hoursTemp = lastHours;
+					Task.Run(() => DashboardController.AddHourData(hoursTemp));
 					lastHours = DateTime.UtcNow;
 				}
 
-				if (DateTime.UtcNow.Day > lastDay.Day)
+				if (DateTime.UtcNow.Day != lastDay.Day)
 				{
-					Task.Run(() => DashboardController.AddDayData(lastDay));
+					var dayTemp = lastDay;
+					Task.Run(() => DashboardController.AddDayData(dayTemp));
 					lastDay = DateTime.UtcNow;
 				}
 			}

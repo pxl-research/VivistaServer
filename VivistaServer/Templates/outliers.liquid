@@ -1,0 +1,84 @@
+﻿<div class="pure-g center center-text">
+	<div class="pure-u-1" >
+		<h1>Outliers</h1>
+
+		<table class="pure-table table-center" id="outlierTabel">
+			<thead>
+				<tr>
+					<th>Request time in ms</th>
+					<th>Timestamp</th>
+					<th>Endpoint</th>
+					<th>Form</th>
+					<th>Query</th>
+				</tr>
+			</thead>
+			<tbody id="outlierTabelBody">
+			</tbody>
+		</table>
+	</div>
+</div>
+
+
+
+<script>
+	InsertOutliers();
+	function InsertOutliers() {
+		let outliers = JSON.parse(sessionStorage.getItem('outliers'));
+		let outlierTableBody = document.getElementById('outlierTabelBody');
+		let i = 0;
+		outliers.forEach(a => {
+			let textForm = "";
+			let query = "";
+			if (a.reqinfo.form != null) {
+				a.reqinfo.form.forEach(f => {
+					textForm += "Key: " + f.Key + " - Value: ";
+					f.Value.forEach(v => {
+						textForm += v + " ";
+					});
+					textForm += "<br>";
+				});
+			}
+
+			if (a.reqinfo.query != null) {
+				a.reqinfo.query.forEach(q => {
+					query += "Key: " + q.Key + " - Value: ";
+					q.Value.forEach(v => {
+						textForm += v + " ";
+					});
+					query += "<br>";
+				});
+			}
+
+			outliers[i].reqinfo.form = textForm;
+			outliers[i].reqinfo.query = query;
+
+			let row = document.createElement('tr');
+			let tdRequestTime = document.createElement('td');
+			tdRequestTime.innerHTML = outliers[i].y.toString();
+
+			let tdTimestamp = document.createElement('td');
+			let dateTime = new Date(outliers[i].x);
+			let formatedDateTime = (dateTime.getDate()) + '-' + (dateTime.getMonth() + 1) + '-' + dateTime.getFullYear() + ' ' + dateTime.getHours() + ":" + dateTime.getMinutes() + ":" + dateTime.getSeconds();
+
+			tdTimestamp.innerHTML = formatedDateTime.toString();
+			let tdEndpoint = document.createElement('td');
+			tdEndpoint.innerHTML = outliers[i].endpoint;
+
+			let tdForm = document.createElement('td');
+			tdForm.innerHTML = textForm;
+
+			let tdQuery = document.createElement('td');
+			tdQuery.innerHTML = query;
+
+
+			row.appendChild(tdRequestTime);
+			row.appendChild(tdTimestamp);
+			row.appendChild(tdEndpoint);
+			row.appendChild(tdForm);
+			row.appendChild(tdQuery);
+			outlierTableBody.appendChild(row);
+			i++;
+
+		});
+	}
+</script>

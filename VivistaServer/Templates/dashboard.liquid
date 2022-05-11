@@ -1,128 +1,358 @@
-﻿<div class="pure-g">
-	<div class="pure-u-1">
-		<div class="pure-button-group">
-			<button id="minuteBtn" class="pure-button pure-button-active">Minute</button>
-			<button id="hourBtn" class="pure-button">Hour</button>
-			<button id="dayBtn" class="pure-button">Day</button>
-		</div>
-		<div class="pure-u-1 pure-u-md-1-2 pure-u-lg-1-3 pure-u-xl-1-4">
-			<div class="pure-form">
-				<input type="date" id="date" name="date" />
-				<input type="time" id="time" name="time" value="09:00" />
+﻿<div class="center-text">
+	<div>
+		<h1>Dashboard</h1>
+		<div class="pure-g">
+			<div class="pure-u-1-1">
+				<div class="pure-u-1-3" style="min-width:350px;">
+					<strong>Choose timespan:</strong>
+					<div class="pure-button-group">
+						<button id="minuteBtn" class="pure-button">Hour</button>
+						<button id="hourBtn" class="pure-button">Week</button>
+						<button id="dayBtn" class="pure-button">Month</button>
+					</div>
+				</div>
+				<div class="pure-u-1-3" style="min-width:350px;">
+					<div class="pure-form">
+						<strong>Choose date and time:</strong>
+						<div>
+							<input type="date" id="date" name="date" />
+							<input type="time" id="time" name="time" value="09:00" />
+						</div>
+						<button class="pure-button" id="previousTime"><<</button>
+						<button class="pure-button" id="nextTime">>></button>
+					</div>
+				</div>
+				<div class="pure-u-1-3" style="min-width:350px;">
+					<div class="pure-form">
+						<strong>Choose endpoint:</strong>
+						<div>
+							<select id="endpoint" style="max-width: 350px;">
+								{% for endpoint in endpoints %}
+								<option value="{{endpoint}}">{{endpoint}}</option>
+								{% endfor %}
+							</select>
+						</div>
+					</div>
+				</div>
 			</div>
 		</div>
-
-		<div class="pure-form">
-			<select id="endpoint">
-				{% for endpoint in endpoints %}
-				<option value="{{endpoint}}">{{endpoint}}</option>
-				{% endfor %}
-			</select>
-		</div>
 		<br>
+
+		<h2>Count requests, request times and outliers</h2>
 		<div class="chartBox">
+			<div class="pure-form">
+				<select id="dataType">
+					<option value="Average">Average</option>
+					<option value="Median">Median</option>
+					<option value="Percentile 95">Percentile 95</option>
+					<option value="Percentile 99">Percentile 99</option>
+					<option value="Render time">Render time</option>
+					<option value="Db exec time">Db exec time</option>
+				</select>
+			</div>
+			<canvas id="mixedChart"></canvas>
+		</div>
+		<div>
+			<br>
+			<h3>Count outliers this month: {{countOutliers}}</h3>
+			<strong>Outliers of this month</strong>
+			<table class="pure-table table-center" id="allOutliersTable">
+				<thead>
+					<tr>
+						<th>Request time</th>
+						<th>Timestamp</th>
+						<th>Endpoint</th>
+					</tr>
+				</thead>
+				<tbody id="allOutliersTableBody">
+				</tbody>
+			</table>
+			<button class="pure-button" id="previousPage"><<</button>
+			<button class="pure-button" id="nextPage">>></button>
+			<input class="pure-form" id="countPages" type="number" value="5" />
+
+			<br>
+			<br>
+			<strong>Selected outliers</strong>
+			<table class="pure-table table-center" id="outlierTabel">
+				<thead>
+					<tr>
+						<th>Request time</th>
+						<th>Timestamp</th>
+						<th>Endpoint</th>
+					</tr>
+				</thead>
+				<tbody id="outlierTabelBody">
+				</tbody>
+			</table>
+			<br>
+			<button id="outliersButton" class="pure-button">View details of outliers</button>
+		</div>
+
+		<h2>Area Time chart</h2>
+		<div class="chartBox center">
 			<canvas id="areaChart"></canvas>
 		</div>
 
+		<h2>General data chart</h2>
 		<div class="chartBox">
-		<div class="pure-form">
-			<select id="dataType">
-				<option value="Average">Average</option>
-				<option value="Median">Median</option>
-				<option value="Percentile 95">Percentile 95</option>
-				<option value="Percentile 99">Percentile 99</option>
-				<option value="Render time">Render time</option>
-				<option value="Db exec time">Db exec time</option>
-			</select>
+			<div class="pure-form">
+				<select id="generalDataType">
+					<option value="Downloads">Downloads</option>
+					<option value="Views">Views</option>
+					<option value="Uploads">Uploads</option>
+					<option value="Uncaught exceptions">Uncaught exceptions</option>
+					<option value="Count total requests">Count total requests</option>
+					<option value="Items in user cache">Items in user cache</option>>
+					<option value="Items in upload cache">Items in upload cache</option>>
+				</select>
+			</div>
+			<canvas id="barChart"></canvas>
 		</div>
-			<canvas id="mixedChart"></canvas>
+		<br />
+		<h2>Memory data chart</h2>
+		<div class="chartBox">
+			<div class="pure-form">
+				<select id="generalDataTypeMemory">
+					<option value="Private memory">Private memory</option>
+					<option value="Working set">Working set</option>
+					<option value="Virtual memory">Virtual memory</option>
+				</select>
+			</div>
+			<canvas id="barChartMemory"></canvas>
 		</div>
 
 		<br />
-		<table class="pure-table">
-			<thead>
-				<tr>
-					<th>Users</th>
-					<th>Videos</th>
-					<th>Downloads</th>
-				</tr>
-			</thead>
-			<tbody>
-				<tr>
-					<td>{{users}}</td>
-					<td>{{videos}}</td>
-					<td>{{downloads}}</td>
-				</tr>
-			</tbody>
-		</table>
+		<h2>Total count of users, videos and downloads</h2>
+		<div>
+			<table class="pure-table table-center">
+				<thead>
+					<tr>
+						<th>Users</th>
+						<th>Videos</th>
+						<th>Downloads</th>
+					</tr>
+				</thead>
+				<tbody>
+					<tr>
+						<td>{{users}}</td>
+						<td>{{videos}}</td>
+						<td>{{downloads}}</td>
+					</tr>
+				</tbody>
+			</table>
+		</div>
+		<br>
 	</div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
-
-<style type="text/css">
-	.chartBox {
-		width: 1000px;
-	}
-</style>
 <script>
-	//------Retrieve and initialize data
-	let minuteData = {{ minuteData | json}};
-	let hourData = {{ hourData | json}};
-	let dayData = {{ dayData | json}};
+	const urlParams = new URLSearchParams(window.location.search);
+	let dataOfDay = {{ minuteData | json}};
+	let dataOfWeek = {{ hourData | json}};
+	let dataOfMonth = {{ dayData | json}};
 	let endpoints = {{ endpoints | json }};
+	let outliers = {{ outliers | json}}
+	let selectedOutliers = [];
+
+	const kb = 1024;
+	const mb = kb * 1024;
+
+	for (let i = 0; i < outliers.length; i++) {
+		outliers[i].reqinfo = JSON.parse(outliers[i].reqinfo);
+	}
+
+	let outlierRows = [];
+	outliers.forEach(o => {
+		let row = document.createElement('tr');
+		let tdRequestTime = document.createElement('td');
+		tdRequestTime.innerText = o.seconds * 1000;
+		let tdTimestamp = document.createElement('td');
+		let dateTime = new Date(o.timestamp);
+		let formatedDateTime = dateTime.toLocaleString();
+
+		tdTimestamp.innerText = formatedDateTime.toString();
+		let tdEndpoint = document.createElement('td');
+		tdEndpoint.innerText = o.endpoint;
+
+		row.appendChild(tdRequestTime);
+		row.appendChild(tdTimestamp);
+		row.appendChild(tdEndpoint);
+		outlierRows.push(row);
+	});
+
+	//Pagination
+	let index = 0;
+	let numberOfRecords = 5;
+	let allOutliersTable = document.getElementById("allOutliersTable");
+	let alOutliersTableBody = document.getElementById("allOutliersTableBody");
+	NextPage();
+	var today = new Date();
+	let timeParam = urlParams.get('time');
+	if (timeParam != undefined) {
+		document.getElementById("time").value = timeParam;
+	}
+	else if (today.getHours().toString().length === 1) {
+		document.getElementById("time").value = "0" + today.getHours().toString() + ":00"
+	}
+	else {
+		document.getElementById("time").value = today.getHours().toString() + ":00";
+	}
+	document.getElementById("countPages").addEventListener("change", function () {
+		if (document.getElementById("countPages").value != '') {
+			numberOfRecords = parseInt(document.getElementById("countPages").value);
+			ChangeNumberOfRecords();
+		} else {
+			document.getElementById("countPages").value = numberOfRecords;
+		}
+
+
+	});
+	function NextPage() {
+		if (index < (outliers.length - 1)) {
+			let count = allOutliersTable.rows.length;
+			for (let i = 1; i < count; i++) {
+				allOutliersTable.deleteRow(1);
+			}
+
+			let max = 0;
+			if ((index + numberOfRecords) > outliers.length) {
+				max = outliers.length;
+			}
+			else {
+				max = index + numberOfRecords;
+			}
+			InsertRows(max);
+		}
+	}
+	function PreviousPage() {
+		if ((index - numberOfRecords) > 0) {
+			let count = allOutliersTable.rows.length;
+			for (let i = 1; i < count; i++) {
+				allOutliersTable.deleteRow(1);
+			}
+			//Note(Tom): Has one row of th
+			count = count - 1;
+
+			index = index - count - numberOfRecords;
+			InsertRows();
+		}
+	}
+	function ChangeNumberOfRecords() {
+
+		let count = allOutliersTable.rows.length;
+		for (let i = 1; i < count; i++) {
+			allOutliersTable.deleteRow(1);
+		}
+
+		let de = index / numberOfRecords;
+			
+		de = Math.floor(de);
+		if (index >= outlierRows.length) {
+			index = de * numberOfRecords - numberOfRecords;
+		}
+		else {
+			index = de * numberOfRecords;
+		}
+		if (index <= numberOfRecords) {
+			index = 0;
+		}
+		InsertRows();
+
+	}
+	function InsertRows() {
+		index = parseInt(index);
+		let max = index + numberOfRecords;
+		if (max > outlierRows.length) {
+			max = (outlierRows.length);
+		}
+		for (let i = index; i < max; i++) {
+			allOutliersTable.appendChild(outlierRows[i]);
+		}
+		index = max;
+	}
+
+	let generalDataOfDay = {{ generalMinuteData | json}};
+	let generalDataOfWeek = {{ generalHourData | json}};
+	let generalDataOfMonth = {{ generalDayData | json}};
+
 	let selectedEndpoint = endpoints[0];
-	console.log(dayData);
+	let timeUnitParam = urlParams.get('timeunit');
+	let timeUnit = '';
+	let selectedData;
+	let selectedGeneralData;
+	if (timeUnitParam === "hour") {
+		timeUnit = "hour";
+		selectedData = dataOfWeek;
+		selectedGeneralData = generalDataOfWeek;
+	} else if (timeUnitParam === "day") {
+		timeUnit = "day"
+		selectedData = dataOfMonth;
+		selectedGeneralData = generalDataOfMonth;
+	} else {
+		timeUnit = "minute";
+		selectedData = dataOfDay;
+		selectedGeneralData = generalDataOfDay;
+	}
 
+	document.getElementById(timeUnit + "Btn").classList.add("pure-button-active");
 
-	let timeUnit = "minute";
-	let selectedData = minuteData;
-	//Retrieve and initialize data------
+	let dataType = document.getElementById("dataType").value;
+	let generalDataType = document.getElementById("generalDataType").value;
+	let generalDataTypeMemory = document.getElementById("generalDataTypeMemory").value;
 
-	//------Date paramter
-	const queryString = new URLSearchParams(window.location.search).get("date");
+	//Date paramter
+	const queryString = urlParams.get("date");
 	document.getElementById("date").value = queryString;
 	if (document.getElementById("date").value === "") {
 		document.getElementById("date").value = new Date().toISOString().slice(0, 10);
 	}
-
 	let time;
 	let dateTime;
 	let maxDateTime;
 	SetDateAndTimes();
-	//Date paramter------
-	let dataType = document.getElementById("dataType").value;
 
-	//------Configure charts
+	//Configure charts
 	const countRequest = {
 		label: 'Number of requests from endpoint',
 		borderColor: 'hsl(350, 60%, 50%)',
 		backgroundColor: 'hsl(350, 60%, 50%)',
-		data: selectedData.map(a => ({ x: a.timestamp, y: a.countrequests, endpoint: a.endpoint })).filter(a => a.endpoint === selectedEndpoint && new Date(a.x) >= dateTime && new Date(a.x) < maxDateTime),
+		data: FilterWithEndpointAndTime(GetCountRequestData()),
 		order: 1,
 		yAxisID: 'y',
 	};
-	//Mixed chart
+
 	const dataMixedChart = {
-		//labels: labels,
 		datasets: [
 			{
 				label: 'Number of requests from endpoint',
 				borderColor: 'hsl(350, 60%, 50%)',
 				backgroundColor: 'hsl(350, 60%, 50%)',
-				data: selectedData.map(a => ({ x: a.timestamp, y: a.countrequests, endpoint: a.endpoint })).filter(a => a.endpoint === selectedEndpoint && new Date(a.x) >= dateTime && new Date(a.x) < maxDateTime),
-				order: 1,
+				data: FilterWithEndpointAndTime(GetCountRequestData()),
+				order: 2,
 				yAxisID: 'y',
 			},
 			{
 				label: 'Average in ms',
-				borderColor: 'hsl(250, 60%, 33%)',
-				backgroundColor: 'hsl(250, 60%, 33%)',
-				data: selectedData.map(a => ({ x: a.timestamp, y: a.average * 1000, endpoint: a.endpoint })).filter(a => a.endpoint === selectedEndpoint && new Date(a.x) >= dateTime && new Date(a.x) < maxDateTime),
+				borderColor: 'hsl(50, 60%, 67%)',
+				backgroundColor: 'hsl(50, 60%, 67%)',
+				pointRadius: 4,
+				data: FilterWithEndpointAndTime(GetDataInMs("average")),
 				type: 'line',
-				order: 0,
+				order: 1,
 				yAxisID: 'y1',
+			},
+			{
+				label: 'outliers',
+				borderColor: 'hsl(170, 43%, 46%)',
+				backgroundColor: 'hsl(170, 43%, 46%)',
+				pointRadius: 7,
+				data: FilterWithEndpointAndTime(GetOutliersSeconds()),
+				type: 'scatter',
+				order: 0,
+				yAxisID: 'y1'
 			}
 		]
 	};
@@ -130,15 +360,13 @@
 		type: 'bar',
 		data: dataMixedChart,
 		options: {
-			plugins: {
-				title: {
-					display: true,
-					text: 'Count requests and average'
-				},
-			},
+			animation: false,
+			normalized: true,
 			scales: {
 				x: {
 					type: 'time',
+					min: GiveMinHours(),
+					max: GiveMaxHours(),
 					time: {
 						unit: timeUnit,
 						displayFormats: {
@@ -146,63 +374,84 @@
 							hour: 'MMM dd - hh:mm',
 							day: 'MMM dd'
 
-						}
-					}
+						},
+					},
 				},
 				y: {
 					beginAtZero: true,
-					position: 'left'
+					position: 'left',
+					ticks: {
+						precision: 0
+					},
+					min: 0
 				},
 				y1: {
 					beginAtZero: true,
-					position: 'right'
+					position: 'right',
+					ticks: {
+						callback: function (value, index, values) {
+							return value + ' ms';
+						}
+					},
+					min: 0
 				}
 			}
 		}
 	};
+
 	const mixedChart = new Chart(
 		document.getElementById('mixedChart'),
 		configMixedChart
 	);
 
-	//Area chart
 	const dataAreaChart = {
 		datasets: [
 			{
 				label: 'Db exec time in ms',
-				data: selectedData.map(a => ({ x: a.timestamp, y: a.dbExecTime * 1000, endpoint: a.endpoint })).filter(a => a.endpoint === selectedEndpoint && new Date(a.x) >= dateTime && new Date(a.x) < maxDateTime),
+				data: FilterWithEndpointAndTime(GetDataInMs("dbExecTime")),
 				borderColor: 'hsl(330, 60%, 33%)',
 				backgroundColor: 'hsl(330, 60%, 33%)',
-				fill: true
+				fill: true,
+				pointRadius: 4
 			},
 			{
 				label: 'Render time in ms',
-				data: selectedData.map(a => ({ x: a.timestamp, y: a.renderTime * 1000, endpoint: a.endpoint })).filter(a => a.endpoint === selectedEndpoint && new Date(a.x) >= dateTime && new Date(a.x) < maxDateTime),
+				data: FilterWithEndpointAndTime(GetDataInMs("renderTime")),
 				borderColor: 'hsl(50, 60%, 67%)',
 				backgroundColor: 'hsl(50, 60%, 67%)',
-				fill: true
-			}
-			,
+				fill: true,
+				pointRadius: 4
+			},
+			{
+				label: 'Median in ms',
+				data: FilterWithEndpointAndTime(GetDataInMs("median")),
+				borderColor: 'hsl(140, 75%, 27%)',
+				backgroundColor: 'hsl(140, 75%, 27%)',
+				fill: true,
+				pointRadius: 4
+			},
 			{
 				label: 'Average in ms',
-				data: selectedData.map(a => ({ x: a.timestamp, y: a.average * 1000, endpoint: a.endpoint })).filter(a => a.endpoint === selectedEndpoint && new Date(a.x) >= dateTime && new Date(a.x) < maxDateTime),
-				borderColor: 'hsl(350, 60%, 50%)',
+				data: FilterWithEndpointAndTime(GetDataInMs("average")),
 				backgroundColor: 'hsl(350, 60%, 50%)',
-				fill: true
+				fill: true,
+				pointRadius: 4
 			},
 			{
 				label: '95 Percentile in ms',
-				data: selectedData.map(a => ({ x: a.timestamp, y: a.percentile95 * 1000, endpoint: a.endpoint })).filter(a => a.endpoint === selectedEndpoint && new Date(a.x) >= dateTime && new Date(a.x) < maxDateTime),
+				data: FilterWithEndpointAndTime(GetDataInMs("percentile95")),
 				borderColor: 'hsl(250, 60%, 33%)',
 				backgroundColor: 'hsl(250, 60%, 33%)',
-				fill: true
+				fill: true,
+				pointRadius: 4
 			},
 			{
 				label: '99 Percentile in ms',
-				data: selectedData.map(a => ({ x: a.timestamp, y: a.percentile99 * 1000, endpoint: a.endpoint })).filter(a => a.endpoint === selectedEndpoint && new Date(a.x) >= dateTime && new Date(a.x) < maxDateTime),
+				data: FilterWithEndpointAndTime(GetDataInMs("percentile99")),
 				borderColor: 'hsl(170, 43%, 46%)',
 				backgroundColor: 'hsl(170, 43%, 46%)',
-				fill: true
+				fill: true,
+				pointRadius: 4
 			}
 
 		]
@@ -210,14 +459,10 @@
 	const configAreaChart  = {
 		type: 'line',
 		data: dataAreaChart,
+		normalized: true,
 		options: {
 			responsive: true,
-			plugins: {
-				title: {
-					display: true,
-					text: 'Average, percentile 95, percentile 99, render time and db exec time'
-				},
-			},
+			animation: false,
 			interaction: {
 				mode: 'nearest',
 				axis: 'x',
@@ -226,6 +471,8 @@
 			scales: {
 				x: {
 					type: 'time',
+					min: GiveMinHours(),
+					max: GiveMaxHours(),
 					time: {
 						unit: timeUnit,
 						displayFormats: {
@@ -243,7 +490,8 @@
 						callback: function (value, index, values) {
 							return value + ' ms';
 						}
-					}
+					},
+					min: 0
 				}
 			}
 		}
@@ -252,39 +500,192 @@
 		document.getElementById('areaChart'),
 		configAreaChart
 	);
-	//Configure charts------
 
-	//--------Event listeners
+	const dataBarChart = {
+		datasets: [
+			{
+				label: 'Downloads',
+				data: FilterWithTime(GetGeneralCountData("downloads")),
+				backgroundColor: 'hsl(350, 60%, 50%)',
+			}
+		]
+	};
+	const configBarChart = {
+		type: 'bar',
+		data: dataBarChart,
+		normalized: true,
+		options: {
+			animation: false,
+			responsive: true,
+			scales: {
+				x: {
+					type: 'time',
+					min: GiveMinHours(),
+					max: GiveMaxHours(),
+					time: {
+						unit: timeUnit,
+						displayFormats: {
+							minute: 'hh:mm',
+							hour: 'MMM dd - hh:mm',
+							day: 'MMM dd'
+
+						}
+					}
+				},
+				y: {
+					ticks: {
+						precision: 0
+					},
+					beginAtZero: true,
+					min: 0
+				}
+			}
+		}
+	};
+	const barChart = new Chart(
+		document.getElementById('barChart'),
+		configBarChart
+	);
+
+	const dataBarChartMemory = {
+		datasets: [
+			{
+				label: 'Private memory in mb',
+				data: FilterWithTime(GetGenralMemoryData("privateMemory")),
+				backgroundColor: 'hsl(170, 43%, 46%)',
+			}
+		]
+	}
+
+	const configBarChartMemory = {
+		type: 'bar',
+		data: dataBarChartMemory,
+		options: {
+			animation: false,
+			responsive: true,
+			normalized:true,
+			scales: {
+				x: {
+					type: 'time',
+					min: GiveMinHours(),
+					max: GiveMaxHours(),
+					time: {
+						unit: timeUnit,
+						displayFormats: {
+							minute: 'hh:mm',
+							hour: 'MMM dd - hh:mm',
+							day: 'MMM dd'
+
+						}
+					}
+				},
+				y: {
+					ticks: {
+						precision: 0,
+						callback: function (value, index, values) {
+							return value + ' mb';
+						}
+					},
+					beginAtZero: true,
+					min: 0
+				}
+			}
+		}
+	};
+	const barChartMemory = new Chart(
+		document.getElementById('barChartMemory'),
+		configBarChartMemory
+	);
+
+	//Event listeners
 	document.getElementById("minuteBtn").addEventListener("click", function () {
-		selectedData = minuteData;
+		selectedData = dataOfDay;
+		selectedGeneralData = generalDataOfDay;
 		ChangeTimeUnit("minute");
 	});
 	document.getElementById("hourBtn").addEventListener("click", function () {
-		selectedData = hourData;
+		selectedData = dataOfWeek;
+		selectedGeneralData = generalDataOfWeek;
 		ChangeTimeUnit("hour");
 	});
 	document.getElementById("dayBtn").addEventListener("click", function () {
-		selectedData = dayData;
+		selectedData = dataOfMonth;
+		selectedGeneralData = generalDataOfMonth;
 		ChangeTimeUnit("day");
 	});
 
 	document.getElementById("date").addEventListener("change", function () { location.href = "/admin/dashboard?date=" + document.getElementById("date").value;});
 	document.getElementById("endpoint").addEventListener("change", function () { ChangeEndpoint(document.getElementById("endpoint").value) });
-	document.getElementById("time").addEventListener("blur", function () { selectedData = minuteData; ChangeDataOfCharts(); });
+	document.getElementById("time").addEventListener("blur", function () {
+		document.getElementById("time").value = document.getElementById("time").value.slice(0, -2) + "00";
+		time = document.getElementById("time").value;
+		selectedData = dataOfDay;
+		ChangeDataOfCharts();
+	});
 	document.getElementById("dataType").addEventListener("change", function () { dataType = document.getElementById("dataType").value; ParameterChanged(); });
-	//Event listeners--------
+	document.getElementById("generalDataType").addEventListener("change", function () { generalDataType = document.getElementById("generalDataType").value; GeneralParameterChanged(); });
+	document.getElementById("generalDataTypeMemory").addEventListener("change", function () { generalDataTypeMemory = document.getElementById("generalDataTypeMemory").value; GeneralParameterMemoryChanged(); });
+	document.getElementById("outliersButton").addEventListener("click", function () { NavigateToOutliers() });
+	document.getElementById("nextPage").addEventListener("click", function () { NextPage() });
+	document.getElementById("previousPage").addEventListener("click", function () { PreviousPage() });
+	document.getElementById("previousTime").addEventListener("click", function () { PreviousOrNextTime(-1) });
+	document.getElementById("nextTime").addEventListener("click", function () { PreviousOrNextTime(1) });
 
-	//--------Change paramters
+	function PreviousOrNextTime(t) {
+		if (timeUnit === "minute") {
+			let newTime = document.getElementById("time").value.slice(0, -3);
+			newTime = parseInt(newTime);
+			if (newTime == 23 && t > 0) {
+				dateTime.setDate(dateTime.getDate() + 1);
+				location.href = "/admin/dashboard?date=" + dateTime.toLocaleDateString('en-CA') + "&time=00:00";
+				return;
+			}
+			if (newTime == 0 && t < 0) {
+				dateTime.setDate(dateTime.getDate() -1);
+				location.href = "/admin/dashboard?date=" + dateTime.toLocaleDateString('en-CA') + "&time=23:00";
+				return;
+			}
+			newTime += t;
+			if (newTime < 10) {
+				document.getElementById("time").value = "0" + newTime + ":00";
+			} else {
+				document.getElementById("time").value = newTime + ":00";
+			}
+			time = document.getElementById("time").value;
+			selectedData = dataOfDay;
+			ChangeDataOfCharts();
+		}
+		else if (timeUnit === "hour") {
+			dateTime.setDate(dateTime.getDate() + (t * 7));
+			location.href = "/admin/dashboard?date=" + dateTime.toLocaleDateString('en-CA') + "&timeunit=hour&time=" + time ;
+		}
+		else if (timeUnit === "day") {
+			dateTime.setMonth(dateTime.getMonth() + t);
+			location.href = "/admin/dashboard?date=" + dateTime.toLocaleDateString('en-CA') + "&timeunit=day&time=" + time;
+		}
+	}
+
+
+
+	if (timeUnit != "minute") {
+		ChangeDataOfChartsAndChangeTimeUnit();
+	}
+	//Change paramters
 	function ChangeTimeUnit(time) {
         document.getElementById(timeUnit + "Btn").classList.remove("pure-button-active");
         document.getElementById(time + "Btn").classList.add("pure-button-active");
 		timeUnit = time;
+		ChangeDataOfChartsAndChangeTimeUnit();
 
+	}
+
+	function ChangeDataOfChartsAndChangeTimeUnit() {
 		mixedChart.options.scales.x.time.unit = timeUnit;
-		areaChart.options.scales.x.time.unit = timeUnit
+		areaChart.options.scales.x.time.unit = timeUnit;
+		barChart.options.scales.x.time.unit = timeUnit;
+		barChartMemory.options.scales.x.time.unit = timeUnit;
 
 		ChangeDataOfCharts();
-
 	}
 
 	function ChangeEndpoint(endpoint) {
@@ -296,65 +697,148 @@
 		//Note(Tom): If time unit is minute, then we need to see data of specific hour
 		if (timeUnit === 'minute') {
 			SetDateAndTimes();
+			mixedChart.options.scales.x.min = GiveMinHours();
+			mixedChart.options.scales.x.max = GiveMaxHours();
+			areaChart.options.scales.x.min = GiveMinHours();
+			areaChart.options.scales.x.max = GiveMaxHours();
+			barChart.options.scales.x.min = GiveMinHours();
+			barChart.options.scales.x.max = GiveMaxHours();
+			barChartMemory.options.scales.x.min = GiveMinHours();
+			barChartMemory.options.scales.x.min = GiveMaxHours();
+
 
 			mixedChart.data.datasets[0].data = FilterWithEndpointAndTime(GetCountRequestData());
-			ParameterChanged();
+			mixedChart.data.datasets[2].data = FilterWithEndpointAndTime(GetOutliersSeconds());
 
-			areaChart.data.datasets[0].data = FilterWithEndpointAndTime(GetDbExecTimeData());
-			areaChart.data.datasets[1].data = FilterWithEndpointAndTime(GetRenderTimeData());
-			areaChart.data.datasets[2].data = FilterWithEndpointAndTime(GetAverageData());
-			areaChart.data.datasets[3].data = FilterWithEndpointAndTime(GetPercentile95Data());
-			areaChart.data.datasets[4].data = FilterWithEndpointAndTime(GetPercentile99Data());
+			areaChart.data.datasets[0].data = FilterWithEndpointAndTime(GetDataInMs("dbExecTime"));
+			areaChart.data.datasets[1].data = FilterWithEndpointAndTime(GetDataInMs("renderTime"));
+			areaChart.data.datasets[2].data = FilterWithEndpointAndTime(GetDataInMs("median"));
+			areaChart.data.datasets[3].data = FilterWithEndpointAndTime(GetDataInMs("average"));
+			areaChart.data.datasets[4].data = FilterWithEndpointAndTime(GetDataInMs("percentile95"));
+			areaChart.data.datasets[5].data = FilterWithEndpointAndTime(GetDataInMs("percentile99"));
 		}
 		else {
+			if (timeUnit == "day") {
+				mixedChart.options.scales.x.min = GiveMinMonth();
+				mixedChart.options.scales.x.max = GiveMaxMonth();
+				areaChart.options.scales.x.min = GiveMinMonth();
+				areaChart.options.scales.x.max = GiveMaxMonth();
+				barChart.options.scales.x.min = GiveMinMonth();
+				barChart.options.scales.x.max = GiveMaxMonth();
+				barChartMemory.options.scales.x.min = GiveMinMonth();
+				barChartMemory.options.scales.x.min = GiveMaxMonth();
+			}
+			else {
+				mixedChart.options.scales.x.min = GiveMinWeek();
+				mixedChart.options.scales.x.max = GiveMaxWeek();
+				areaChart.options.scales.x.min = GiveMinWeek();
+				areaChart.options.scales.x.max = GiveMaxWeek();
+				barChart.options.scales.x.min = GiveMinWeek();
+				barChart.options.scales.x.max = GiveMaxWeek();
+				barChartMemory.options.scales.x.min = GiveMinWeek();
+				barChartMemory.options.scales.x.min = GiveMaxWeek();
+			}
 			mixedChart.data.datasets[0].data = FilterWithEndpoint(GetCountRequestData());
-			mixedChart.data.datasets[1].data = FilterWithEndpoint(GetAverageData());
+			mixedChart.data.datasets[2].data = {};
 
-			areaChart.data.datasets[0].data = FilterWithEndpoint(GetDbExecTimeData());
-			areaChart.data.datasets[1].data = FilterWithEndpoint(GetRenderTimeData());
-			areaChart.data.datasets[2].data = FilterWithEndpoint(GetAverageData());
-			areaChart.data.datasets[3].data = FilterWithEndpoint(GetPercentile95Data());
-			areaChart.data.datasets[4].data = FilterWithEndpoint(GetPercentile99Data());
-			
+			areaChart.data.datasets[0].data = FilterWithEndpoint(GetDataInMs("dbExecTime"));
+			areaChart.data.datasets[1].data = FilterWithEndpoint(GetDataInMs("renderTime"));
+			areaChart.data.datasets[2].data = FilterWithEndpointAndTime(GetDataInMs("median"));
+			areaChart.data.datasets[3].data = FilterWithEndpoint(GetDataInMs("average"));
+			areaChart.data.datasets[4].data = FilterWithEndpoint(GetDataInMs("percentile95"));
+			areaChart.data.datasets[5].data = FilterWithEndpoint(GetDataInMs("percentile99"));
 		}
+		ParameterChanged();
+		GeneralParameterChanged();
+		GeneralParameterMemoryChanged();
 
 		mixedChart.update();
 		areaChart.update();
+		barChart.update();
 	}
 
-	function GetPercentile95Data() {
-		return selectedData
-			.map(a => ({ x: a.timestamp, y: a.percentile95 * 1000, endpoint: a.endpoint }));
+	function GiveMinHours() {
+		let newDate = new Date(dateTime);
+		let timeHours = parseInt(time.substring(0, 2));
+		newDate.setHours(timeHours);
+		return newDate;
 	}
 
-	function GetAverageData() {
-		return selectedData
-			.map(a => ({ x: a.timestamp, y: a.average * 1000, endpoint: a.endpoint }));
+	function GiveMaxHours() {
+		let newDate = new Date(dateTime);
+		let timeHours = parseInt(time.substring(0, 2));
+		newDate.setHours(timeHours);
+		newDate.setHours(newDate.getHours() + 1);
+		newDate.setMilliseconds(-1);
+		return newDate;
 	}
 
-	function GetPercentile99Data() {
+	function GiveMinWeek() {
+		let newDate = new Date(dateTime);
+		let dayOfWeek = newDate.getDay();
+		return new Date(dateTime.getFullYear(), dateTime.getMonth(), newDate.getDate() - dayOfWeek + 1);
+	}
+
+	function GiveMaxWeek() {
+		let newDate = new Date(dateTime);
+		let dayOfWeek = newDate.getDay();
+
+		newDate = new Date(dateTime.getFullYear(), dateTime.getMonth(), newDate.getDate() + (6 - dayOfWeek) + 2);
+		newDate.setMilliseconds(-1)
+		return newDate;
+
+	}
+
+	function GiveMinMonth() {
+		return new Date(dateTime.getFullYear(), dateTime.getMonth(), 1);
+	}
+
+	function GiveMaxMonth() {
+		let newDate = new Date(dateTime);
+		newDate = new Date(dateTime.getFullYear(), dateTime.getMonth(), 1);
+		newDate.setMonth(newDate.getMonth() + 1)
+		newDate.setMilliseconds(-1);
+		return newDate;
+
+	}
+
+	function GetDataInMs(y) {
+		if (selectedData === null) {
+			return null;
+		}
 		return selectedData
-			.map(a => ({ x: a.timestamp, y: a.percentile99 * 1000, endpoint: a.endpoint }));
+			.map(a => ({ x: a.timestamp, y: a[y] * 1000, endpoint: a.endpoint }));
+	}
+
+	function GetGeneralCountData(y) {
+		if (selectedGeneralData === null) {
+			return null;
+		}
+		return selectedGeneralData
+			.map(a => ({ x: a.timestamp, y: a[y] }));
+	}
+
+	function GetGenralMemoryData(y) {
+		if (selectedGeneralData === null) {
+			return null;
+		}
+		return selectedGeneralData
+			.map(a => ({ x: a.timestamp, y: (a[y] / mb) }));
 	}
 
 	function GetCountRequestData() {
+		if (selectedData === null) {
+			return null;
+		}
 		return selectedData
-			.map(a => ({ x: a.timestamp, y: a.percentile95 * 1000, endpoint: a.endpoint }));
+			.map(a => ({ x: a.timestamp, y: a.countrequests, endpoint: a.endpoint }));
 	}
 
-	function GetDbExecTimeData() {
-		return selectedData
-			.map(a => ({ x: a.timestamp, y: a.dbExecTime * 1000, endpoint: a.endpoint }));
-	}
-
-	function GetRenderTimeData() {
-		return selectedData
-			.map(a => ({ x: a.timestamp, y: a.renderTime * 1000, endpoint: a.endpoint }));
-	}
-
-	function GetMedianData(){
-		return selectedData
-			.map(a => ({ x: a.timestamp, y: a.median * 1000, endpoint: a.endpoint }));
+	function GetOutliersSeconds() {
+		if (outliers === null) {
+			return null;
+		}
+		return outliers.map(a => ({ x: a.timestamp, y: a.seconds * 1000, endpoint: a.endpoint, reqinfo: a.reqinfo }));
 	}
 
 	function SetDateAndTimes() {
@@ -364,39 +848,50 @@
 		maxDateTime.setHours(maxDateTime.getHours() + 1);
 	}
 
-
-
 	function FilterWithEndpoint(data) {
+		if (data === null) {
+			return null;
+		}
 		return data.filter(a => a.endpoint === selectedEndpoint);
 	}
 
 	function FilterWithEndpointAndTime(data) {
+		if (data === null) {
+			return null;
+		}
 		return data.filter(a => a.endpoint === selectedEndpoint && new Date(a.x) >= dateTime && new Date(a.x) < maxDateTime)
+	}
+
+	function FilterWithTime(data) {
+		if (data === null) {
+			return null;
+		}
+		return data.filter(a => new Date(a.x) >= dateTime && new Date(a.x) < maxDateTime)
 	}
 
 	function ParameterChanged() {
 		let data;
 		switch (dataType) {
 			case 'Average':
-				data = GetAverageData();
+				data = GetDataInMs("average");
 				break;
 			case 'Median':
-				data = GetMedianData();
+				data = GetDataInMs("median");
 				break;
 			case 'Percentile 95':
-				data = GetPercentile95Data();
+				data = GetDataInMs("percentile95");
 				break;
 			case 'Percentile 99':
-				data = GetPercentile99Data();
+				data = GetDataInMs("percentile99");
 				break;
 			case 'Db exec time':
-				data = GetDbExecTimeData();
+				data = GetDataInMs("dbExecTime");
 				break;
 			case 'Render time':
-				data = GetRenderTimeData();
+				data = GetDataInMs("renderTime");
 				break;
 			default:
-				data = GetAverageData();
+				data = GetDataInMs("average");
 		}
 
 		if (timeUnit === 'minute') {
@@ -410,10 +905,122 @@
 		mixedChart.data.datasets[1].data = data;
 		mixedChart.data.datasets[1].label = dataType;
 		mixedChart.options.plugins.title.text = "Count requests and " + dataType;
-		
+
 		mixedChart.update();
 	}
 
-	//Change parameters--------
+	function GeneralParameterChanged() {
+		let data;
+
+		switch (generalDataType) {
+			case 'Downloads':
+				data = GetGeneralCountData("downloads");
+				break;
+			case 'Views':
+				data = GetGeneralCountData("views");
+				break;
+			case 'Uploads':
+				data = GetGeneralCountData("uploads");
+				break;
+			case 'Uncaught exceptions':
+				data = GetGeneralCountData("uncaughtExceptions");
+				break;
+			case 'Count total requests':
+				data = GetGeneralCountData("countTotalRequests");
+				break;
+			case 'Items in user cache':
+				data = GetGeneralCountData("countItemsUserCache");
+				break;
+			case 'Items in upload cache':
+				data = GetGeneralCountData("countItemsUploadCache");
+				break;
+			default:
+				data = GetGeneralCountData("downloads");
+				break;
+		}
+
+		if (timeUnit === 'minute') {
+			SetDateAndTimes();
+			data = FilterWithTime(data);
+		}
+
+		barChart.data.datasets[0].data = data;
+		barChart.data.datasets[0].label = generalDataType;
+		barChart.options.plugins.title.text = generalDataType;
+		barChart.update();
+	}
+
+	function GeneralParameterMemoryChanged() {
+		let data;
+
+		switch (generalDataTypeMemory) {
+			case 'Private memory':
+				data = GetGenralMemoryData("privateMemory");
+				break;
+			case 'Working set':
+				data = GetGenralMemoryData("workingSet");
+				break;
+			case 'Virtual memory':
+				data = GetGenralMemoryData("virtualMemory");
+				break;
+			default:
+				data = GetGenralMemoryData("privateMemory");
+				break;
+		}
+
+
+		if (timeUnit === 'minute') {
+			SetDateAndTimes();
+			data = FilterWithTime(data);
+		}
+
+		barChartMemory.data.datasets[0].data = data;
+		barChartMemory.data.datasets[0].label = generalDataTypeMemory + " in mb";
+		barChartMemory.options.plugins.title.text = generalDataTypeMemory + " in mb";
+
+		barChartMemory.update();
+	}
+
+	const ctx = document.getElementById('mixedChart');
+	let outlierTable = document.getElementById('outlierTabel');
+	let outlierTableBody = document.getElementById('outlierTabelBody');
+
+	function clickOutlierHandler(click) {
+		const points = mixedChart.getElementsAtEventForMode(click, 'nearest', { intersect: true }, true);
+		if (points.length) {
+			const firstPoint = points[0];
+			if (firstPoint.datasetIndex === 2) {
+				const outlier = mixedChart.data.datasets[2].data[firstPoint.index];
+				if (!selectedOutliers.includes(outlier)) {
+					selectedOutliers.push(outlier);
+
+					let row = document.createElement('tr');
+					let tdRequestTime = document.createElement('td');
+					tdRequestTime.innerText = outlier.y;
+					let tdTimestamp = document.createElement('td');
+					let dateTime = new Date(outlier.x);
+					formatedDateTime = dateTime.toLocaleString();
+
+					tdTimestamp.innerText = formatedDateTime.toString();
+					let tdEndpoint = document.createElement('td');
+					tdEndpoint.innerText = outlier.endpoint;
+
+					row.appendChild(tdRequestTime);
+					row.appendChild(tdTimestamp);
+					row.appendChild(tdEndpoint);
+					outlierTableBody.appendChild(row);
+				}
+			}
+		}
+	}
+
+	ctx.onclick = clickOutlierHandler;
+
+	function NavigateToOutliers() {
+		if (selectedOutliers.length > 0) {
+			sessionStorage.setItem("outliers", JSON.stringify(selectedOutliers));
+			window.open("/admin/outliers", "_blank");
+		}
+	}
 
 </script>

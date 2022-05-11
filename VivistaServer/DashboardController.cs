@@ -5,608 +5,727 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
-using Npgsql;
 using static VivistaServer.CommonController;
 using JsonSerializer = System.Text.Json.JsonSerializer;
 
 namespace VivistaServer
 {
 
-    public class Request
-    {
-        public DateTime timestamp;
-        public float seconds;
-        public RequestInfo requestInfo;
-        public string endpoint;
-        public float renderTime;
-        public float dbExecTime;
-    }
+	public class Request
+	{
+		public DateTime timestamp;
+		public float seconds;
+		public RequestInfo requestInfo;
+		public string endpoint;
+		public float renderTime;
+		public float dbExecTime;
+	}
 
-    public class RequestData
-    {
-        public string endpoint;
-        public float median;
-        public float average;
-        public DateTime timestamp;
-        public float percentile95;
-        public float percentile99;
-        public long countrequests;
-        public float renderTime;
-        public float dbExecTime;
-    }
+	public class RequestData
+	{
+		public string endpoint { get; set; }
+		public float median { get; set; }
+		public float average { get; set; }
+		public DateTime timestamp { get; set; }
+		public float percentile95 { get; set; }
+		public float percentile99 { get; set; }
+		public long countrequests { get; set; }
+		public float renderTime { get; set; }
+		public float dbExecTime { get; set; }
+	}
 
-    public class GeneralData
-    {
-        public DateTime timestamp;
-        public int downloads;
-        public long views;
-        public long privateMemory;
-        public long workingSet;
-        public long virtualMemory;
-        public int uploads;
-        public int uncaughtExceptions;
-        public long countTotalRequests;
-    }
+	public class GeneralData
+	{
+		public DateTime timestamp { get; set; }
+		public int downloads { get; set; }
+		public long views { get; set; }
+		public long privateMemory { get; set; }
+		public long workingSet { get; set; }
+		public long virtualMemory { get; set; }
+		public int uploads { get; set; }
+		public int uncaughtExceptions { get; set; }
+		public long countTotalRequests { get; set; }
+		public int countItemsUserCache { get; set; }
+		public int countItemsUploadCache { get; set; }
+	}
 
-    public class EndpointPercentile
-    {
-        public float percentile95;
-        public string endpoint;
-    }
+	public class EndpointPercentile
+	{
+		public float percentile99;
+		public string endpoint;
+	}
 
-    //NOTE(Tom): Needs to be in a separate class for serialization to bson
-    public class RequestInfo
-    {
-        public PathString path { get; set; }
-        public string method { get; set; }
-        public IQueryCollection query { get; set; }
-        public IFormCollection form { get; set; }
-    }
+	//NOTE(Tom): Needs to be in a separate class for serialization to bson
+	public class RequestInfo
+	{
+		public QueryCollection query { get; set; }
+		public FormCollection form { get; set; }
+	}
 
-    public class DashboardController
-    {
-        public const string DB_EXEC_TIME = "dbExecTime";
-        public const string RENDER_TIME = "renderTime";
+	public class Outlier
+	{
+		public DateTime timestamp { get; set; }
+		public float seconds { get; set; }
+		public string reqinfo { get; set; }
+		public string endpoint { get; set; }
+	}
 
-        public static int downloads = 0;
-        private static int views = 0;
-        private static int uploads = 0;
-        private static int uncaughtExceptions = 0;
-        private static List<Request> cachedRequests = new List<Request>();
-        private static readonly Object cachedRequestLock = new Object();
+	public class DashboardController
+	{
+		public const string DB_EXEC_TIME = "dbExecTime";
+		public const string RENDER_TIME = "renderTime";
 
-        [Route("GET", "/admin/dashboard")]
-        private static async Task DashboardGet(HttpContext context)
-        {
-	        var searchQuery = context.Request.Query["date"].ToString();
-	        DateTime date = DateTime.UtcNow;
-	        if (!string.IsNullOrEmpty(searchQuery))
-	        {
-		        try
-		        {
-			        date = Convert.ToDateTime(searchQuery);
-		        }
-		        catch(Exception ex)
-		        {
-			        CommonController.LogDebug(ex.Message);
-		        }
-	        }
+		public static int downloads;
+		private static int views;
+		private static int uploads;
+		private static int uncaughtExceptions;
+		private static List<Request> cachedRequests = new List<Request>();
 
-            SetHTMLContentType(context);
-            //TODO: Multiply database connections  
-            var userTask = Task.Run(async () =>
-            {
-	            await using var connection = Database.OpenNewConnection();
-                return await Database.QueryAsync<int>(connection, "SELECT COUNT(*) FROM users;", context);
-            });
+		private static readonly Object cachedRequestLock = new Object();
 
-            var videoTask = Task.Run( async () =>
-            {
-	            await using var connection = Database.OpenNewConnection();
-                return await Database.QueryAsync<int>(connection, "SELECT COUNT(*) FROM videos;", context);
-            });
-
-            var downloadTask = Task.Run(async () =>
-            {
-	            await using var connection = Database.OpenNewConnection();
-                return await Database.QueryAsync<int>(connection, "SELECT SUM(downloads) FROM videos;", context);
-            });
-
-			var minuteData = Task.Run(async () =>
+		[Route("GET", "/admin/dashboard")]
+		private static async Task DashboardGet(HttpContext context)
+		{
+			using var connection = Database.OpenNewConnection();
+			if (await User.IsUserAdmin(context, connection))
 			{
-				var startDate = new DateTime(date.Year, date.Month, date.Day);
-				var endDate = startDate.AddDays(1);
-				await using var connection = Database.OpenNewConnection();
-				return await Database.QueryAsync<RequestData>(connection, "SELECT median, average, timestamp, countrequests, percentile95, percentile99, endpoint, render_time as renderTime, db_exec_time as dbExecTime FROM statistics_minutes WHERE @startDate <= timestamp AND @endDate > timestamp ORDER BY timestamp", context, new { startDate, endDate });
-			});
+				string searchQuery = context.Request.Query["date"].ToString();
+				var date = DateTime.UtcNow;
+				if (!string.IsNullOrEmpty(searchQuery))
+				{
+					try
+					{
+						date = Convert.ToDateTime(searchQuery);
+					}
+					catch (Exception ex)
+					{
+						CommonController.LogDebug(ex.Message);
+					}
+				}
 
-			var hourData = Task.Run(async () =>
+				SetHTMLContentType(context);
+				//TODO: Multiply database connections
+				var userTask = Task.Run(async () =>
+				{
+					using var connection = Database.OpenNewConnection();
+					return await Database.QueryAsync<int>(connection, "SELECT COUNT(*) FROM users;", context);
+				});
+
+				var videoTask = Task.Run(async () =>
+				{
+					using var connection = Database.OpenNewConnection();
+					return await Database.QueryAsync<int>(connection, "SELECT COUNT(*) FROM videos;", context);
+				});
+
+				var downloadTask = Task.Run(async () =>
+				{
+					using var connection = Database.OpenNewConnection();
+					return await Database.QueryAsync<int>(connection, "SELECT COALESCE(SUM(downloads), 0) FROM videos;", context);
+				});
+
+				var minuteData = Task.Run(async () =>
+				{
+					var startDate = new DateTime(date.Year, date.Month, date.Day);
+					var endDate = startDate.AddDays(1);
+					using var connection = Database.OpenNewConnection();
+					return await Database.QueryAsync<RequestData>(connection,
+						@"SELECT median, average, timestamp, countrequests, percentile95, percentile99, endpoint, render_time as renderTime, db_exec_time as dbExecTime 
+							FROM statistics_minutes 
+							WHERE @startDate <= timestamp AND @endDate > timestamp 
+							ORDER BY timestamp", context, new { startDate, endDate });
+				});
+
+				var hourData = Task.Run(async () =>
+				{
+					var startDate = date.RoundUp(TimeSpan.FromHours(24)).AddDays(-(int)date.DayOfWeek);
+					var endDate = startDate.AddDays(7);
+					using var connection = Database.OpenNewConnection();
+					return await Database.QueryAsync<RequestData>(connection,
+						@"SELECT median, average, timestamp, countrequests, percentile95, percentile99, endpoint, render_time as renderTime, db_exec_time as dbExecTime 
+							FROM statistics_hours 
+							WHERE @startDate <= timestamp AND @endDate > timestamp 
+							ORDER BY timestamp", context, new { startDate, endDate });
+				});
+				var dayData = Task.Run(async () =>
+				{
+					var startDate = new DateTime(date.Year, date.Month, 1);
+					var endDate = startDate.AddMonths(1);
+					using var connection = Database.OpenNewConnection();
+					return await Database.QueryAsync<RequestData>(connection,
+						@"SELECT median, average, timestamp, countrequests, percentile95, percentile99, endpoint, render_time as renderTime, db_exec_time as dbExecTime 
+							FROM statistics_days 
+							WHERE @startDate <= timestamp AND @endDate > timestamp 
+							ORDER BY timestamp", context, new { startDate, endDate });
+				});
+
+				var generalMinuteData = Task.Run(async () =>
+				{
+					var startDate = new DateTime(date.Year, date.Month, date.Day);
+					var endDate = startDate.AddDays(1);
+					using var connection = Database.OpenNewConnection();
+					return await Database.QueryAsync<GeneralData>(connection,
+						@"SELECT timestamp, downloads, views, private_memory as privateMemory, working_set as workingSet, virtual_memory as virtualMemory, uploads, uncaught_exceptions as uncaughtExceptions, count_total_requests as countTotalRequests, count_items_user_cache as countItemsUserCache, count_items_upload_cache as countItemsUploadCache 
+							FROM statistics_general_minutes 
+							WHERE @startDate <= timestamp AND @endDate > timestamp 
+							ORDER BY timestamp", context, new { startDate, endDate });
+				});
+
+				var generalHourData = Task.Run(async () =>
+				{
+					var startDate = date.RoundUp(TimeSpan.FromHours(24)).AddDays(-(int)date.DayOfWeek);
+					var endDate = startDate.AddDays(7);
+					using var connection = Database.OpenNewConnection();
+					return await Database.QueryAsync<GeneralData>(connection,
+						@"SELECT timestamp, downloads, views, private_memory as privateMemory, working_set as workingSet, virtual_memory as virtualMemory, uploads, uncaught_exceptions as uncaughtExceptions, count_total_requests as countTotalRequests,count_items_user_cache as countItemsUserCache, count_items_upload_cache as countItemsUploadCache  
+							FROM statistics_general_hours 
+							WHERE @startDate <= timestamp AND @endDate > timestamp 
+							ORDER BY timestamp", context, new { startDate, endDate });
+				});
+
+				var generalDayData = Task.Run(async () =>
+				{
+					var startDate = new DateTime(date.Year, date.Month, 1);
+					var endDate = startDate.AddMonths(1);
+					using var connection = Database.OpenNewConnection();
+					return await Database.QueryAsync<GeneralData>(connection,
+						@"SELECT timestamp, downloads, views, private_memory as privateMemory, working_set as workingSet, virtual_memory as virtualMemory, uploads, uncaught_exceptions as uncaughtExceptions, count_total_requests as countTotalRequests, count_items_user_cache as countItemsUserCache, count_items_upload_cache as countItemsUploadCache 
+							FROM statistics_general_days 
+							WHERE @startDate <= timestamp AND @endDate > timestamp 
+							ORDER BY timestamp", context, new { startDate, endDate });
+				});
+
+				var endpoints = Task.Run(async () =>
+				{
+					using var connection = Database.OpenNewConnection();
+					return await Database.QueryAsync<string>(connection,
+						@"SELECT endpoint 
+							FROM statistics_minutes 
+								UNION SELECT endpoint 
+								FROM statistics_hours 
+									UNION SELECT endpoint 
+									FROM statistics_days 
+							ORDER BY endpoint;", context);
+				});
+
+				var outliers = Task.Run(async () =>
+				{
+					var startDate = new DateTime(date.Year, date.Month, 1);
+					var endDate = startDate.AddMonths(1);
+					using var connection = Database.OpenNewConnection();
+					return await Database.QueryAsync<Outlier>(connection,
+						@"SELECT timestamp, seconds, endpoint, reqinfo 
+							FROM statistics_outliers 
+							WHERE @startDate <= timestamp AND @endDate > timestamp 
+							ORDER BY timestamp", context, new { startDate, endDate });
+				});
+
+				Task.WaitAll(userTask, videoTask, downloadTask, minuteData, hourData, dayData, endpoints, generalDayData, generalHourData, generalMinuteData, outliers);
+
+				var templateContext = new TemplateContext(new
+				{
+					users = userTask.Result,
+					videos = videoTask.Result,
+					downloads = downloadTask.Result,
+					endpoints = endpoints.Result,
+					averagesMinutes = minuteData.Result.Select(s => new { x = s.timestamp, y = s.average, s.endpoint }),
+					//TODO(Tom & Simon): check why select is necessary 
+					minuteData = minuteData.Result,
+					hourData = hourData.Result,
+					dayData = dayData.Result,
+					generalMinuteData = generalMinuteData.Result,
+					generalHourData = generalHourData.Result,
+					generalDayData = generalDayData.Result,
+					outliers = outliers.Result,
+					countOutliers = outliers.Result.Count()
+				});
+
+				await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\dashboard.liquid", templateContext));
+			}
+			else
 			{
-				var startDate = date.RoundUp(TimeSpan.FromHours(24)).AddDays(-(int)date.DayOfWeek);
-				var endDate = startDate.AddDays(7);
-				await using var connection = Database.OpenNewConnection();
-				return await Database.QueryAsync<RequestData>(connection, "SELECT median, average, timestamp, countrequests, percentile95, percentile99, endpoint, render_time as renderTime, db_exec_time as dbExecTime FROM statistics_hours WHERE @startDate <= timestamp AND @endDate > timestamp ORDER BY timestamp", context, new { startDate, endDate });
-			});
-			var dayData = Task.Run(async () =>
+				await CommonController.Write404(context);
+			}
+		}
+
+
+
+		[Route("GET", "/admin/outliers")]
+		private static async Task OutliersPost(HttpContext context)
+		{
+			SetHTMLContentType(context);
+			await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\outliers.liquid", new TemplateContext { }));
+		}
+
+		public static void AddDownloads()
+		{
+			Interlocked.Increment(ref downloads);
+		}
+
+		public static void AddViews()
+		{
+			Interlocked.Increment(ref views);
+		}
+
+		public static void AddUpload()
+		{
+			Interlocked.Increment(ref uploads);
+		}
+
+		public static void AddUnCaughtException()
+		{
+			Interlocked.Increment(ref uncaughtExceptions);
+		}
+
+		public static void AddRequestToCache(Request request)
+		{
+			request.timestamp = DateTime.UtcNow;
+			lock (cachedRequestLock)
 			{
-				var startDate = new DateTime(date.Year, date.Month, 1);
-				var endDate = startDate.AddMonths(1);
-                await using var connection = Database.OpenNewConnection();
-				return await Database.QueryAsync<RequestData>(connection, "SELECT median, average, timestamp, countrequests, percentile95, percentile99, endpoint, render_time as renderTime, db_exec_time as dbExecTime FROM statistics_days WHERE @startDate <= timestamp AND @endDate > timestamp ORDER BY timestamp", context, new { startDate, endDate });
-			});
+				cachedRequests.Add(request);
+			}
+		}
 
-			var endpoints = Task.Run(async () =>
+
+		public static void AddMinuteData()
+		{
+			using var connection = Database.OpenNewConnection();
+			int count = cachedRequests.Count;
+			if (count > 0)
 			{
-				await using var connection = Database.OpenNewConnection();
-				return await Database.QueryAsync<string>(connection, "SELECT endpoint FROM statistics_minutes UNION SELECT endpoint FROM statistics_hours UNION SELECT endpoint FROM statistics_days ORDER BY endpoint;",
-	                context);
-			});
+				//Note(Tom): Add tempOutliers so lock can close fast
+				var tempOutliers = new List<Request>();
+				List<List<Request>> groupedRequests;
 
-			Task.WaitAll(userTask, videoTask, downloadTask, minuteData, hourData, dayData);
+				lock (cachedRequestLock)
+				{
+					groupedRequests = cachedRequests.GroupBy(s => s.endpoint).Select(grp => grp.ToList()).ToList();
+					var percentilesPerEndpoint = connection.Query<EndpointPercentile>(
+						@"SELECT avg(percentile99) as percentile99, endpoint
+						FROM statistics_days
+						GROUP BY endpoint;")
+						.ToDictionary(p => p.endpoint, p => p.percentile99);
 
-			var templateContext = new TemplateContext(new
-            {
-                users = userTask.Result,
-                videos = videoTask.Result,
-                downloads = downloadTask.Result,
-                endpoints = endpoints.Result,
-                averagesMinutes = minuteData.Result.Select(s => new {x = s.timestamp, y = s.average, endpoint = s.endpoint}).ToList(),
-                //TODO(Tom & Simon): check why select is necessary 
-                minuteData = minuteData.Result.Select(d => new { d.median, d.average, d.timestamp, d.countrequests, d.percentile95, d.percentile99, d.endpoint, d.renderTime, d.dbExecTime }).ToList(),
-				hourData = hourData.Result.Select(d => new { d.median, d.average, d.timestamp, d.countrequests, d.percentile95, d.percentile99, d.endpoint, d.renderTime, d.dbExecTime }).ToList(),
-				dayData = dayData.Result.Select(d => new { d.median, d.average, d.timestamp, d.countrequests, d.percentile95, d.percentile99, d.endpoint, d.renderTime, d.dbExecTime }).ToList()
-            });
+					foreach (var req in cachedRequests)
+					{
+						float outlierThreshold = percentilesPerEndpoint.ContainsKey(req.endpoint)
+							? percentilesPerEndpoint[req.endpoint] * 2f
+							: float.MaxValue;
 
-            await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\dashboard.liquid", templateContext));
-        }
+						if (req.seconds > outlierThreshold)
+						{
+							tempOutliers.Add(req);
+						}
+					}
+					cachedRequests.Clear();
+				}
 
-        public static void AddDownloads()
-        {
-	        Interlocked.Increment(ref downloads);
-        }
-
-        public static void AddViews()
-        {
-	        Interlocked.Increment(ref views);
-        }
-
-        public static void AddUpload()
-        {
-	        Interlocked.Increment(ref uploads);
-        }
-
-        public static void AddUnCaughtException()
-        {
-	        Interlocked.Increment(ref uncaughtExceptions);
-        }
-
-        public static void AddRequestToCache(Request request)
-        {
-	        request.timestamp = DateTime.UtcNow;
-            lock (cachedRequestLock)
-            {
-	            cachedRequests.Add(request);
-            }
-            
-        }
+				foreach (var req in tempOutliers)
+				{
+					string reqinfo = SerializeToBson(req.requestInfo);
+					connection.Execute(@"insert into statistics_outliers(timestamp, seconds, reqinfo, endpoint) 
+										values(@timestamp, @seconds, @reqinfo::jsonb, @endpoint);",
+										new { req.timestamp, req.seconds, reqinfo, req.endpoint });
+				}
 
 
-        public static void AddMinuteData()
-        {
-            using var connection = Database.OpenNewConnection();
-            if (cachedRequests.Count > 0)
-            {
-                var groupedRequests = cachedRequests.GroupBy(s => s.endpoint).Select(grp => grp.ToList()).ToList();
-                var timestamp = new DateTime();
 
-                //timestamp
-                timestamp = groupedRequests[0][0].timestamp;
-                //round down to xx:xx:00
-                timestamp = timestamp.RoundUp(TimeSpan.FromSeconds(60)).AddMinutes(-1);
+				var timestamp = groupedRequests[0][0].timestamp;
+				//round down to xx:xx:00
+				timestamp = timestamp.RoundUp(TimeSpan.FromSeconds(60)).AddMinutes(-1);
 
-                foreach (var specificEndpointList in groupedRequests)
-                {
-                    //Percentile
-                    specificEndpointList.Sort((r1, r2) => r1.seconds.CompareTo(r2.seconds));
-                    float[] seconds = specificEndpointList.Select(c => c.seconds).ToArray();
-                    var percentile95 = Percentile(seconds, 0.95f);
-                    var percentile99 = Percentile(seconds, 0.99f);
+				foreach (var specificEndpointList in groupedRequests)
+				{
+					specificEndpointList.Sort((r1, r2) => r1.seconds.CompareTo(r2.seconds));
+					float[] seconds = specificEndpointList.Select(c => c.seconds).ToArray();
+					float percentile95 = Percentile(seconds, 0.95f);
+					float percentile99 = Percentile(seconds, 0.99f);
 
-                    //Median
-                    float median = 0;
-                    if (specificEndpointList.Count % 2 == 1)
-                    {
-                        median = specificEndpointList[specificEndpointList.Count / 2].seconds;
-                    }
-                    else
-                    {
-                        var firstValue = specificEndpointList[specificEndpointList.Count / 2 - 1].seconds;
-                        var secondValue = specificEndpointList[specificEndpointList.Count / 2].seconds;
-                        median = (firstValue + secondValue) / 2;
-                    }
+					float median = 0;
+					if (specificEndpointList.Count % 2 == 1)
+					{
+						median = specificEndpointList[specificEndpointList.Count / 2].seconds;
+					}
+					else
+					{
+						float firstValue = specificEndpointList[specificEndpointList.Count / 2 - 1].seconds;
+						float secondValue = specificEndpointList[specificEndpointList.Count / 2].seconds;
+						median = (firstValue + secondValue) / 2;
+					}
 
-                    //Average, average render time and average db exec time
-                    float average = 0;
-                    float averageRenderTime = 0;
-                    float averageDbExecTime = 0;
-                    foreach (var req in specificEndpointList)
-                    {
-                        average += req.seconds;
-                        averageRenderTime += req.renderTime;
-                        averageDbExecTime += req.dbExecTime;
-                    }
+					float average = 0;
+					float averageRenderTime = 0;
+					float averageDbExecTime = 0;
+					foreach (var req in specificEndpointList)
+					{
+						average += req.seconds;
+						averageRenderTime += req.renderTime;
+						averageDbExecTime += req.dbExecTime;
+					}
 
-                    average = average / specificEndpointList.Count;
-                    averageRenderTime = average / specificEndpointList.Count;
-                    averageDbExecTime = averageDbExecTime / specificEndpointList.Count;
+					average /= specificEndpointList.Count;
+					averageRenderTime = average / specificEndpointList.Count;
+					averageDbExecTime /= specificEndpointList.Count;
 
-                    connection.Execute(
-                        @"INSERT INTO statistics_minutes(median, average, timestamp, countrequests, percentile95, percentile99, endpoint, render_time, db_exec_time) 
-                                VALUES(@median, @average, @timestamp, @countrequests, @percentile95, @percentile99, @endpoint, @renderTime, @dbExecTime);",
-                        new
-                        {
-                            median,
-                            average,
-                            timestamp,
-                            countrequests = specificEndpointList.Count,
-                            percentile95,
-                            percentile99,
-                            endpoint = specificEndpointList[0].endpoint,
-                            renderTime = averageRenderTime,
-                            dbExecTime = averageDbExecTime
-                        });
+					connection.Execute(
+						@"INSERT INTO statistics_minutes(median, average, timestamp, countrequests, percentile95, percentile99, endpoint, render_time, db_exec_time) 
+							VALUES(@median, @average, @timestamp, @countrequests, @percentile95, @percentile99, @endpoint, @renderTime, @dbExecTime);",
+							new
+							{
+								median,
+								average,
+								timestamp,
+								countrequests = specificEndpointList.Count,
+								percentile95,
+								percentile99,
+								specificEndpointList[0].endpoint,
+								renderTime = averageRenderTime,
+								dbExecTime = averageDbExecTime
+							});
 
 
-                    //Outliers
-                    var percentilesPerEndpoint = connection.Query<EndpointPercentile>(
-                        @"SELECT avg(percentile95) as percentile95, endpoint
-                        FROM statistics_days
-                        GROUP BY endpoint;").ToDictionary(p => p.endpoint, p => p.percentile95);
 
-                    foreach (var req in cachedRequests)
-                    {
-	                    float outlierThreshold = 0;
-                        outlierThreshold = percentilesPerEndpoint.ContainsKey(req.endpoint)
-                            ? percentilesPerEndpoint[req.endpoint] * 2
-                            : float.MaxValue;
+				}
 
-                        if (req.seconds > outlierThreshold)
-                        {
-                            var reqinfo = SerializeToBson(req.requestInfo);
-                            connection.Execute(@"insert into statistics_outliers(timestamp, seconds, reqinfo) values(@timestamp, @seconds, @reqinfo::jsonb);",
-                                new { timestamp = req.timestamp, ms = req.seconds, reqinfo = reqinfo });
-                        }
-                    }
-                }
+				Process.GetCurrentProcess().Refresh();
+				long privateMemory = Process.GetCurrentProcess().PrivateMemorySize64;
+				long workingSet = Process.GetCurrentProcess().WorkingSet64;
+				long virtualMemory = Process.GetCurrentProcess().VirtualMemorySize64;
+				int countUserCache = UserSessions.GetItemsInUserCache();
+				int countUploadCache = VideoController.GetItemsInUploadCache();
 
-                Process.GetCurrentProcess().Refresh();
-                var privateMemory = Process.GetCurrentProcess().PrivateMemorySize64;
-                var workingSet = Process.GetCurrentProcess().WorkingSet64;
-                var virtualMemory = Process.GetCurrentProcess().VirtualMemorySize64;
-                //GeneralData
-                connection.Execute(
-                    @"INSERT INTO statistics_general_minutes(timestamp, downloads, views, private_memory, working_set, virtual_memory, uploads, uncaught_exceptions, count_total_requests)
-                            VALUES(@timestamp, @downloads, @views, @privateMemory, @workingSet, @virtualMemory, @uploads, @uncaughtExceptions, @countTotalRequests);",
-                    new
-                    {
-                        timestamp,
-                        downloads,
-                        views,
-                        privateMemory,
-                        workingSet,
-                        virtualMemory,
-                        uploads,
-                        uncaughtExceptions,
-                        countTotalRequests = cachedRequests.Count
-                    });
-                cachedRequests.Clear();
-                downloads = 0;
-                views = 0;
-                uploads = 0;
-                uncaughtExceptions = 0;
+				connection.Execute(
+					@"INSERT INTO statistics_general_minutes(timestamp, downloads, views, private_memory, working_set, virtual_memory, uploads, uncaught_exceptions, count_total_requests, count_items_user_cache, count_items_upload_cache)
+						VALUES(@timestamp, @downloads, @views, @privateMemory, @workingSet, @virtualMemory, @uploads, @uncaughtExceptions, @countTotalRequests, @countUserCache, @countUploadCache);",
+						new
+						{
+							timestamp,
+							downloads,
+							views,
+							privateMemory,
+							workingSet,
+							virtualMemory,
+							uploads,
+							uncaughtExceptions,
+							countTotalRequests = count,
+							countUserCache,
+							countUploadCache
 
-            }
-        }
+						});
 
-        public static void AddHourData(DateTime startTime)
-        {
-            using var connection = Database.OpenNewConnection();
+				downloads = 0;
+				views = 0;
+				uploads = 0;
+				uncaughtExceptions = 0;
+			}
+		}
 
-            //round down to xx:00:00
-            startTime = startTime.RoundUp(TimeSpan.FromMinutes(60)).AddHours(-1);
+		public static void AddHourData(DateTime startTime)
+		{
+			using var connection = Database.OpenNewConnection();
 
-            var endTime = startTime.AddHours(1);
+			//NOTE(Tom): round down to xx:00:00
+			startTime = startTime.RoundUp(TimeSpan.FromMinutes(60)).AddHours(-1);
 
-            var minutesData = (List<RequestData>)connection.Query<RequestData>(
-                @"SELECT median, average, timestamp, countrequests, percentile95, percentile99, endpoint, render_time as renderTime, db_exec_time as dbExecTime
-                    FROM statistics_minutes  
-                    WHERE timestamp >= @startTime AND timestamp < @endTime;",
-                new { startTime, endTime });
+			var endTime = startTime.AddHours(1);
 
-            var minutesGeneralData = (List<GeneralData>)connection.Query<GeneralData>(
-                @"SELECT timestamp, downloads, views, private_memory as privateMemory, working_set as workingSet, virtual_memory as virtualMemory, uploads, uncaught_exceptions as uncaughtExceptions, count_total_requests as countTotalRequests
-                    FROM statistics_general_minutes  
-                    WHERE timestamp >= @startTime AND timestamp < @endTime;",
-                new { startTime, endTime });
+			var minutesData = (List<RequestData>)connection.Query<RequestData>(
+				@"SELECT median, average, timestamp, countrequests, percentile95, percentile99, endpoint, render_time as renderTime, db_exec_time as dbExecTime
+					FROM statistics_minutes  
+					WHERE timestamp >= @startTime AND timestamp < @endTime;",
+					new { startTime, endTime });
 
-            if (minutesData.Count > 0)
-            {
-                var groupedData = minutesData.GroupBy(s => s.endpoint).Select(grp => grp.ToList()).ToList();
-                foreach (var specificEndpointList in groupedData)
-                {
+			var minutesGeneralData = (List<GeneralData>)connection.Query<GeneralData>(
+				@"SELECT timestamp, downloads, views, private_memory as privateMemory, working_set as workingSet, virtual_memory as virtualMemory, uploads, uncaught_exceptions as uncaughtExceptions, count_total_requests as countTotalRequests, count_items_user_cache as countItemsUserCache, count_items_upload_cache as countItemsUploadCache
+					FROM statistics_general_minutes  
+					WHERE timestamp >= @startTime AND timestamp < @endTime;",
+					new { startTime, endTime });
 
-                    var hourData = GetNewRequestData(specificEndpointList);
-                    var timestamp = hourData.timestamp;
+			if (minutesData.Count > 0)
+			{
+				var groupedData = minutesData.GroupBy(s => s.endpoint).Select(grp => grp.ToList()).ToList();
+				foreach (var specificEndpointList in groupedData)
+				{
 
-                    timestamp = startTime.RoundUp(TimeSpan.FromMinutes(60)).AddHours(-1);
+					var hourData = GetNewRequestData(specificEndpointList);
+					var timestamp = hourData.timestamp;
 
-                    hourData.timestamp = timestamp;
+					timestamp = startTime.RoundUp(TimeSpan.FromMinutes(60)).AddHours(-1);
 
-                    connection.Execute(
-                        @"INSERT INTO statistics_hours(median, average, timestamp, countrequests, percentile95, percentile99, endpoint, render_time, db_exec_time) 
-                            VALUES(@median, @average, @timestamp, @countrequests, @percentile95, @percentile99, @endpoint, @renderTime, @dbExecTime);",
-                        new
-                        {
-                            median = hourData.median,
-                            average = hourData.average,
-                            timestamp = hourData.timestamp,
-                            countrequests = hourData.countrequests,
-                            percentile95 = hourData.percentile95,
-                            percentile99 = hourData.percentile99,
-                            endpoint = specificEndpointList[0].endpoint,
-                            renderTime = hourData.renderTime,
-                            dbExecTime = hourData.dbExecTime
-                        });
+					hourData.timestamp = timestamp;
 
-                }
-            }
+					connection.Execute(
+						@"INSERT INTO statistics_hours(median, average, timestamp, countrequests, percentile95, percentile99, endpoint, render_time, db_exec_time) 
+							VALUES(@median, @average, @timestamp, @countrequests, @percentile95, @percentile99, @endpoint, @renderTime, @dbExecTime);",
+							new
+							{
+								hourData.median,
+								hourData.average,
+								hourData.timestamp,
+								hourData.countrequests,
+								hourData.percentile95,
+								hourData.percentile99,
+								specificEndpointList[0].endpoint,
+								hourData.renderTime,
+								hourData.dbExecTime
+							});
 
-            if (minutesGeneralData.Count > 0)
-            {
-                var timestamp = minutesGeneralData[0].timestamp;
-                timestamp = startTime.RoundUp(TimeSpan.FromMinutes(60)).AddHours(-1);
+				}
+			}
 
-                var generalData = GetNewGeneralData(minutesGeneralData);
+			if (minutesGeneralData.Count > 0)
+			{
+				var timestamp = minutesGeneralData[0].timestamp;
+				timestamp = startTime.RoundUp(TimeSpan.FromMinutes(60)).AddHours(-1);
 
-                connection.Execute(
-                    @"INSERT INTO statistics_general_hours(timestamp, downloads, views, private_memory, working_set, virtual_memory, uploads, uncaught_exceptions, count_total_requests)
-                        VALUES(@timestamp, @downloads, @views, @privateMemory, @workingSet, @virtualMemory, @uploads, @uncaughtExceptions, @countTotalRequests)",
-                    new {
-                        timestamp, 
-                        downloads = generalData.downloads, 
-                        views = generalData.views, 
-                        privateMemory = generalData.privateMemory, 
-                        workingSet = generalData.workingSet, 
-                        virtualMemory = generalData.virtualMemory,
-                        uploads = generalData.uploads,
-                        uncaughtExceptions = generalData.uncaughtExceptions,
-                        countTotalRequests = generalData.countTotalRequests
+				var generalData = GetNewGeneralData(minutesGeneralData);
 
-                    });
-            }
-        }
+				connection.Execute(
+					@"INSERT INTO statistics_general_hours(timestamp, downloads, views, private_memory, working_set, virtual_memory, uploads, uncaught_exceptions, count_total_requests, count_items_user_cache, count_items_upload_cache)
+						VALUES(@timestamp, @downloads, @views, @privateMemory, @workingSet, @virtualMemory, @uploads, @uncaughtExceptions, @countTotalRequests, @countItemsUserCache ,@countItemsUploadCache)",
+						new
+						{
+							timestamp,
+							generalData.downloads,
+							generalData.views,
+							generalData.privateMemory,
+							generalData.workingSet,
+							generalData.virtualMemory,
+							generalData.uploads,
+							generalData.uncaughtExceptions,
+							generalData.countTotalRequests,
+							generalData.countItemsUserCache,
+							generalData.countItemsUploadCache
 
-        public static void AddDayData(DateTime startTime)
-        {
-            using var connection = Database.OpenNewConnection();
+						});
+			}
+		}
 
-            //round down to 00:00:00
-            startTime = startTime.RoundUp(TimeSpan.FromHours(24)).AddDays(-1);
+		public static void AddDayData(DateTime startTime)
+		{
+			using var connection = Database.OpenNewConnection();
 
-            var endTime = startTime.AddDays(1);
+			//NOTE(Tom): round down to 00:00:00
+			startTime = startTime.RoundUp(TimeSpan.FromHours(24)).AddDays(-1);
 
-            var hoursData = (List<RequestData>)connection.Query<RequestData>(
-                @"SELECT median, average, timestamp, countrequests, percentile95, percentile99, endpoint, render_time as renderTime, db_exec_time as dbExecTime
-                    FROM statistics_hours  
-                    WHERE timestamp >= @startTime AND timestamp < @endTime;",
-                new { startTime, endTime });
+			var endTime = startTime.AddDays(1);
 
-            var hoursGeneralData = (List<GeneralData>) connection.Query<GeneralData>(
-                @"SELECT timestamp, downloads, views, private_memory as privateMemory, working_set as workingSet, virtual_memory as virtualMemory, uploads, uncaught_exceptions as uncaughtExceptions, count_total_requests as countTotalRequests
-                    FROM statistics_general_hours 
-                    WHERE timestamp >= @startTime AND timestamp < @endTime;",
-                new {startTime, endTime});
+			var hoursData = (List<RequestData>)connection.Query<RequestData>(
+				@"SELECT median, average, timestamp, countrequests, percentile95, percentile99, endpoint, render_time as renderTime, db_exec_time as dbExecTime
+					FROM statistics_hours  
+					WHERE timestamp >= @startTime AND timestamp < @endTime;",
+				new { startTime, endTime });
 
-            if (hoursData.Count > 0)
-            {
-                var groupedData = hoursData.GroupBy(s => s.endpoint).Select(grp => grp.ToList()).ToList();
-                foreach (var specificEndpointList in groupedData)
-                {
-                    var dayData = GetNewRequestData(specificEndpointList);
-                    var timestamp = dayData.timestamp;
+			var hoursGeneralData = (List<GeneralData>)connection.Query<GeneralData>(
+				@"SELECT timestamp, downloads, views, private_memory as privateMemory, working_set as workingSet, virtual_memory as virtualMemory, uploads, uncaught_exceptions as uncaughtExceptions, count_total_requests as countTotalRequests, count_items_user_cache as countItemsUserCache, count_items_upload_cache as countItemsUploadCache
+					FROM statistics_general_hours 
+					WHERE timestamp >= @startTime AND timestamp < @endTime;",
+				new { startTime, endTime });
 
-                    timestamp = timestamp.RoundUp(TimeSpan.FromHours(24)).AddDays(-1);
+			if (hoursData.Count > 0)
+			{
+				var groupedData = hoursData.GroupBy(s => s.endpoint).Select(grp => grp.ToList()).ToList();
+				foreach (var specificEndpointList in groupedData)
+				{
+					var dayData = GetNewRequestData(specificEndpointList);
+					var timestamp = dayData.timestamp;
 
-                    dayData.timestamp = timestamp;
+					timestamp = timestamp.RoundUp(TimeSpan.FromHours(24)).AddDays(-1);
 
-                    connection.Execute(
-                        @"INSERT INTO statistics_days(median, average, timestamp, countrequests, percentile95, percentile99, endpoint, render_time, db_exec_time) 
-                            VALUES(@median, @average, @timestamp, @countrequests, @percentile95, @percentile99, @endpoint, @renderTime, @dbExecTime);",
-                        new
-                        {
-                            median = dayData.median,
-                            average = dayData.average,
-                            timestamp = dayData.timestamp,
-                            countrequests = dayData.countrequests,
-                            percentile95 = dayData.percentile95,
-                            percentile99 = dayData.percentile99,
-                            endpoint = specificEndpointList[0].endpoint,
-                            renderTime = dayData.renderTime,
-                            dbExecTime = dayData.dbExecTime
-                        });
-                }
-            }
+					dayData.timestamp = timestamp;
 
-            if (hoursGeneralData.Count > 0)
-            {
-                var timestamp = hoursGeneralData[0].timestamp;
-                timestamp = startTime.RoundUp(TimeSpan.FromHours(24)).AddDays(-1);
+					connection.Execute(
+						@"INSERT INTO statistics_days(median, average, timestamp, countrequests, percentile95, percentile99, endpoint, render_time, db_exec_time) 
+							VALUES(@median, @average, @timestamp, @countrequests, @percentile95, @percentile99, @endpoint, @renderTime, @dbExecTime);",
+						new
+						{
+							median = dayData.median,
+							average = dayData.average,
+							timestamp = dayData.timestamp,
+							countrequests = dayData.countrequests,
+							percentile95 = dayData.percentile95,
+							percentile99 = dayData.percentile99,
+							endpoint = specificEndpointList[0].endpoint,
+							renderTime = dayData.renderTime,
+							dbExecTime = dayData.dbExecTime
+						});
+				}
+			}
+			else
+			{
+			}
 
-                var generalData = GetNewGeneralData(hoursGeneralData);
+			if (hoursGeneralData.Count > 0)
+			{
+				var timestamp = hoursGeneralData[0].timestamp;
+				timestamp = startTime.RoundUp(TimeSpan.FromHours(24)).AddDays(-1);
 
-                connection.Execute(
-                    @"INSERT INTO statistics_general_days(timestamp, downloads, views, private_memory, working_set, virtual_memory, uploads, uncaught_exceptions, count_total_requests)
-                        VALUES(@timestamp, @downloads, @views, @privateMemory, @workingSet, @virtualMemory, @uploads, @uncaughtExceptions, @countTotalRequests)",
-                    new
-                    {
-                        timestamp, 
-                        downloads = generalData.downloads, 
-                        views = generalData.views,
-                        privateMemory = generalData.privateMemory,
-                        workingSet = generalData.workingSet,
-                        virtualMemory = generalData.virtualMemory, 
-                        uploads = generalData.uploads,
-                        uncaughtExceptions = generalData.uncaughtExceptions,
-                        countTotalRequests = generalData.countTotalRequests
-                    });
-            }
+				var generalData = GetNewGeneralData(hoursGeneralData);
 
-            //Delete old data
-            var dateMinutes = DateTime.UtcNow.AddMonths(-1);
-            connection.ExecuteAsync(@"DELETE FROM statistics_general_minutes 
-											WHERE timestamp < @dateMinutes;", 
+				connection.Execute(
+					@"INSERT INTO statistics_general_days(timestamp, downloads, views, private_memory, working_set, virtual_memory, uploads, uncaught_exceptions, count_total_requests, count_items_user_cache, count_items_upload_cache)
+						VALUES(@timestamp, @downloads, @views, @privateMemory, @workingSet, @virtualMemory, @uploads, @uncaughtExceptions, @countTotalRequests, @countItemsUserCache, @countItemsUploadCache)",
+					new
+					{
+						timestamp,
+						downloads = generalData.downloads,
+						views = generalData.views,
+						privateMemory = generalData.privateMemory,
+						workingSet = generalData.workingSet,
+						virtualMemory = generalData.virtualMemory,
+						uploads = generalData.uploads,
+						uncaughtExceptions = generalData.uncaughtExceptions,
+						countTotalRequests = generalData.countTotalRequests,
+						countItemsUserCache = generalData.countItemsUserCache,
+						countItemsUploadCache = generalData.countItemsUploadCache
+					});
+			}
+
+			//NOTE(Tom): Delete old data
+			var dateMinutes = DateTime.UtcNow.AddMonths(-1);
+			connection.ExecuteAsync(@"DELETE FROM statistics_general_minutes 
+										WHERE timestamp < @dateMinutes;",
 										new { dateMinutes });
-            connection.ExecuteAsync(@"DELETE FROM statistics_minutes 
-											WHERE timestamp < @dateMinutes;",
-		            new { dateMinutes });
+			connection.ExecuteAsync(@"DELETE FROM statistics_minutes 
+										WHERE timestamp < @dateMinutes;",
+										new { dateMinutes });
 
-            var dateHours = DateTime.UtcNow.AddMonths(-6);
-            connection.ExecuteAsync(@"DELETE FROM statistics_general_hours
-											WHERE timestamp < @dateHours;",
-		            new { dateHours });
-            connection.ExecuteAsync(@"DELETE FROM statistics_hours 
-											WHERE timestamp < @dateHours;",
-	            new { dateHours });
-
-
-        }
+			var dateHours = DateTime.UtcNow.AddMonths(-6);
+			connection.ExecuteAsync(@"DELETE FROM statistics_general_hours
+										WHERE timestamp < @dateHours;",
+										new { dateHours });
+			connection.ExecuteAsync(@"DELETE FROM statistics_hours 
+										WHERE timestamp < @dateHours;",
+										new { dateHours });
 
 
-        public static void AddDbExecTimeToRequest(HttpContext context, double time)
-        {
-            context.Items[DB_EXEC_TIME] = (float)context.Items[DB_EXEC_TIME] + (float)time;
-        }
+		}
 
-        public static void AddRenderTime(HttpContext context, double time)
-        {
-	        context.Items[RENDER_TIME] = (float)context.Items[RENDER_TIME] + (float)time;
-        }
 
-        private static GeneralData GetNewGeneralData(List<GeneralData> generalData)
-        {
-            var countDownloads = 0;
-            long countViews = 0;
-            long privateMemory = 0;
-            long workingSet = 0;
-            long virtualMemory = 0;
-            var countUploads = 0;
-            var countUncaughtExceptions = 0;
-            long totalRequests = 0;
+		public static void AddDbExecTimeToRequest(HttpContext context, double time)
+		{
+			context.Items[DB_EXEC_TIME] = (float)context.Items[DB_EXEC_TIME] + (float)time;
+		}
 
-            foreach (var g in generalData)
-            {
-                countDownloads += g.downloads;
-                countViews += g.views;
-                privateMemory += g.privateMemory;
-                workingSet += g.workingSet;
-                virtualMemory += g.virtualMemory;
-                countUploads += g.uploads;
-                countUncaughtExceptions += g.uncaughtExceptions;
-                totalRequests += g.countTotalRequests;
-            }
+		public static void AddRenderTime(HttpContext context, double time)
+		{
+			context.Items[RENDER_TIME] = (float)context.Items[RENDER_TIME] + (float)time;
+		}
 
-            var result = new GeneralData
-            {
-                downloads = countDownloads,
-                views = countViews,
-                privateMemory = privateMemory / generalData.Count,
-                workingSet = workingSet / generalData.Count,
-                virtualMemory = virtualMemory / generalData.Count,
-                uploads = countUploads,
-                uncaughtExceptions = countUncaughtExceptions,
-                countTotalRequests = totalRequests
-            };
-            return result;
-        }
+		private static GeneralData GetNewGeneralData(List<GeneralData> generalData)
+		{
+			int countDownloads = 0;
+			long countViews = 0;
+			long privateMemory = 0;
+			long workingSet = 0;
+			long virtualMemory = 0;
+			int countUploads = 0;
+			int countUncaughtExceptions = 0;
+			long totalRequests = 0;
+			int countItemsUserCache = 0;
+			int countItemsUploadCache = 0;
 
-        private static RequestData GetNewRequestData(List<RequestData> requestData)
-        {
-            //Percentile
-            float[] seconds95 = requestData.Select(c => c.percentile95).ToArray();
-            float[] seconds99 = requestData.Select(c => c.percentile99).ToArray();
-            var percentile95 = Percentile(seconds95, 0.95f);
-            var percentile99 = Percentile(seconds99, 0.99f);
+			foreach (var g in generalData)
+			{
+				countDownloads += g.downloads;
+				countViews += g.views;
+				privateMemory += g.privateMemory;
+				workingSet += g.workingSet;
+				virtualMemory += g.virtualMemory;
+				countUploads += g.uploads;
+				countUncaughtExceptions += g.uncaughtExceptions;
+				totalRequests += g.countTotalRequests;
+				countItemsUserCache += g.countItemsUserCache;
+				countItemsUploadCache += g.countItemsUploadCache;
+			}
 
-            requestData.Sort((r1, r2) => r1.median.CompareTo(r2.median));
-            float median = 0;
-            if (requestData.Count % 2 == 1)
-            {
-                median = requestData[requestData.Count / 2].median;
-            }
-            else
-            {
-                var firstValue = requestData[requestData.Count / 2 - 1].median;
-                var secondValue = requestData[requestData.Count / 2].median;
-                median = (firstValue + secondValue) / 2;
-            }
+			var result = new GeneralData
+			{
+				downloads = countDownloads,
+				views = countViews,
+				privateMemory = privateMemory / generalData.Count,
+				workingSet = workingSet / generalData.Count,
+				virtualMemory = virtualMemory / generalData.Count,
+				uploads = countUploads,
+				uncaughtExceptions = countUncaughtExceptions,
+				countTotalRequests = totalRequests,
+				countItemsUserCache = countItemsUserCache,
+				countItemsUploadCache = countItemsUploadCache,
+			};
+			return result;
+		}
 
-            //countrequests
-            long countrequests = 0;
+		private static RequestData GetNewRequestData(List<RequestData> requestData)
+		{
+			float[] seconds95 = requestData.Select(c => c.percentile95).ToArray();
+			float[] seconds99 = requestData.Select(c => c.percentile99).ToArray();
+			float percentile95 = Percentile(seconds95, 0.95f);
+			float percentile99 = Percentile(seconds99, 0.99f);
 
-            //Average and average render time and average db exec time
-            float average = 0;
-            float averageRenderTime = 0;
-            float averageDbExecTime = 0;
-            foreach (var req in requestData)
-            {
-                average += req.average;
-                averageRenderTime += averageRenderTime;
-                countrequests += req.countrequests;
-                averageDbExecTime += req.dbExecTime;
-            }
-            average = average / requestData.Count;
-            averageRenderTime = average / requestData.Count;
-            averageDbExecTime = averageDbExecTime / requestData.Count;
+			requestData.Sort((r1, r2) => r1.median.CompareTo(r2.median));
+			float median = 0;
+			if (requestData.Count % 2 == 1)
+			{
+				median = requestData[requestData.Count / 2].median;
+			}
+			else
+			{
+				float firstValue = requestData[requestData.Count / 2 - 1].median;
+				float secondValue = requestData[requestData.Count / 2].median;
+				median = (firstValue + secondValue) / 2;
+			}
 
-            //timestamp
-            var timestamp = requestData[requestData.Count / 2].timestamp;
+			long countrequests = 0;
 
-            return new RequestData
-            {
-                median = median,
-                average = average,
-                timestamp = timestamp,
-                countrequests = countrequests,
-                percentile95 = percentile95,
-                percentile99 = percentile99,
-                renderTime =  averageRenderTime,
-                dbExecTime =  averageDbExecTime
-            };
-        }
+			float average = 0;
+			float averageRenderTime = 0;
+			float averageDbExecTime = 0;
+			foreach (var req in requestData)
+			{
+				average += req.average;
+				averageRenderTime += averageRenderTime;
+				countrequests += req.countrequests;
+				averageDbExecTime += req.dbExecTime;
+			}
+			average = average / requestData.Count;
+			averageRenderTime = average / requestData.Count;
+			averageDbExecTime = averageDbExecTime / requestData.Count;
 
-        //Note(Tom): Array needs to be sorted
-        private static float Percentile(float[] sequence, float excelPercentile)
-        {
-	        int N = sequence.Length;
-	        float n = (N - 1) * excelPercentile + 1;
-            // Another method: float n = (N + 1) * excelPercentile;
-            if (n == 1d) return sequence[0];
-            else if (n == N) return sequence[N - 1];
-            else
-            {
-                int k = (int)n;
-                float d = n - k;
-                return sequence[k - 1] + d * (sequence[k] - sequence[k - 1]);
-            }
-        }
+			var timestamp = requestData[requestData.Count / 2].timestamp;
 
-        private static string SerializeToBson(RequestInfo requestInfo)
-        {
-            return JsonSerializer.Serialize(requestInfo);
-        }
-    }
+			return new RequestData
+			{
+				median = median,
+				average = average,
+				timestamp = timestamp,
+				countrequests = countrequests,
+				percentile95 = percentile95,
+				percentile99 = percentile99,
+				renderTime = averageRenderTime,
+				dbExecTime = averageDbExecTime
+			};
+		}
 
+		//Note(Tom): Array needs to be sorted
+		private static float Percentile(float[] values, float percentile)
+		{
+			int count = values.Length;
+			float desiredIndex = (count - 1) * percentile + 1;
+
+			int realIndex = (int)desiredIndex;
+			float t = desiredIndex % realIndex;
+			return Lerp(values[realIndex - 1], values[realIndex], t);
+		}
+
+		private static float Lerp(float a, float b, float t)
+		{
+			return a + (b - a) * t;
+		}
+
+		private static string SerializeToBson(RequestInfo requestInfo)
+		{
+			return JsonSerializer.Serialize(requestInfo);
+		}
+	}
 }

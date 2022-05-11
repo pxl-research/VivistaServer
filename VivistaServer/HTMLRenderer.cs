@@ -114,12 +114,13 @@ namespace VivistaServer
 				CommonController.LogDebug("Template found");
 				var user = await UserSessions.GetLoggedInUser(httpContext);
 				string result;
-
+				using var connection = Database.OpenNewConnection();
 				if (context == null)
 				{
 					context = new TemplateContext();
 					context.Options.MemberAccessStrategy = defaultAccessStrategy;
 					context.Options.Scope.SetValue("User", FluidValue.Create(user, context.Options));
+					context.Options.Scope.SetValue("IsAdmin", FluidValue.Create(await User.IsUserAdmin(httpContext, connection), context.Options));
 					AddDefaultFilters(context);
 
 					result = await template.RenderAsync();
@@ -130,6 +131,7 @@ namespace VivistaServer
 					//NOTE(cont.): This block prevents having to do it manually.
 					context.Options.MemberAccessStrategy = defaultAccessStrategy;
 					context.Options.Scope.SetValue("User", FluidValue.Create(user, context.Options));
+					context.Options.Scope.SetValue("IsAdmin", FluidValue.Create(await User.IsUserAdmin(httpContext, connection), context.Options));
 					AddDefaultFilters(context);
 
 					result = await template.RenderAsync(context);
@@ -140,6 +142,7 @@ namespace VivistaServer
 					var content = new TemplateContext(new { content = result });
 					context.Options.MemberAccessStrategy = defaultAccessStrategy;
 					content.Options.Scope.SetValue("User", FluidValue.Create(user, context.Options));
+					context.Options.Scope.SetValue("IsAdmin", FluidValue.Create(await User.IsUserAdmin(httpContext, connection), context.Options));
 					AddDefaultFilters(context);
 
 					result = await layoutCache[layout].RenderAsync(content);

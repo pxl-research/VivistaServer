@@ -1,0 +1,49 @@
+﻿<div class="pure-g center">
+	<div class="pure-u-1 pure-u-md-1-2 pure-u-lg-1-3 pure-u-xl-1-4">
+		<h1>Admin panel</h1>
+		<h2>Add or delete admin role or delete user </h2>
+		<form action="/admin/role" method="post" class="pure-form pure-form-stacked">
+			<label for="username">Username</label>
+			<input type="text" name="username" class="pure-input-1" id="username">
+			<div class="pure-controls">
+				<button class="pure-button" action="submit">Make admin</button>
+				<button class="pure-button dangerous-button" type="button" id="delete">Delete admin role</button>
+				<button class="pure-button dangerous-button" type="button" id="deleteUser">Delete user</button>
+			</div>
+		</form>
+		{% if error != "" %}
+		<p class="formerror">{{ error }}</p>
+		{% elsif success != "" %}
+		<p class="formsuccess">{{ success }}</p>
+		{% endif %}
+
+		<h2>Admins</h2>
+		<ul class="pure-menu-list">
+			{% for admin in admins %}
+			<li class="pure-menu-item">
+				{{ admin.username }}
+			</li>
+			{% endfor %}
+		</ul>
+		<br>
+
+	</div>
+</div>
+
+<script>
+	document.getElementById("delete").addEventListener("click", function () {
+		let username = document.getElementById("username").value;
+		let isSure = confirm("Are you sure you want to remove this admin?");
+		if (isSure && username != "") {
+			location.href = "/admin/deleteAdmin?username=" + username;
+		}
+	});
+
+	document.getElementById("deleteUser").addEventListener("click", function () {
+		let username = document.getElementById("username").value;
+		let isSure = confirm("Are you sure you want to delete this account?");
+		if (isSure && username != "") {
+			location.href = "/admin/deleteUser?username=" + username;
+		}
+	});
+</script>
