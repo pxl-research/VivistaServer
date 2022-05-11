@@ -508,7 +508,7 @@ namespace VivistaServer
 																	context,
 																new { userid, roleid });
 
-					await EmailClient.SendEmailConfirmationMail(email, verificationToken);
+					EmailClient.SendEmailConfirmationMail(email, verificationToken);
 				}
 				else
 				{

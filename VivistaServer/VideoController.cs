@@ -634,7 +634,6 @@ namespace VivistaServer
 			{
 				await CommonController.Write404(context);
 			}
-
 		}
 
 		[Route("POST", "/edit_video")]
