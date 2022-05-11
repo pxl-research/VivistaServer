@@ -196,17 +196,9 @@ namespace VivistaServer
 							ORDER BY timestamp", context, new { startDate, endDate });
 				});
 
-				var endpoints = Task.Run(async () =>
+				var endpoints = Task.Run( () =>
 				{
-					using var connection = Database.OpenNewConnection();
-					return await Database.QueryAsync<string>(connection,
-						@"SELECT endpoint 
-							FROM statistics_minutes 
-								UNION SELECT endpoint 
-								FROM statistics_hours 
-									UNION SELECT endpoint 
-									FROM statistics_days 
-							ORDER BY endpoint;", context);
+					return Startup.GetEndpointsOfRoute();
 				});
 
 				var outliers = Task.Run(async () =>
@@ -240,7 +232,6 @@ namespace VivistaServer
 					outliers = outliers.Result,
 					countOutliers = outliers.Result.Count()
 				});
-
 				await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\dashboard.liquid", templateContext));
 			}
 			else

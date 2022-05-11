@@ -92,6 +92,17 @@ namespace VivistaServer
 			}
 		}
 
+		public List<string> GetEndpoints()
+		{
+			var endpoints = new List<string>();
+			foreach (var route in routes)
+			{
+				endpoints.Add("/" + route.Key.method + ":  " + route.Key.route);
+			}
+			endpoints.Sort();
+			return endpoints;
+		}
+
 #if DEBUG
 		private static void Asserts()
 		{
@@ -134,5 +145,7 @@ namespace VivistaServer
 		{
 			return routes.TryGetValue(new Route(request.Method, request.Path), out _);
 		}
+
+
 	}
 }
