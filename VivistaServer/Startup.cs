@@ -233,7 +233,7 @@ namespace VivistaServer
 
 		public static List<string> GetEndpointsOfRoute()
 		{
-			return router.GetEndpoints();
+			return router.GetDatabaseFormattedEndpoints();
 		}
 
 	}

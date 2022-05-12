@@ -92,7 +92,7 @@ namespace VivistaServer
 			}
 		}
 
-		public List<string> GetEndpoints()
+		public List<string> GetDatabaseFormattedEndpoints()
 		{
 			var endpoints = new List<string>();
 			foreach (var route in routes)
