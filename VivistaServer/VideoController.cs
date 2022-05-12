@@ -453,8 +453,9 @@ namespace VivistaServer
 					}
 
 					var relatedVideos = new Dictionary<Guid, Video>();
-					var videosWithId = await GetRelatedVideos(connection, context, 5, video.userid);
-					var fuzzyVideos = (List<Video>) await FindVideosFuzzy(video.title.Replace(" ", " | "), 5, connection, context);
+					var count = 5;
+					var videosWithId = await GetRelatedVideosWithUserid(connection, context, count, video.userid);
+					var fuzzyVideos = (List<Video>) await FindVideosFuzzy(video.title.Replace(" ", " | "), count, connection, context);
 					for (int i = 0; i < videosWithId.Count; i++)
 					{
 
@@ -464,12 +465,10 @@ namespace VivistaServer
 					{
 						relatedVideos[fuzzyVideos[i].id] = (fuzzyVideos[i]);
 					}
-					//relatedVideos.AddRange(await FindVideosFuzzy(video.title.Replace(" ", " | "), 5, connection, context));
 
 					var templateContext = new TemplateContext(new { video, relatedVideos = relatedVideos.Values, userOwnsVideo });
 					await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\video.liquid", templateContext));
 					await AddVideoView(video.id, context, connection);
-
 				}
 				else
 				{
@@ -480,18 +479,6 @@ namespace VivistaServer
 			{
 				await CommonController.Write404(context);
 			}
-		}
-
-		private async static Task<List<Video>> GetRelatedVideos(NpgsqlConnection connection, HttpContext context, int count, int userid)
-		{
-			var videos = await Database.QueryAsync<Video>(connection,
-									@"select v.*, u.username from videos v
-													inner join users u on v.userid = u.userid
-													where v.userid=@userid
-													limit @count",
-									context,
-									new { userid, count });
-			return videos.ToList();
 		}
 
 		[Route("GET", "/my_videos")]
@@ -1186,6 +1173,18 @@ namespace VivistaServer
 			{
 				return new List<User>();
 			}
+		}
+
+		private async static Task<List<Video>> GetRelatedVideosWithUserid(NpgsqlConnection connection, HttpContext context, int count, int userid)
+		{
+			var videos = await Database.QueryAsync<Video>(connection,
+									@"select v.*, u.username from videos v
+													inner join users u on v.userid = u.userid
+													where v.userid=@userid
+													limit @count",
+									context,
+									new { userid, count });
+			return videos.ToList();
 		}
 
 		//NOTE(Simon): Perform a fuzzy search for videos, based on a trigram index

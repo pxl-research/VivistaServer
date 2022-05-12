@@ -206,10 +206,7 @@ namespace VivistaServer
 							ORDER BY timestamp", context, new { startDate, endDate });
 				});
 
-				var endpoints = Task.Run( () =>
-				{
-					return Startup.GetEndpointsOfRoute();
-				});
+				var endpoints = Startup.GetEndpointsOfRoute();
 
 				var outliers = Task.Run(async () =>
 				{
@@ -230,7 +227,7 @@ namespace VivistaServer
 					users = userTask.Result,
 					videos = videoTask.Result,
 					downloads = downloadTask.Result,
-					endpoints = endpoints.Result,
+					endpoints = endpoints,
 					averagesMinutes = minuteData.Result.Select(s => new { x = s.timestamp, y = s.average, s.endpoint }),
 					//TODO(Tom & Simon): check why select is necessary 
 					minuteData = minuteData.Result,
