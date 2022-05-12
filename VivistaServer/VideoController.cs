@@ -452,9 +452,21 @@ namespace VivistaServer
 						userOwnsVideo = UserOwnsVideo(video, user.userid);
 					}
 
-					var relatedVideos = new List<Video>();
+					var relatedVideos = new Dictionary<Guid, Video>();
+					var videosWithId = await GetRelatedVideos(connection, context, 5, video.userid);
+					var fuzzyVideos = (List<Video>) await FindVideosFuzzy(video.title.Replace(" ", " | "), 5, connection, context);
+					for (int i = 0; i < videosWithId.Count; i++)
+					{
 
-					var templateContext = new TemplateContext(new { video, relatedVideos, userOwnsVideo });
+						relatedVideos[videosWithId[i].id] = (videosWithId[i]);
+					}
+					for (int i = 0; i < fuzzyVideos.Count; i++)
+					{
+						relatedVideos[fuzzyVideos[i].id] = (fuzzyVideos[i]);
+					}
+					//relatedVideos.AddRange(await FindVideosFuzzy(video.title.Replace(" ", " | "), 5, connection, context));
+
+					var templateContext = new TemplateContext(new { video, relatedVideos = relatedVideos.Values, userOwnsVideo });
 					await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\video.liquid", templateContext));
 					await AddVideoView(video.id, context, connection);
 
@@ -468,6 +480,18 @@ namespace VivistaServer
 			{
 				await CommonController.Write404(context);
 			}
+		}
+
+		private async static Task<List<Video>> GetRelatedVideos(NpgsqlConnection connection, HttpContext context, int count, int userid)
+		{
+			var videos = await Database.QueryAsync<Video>(connection,
+									@"select v.*, u.username from videos v
+													inner join users u on v.userid = u.userid
+													where v.userid=@userid
+													limit @count",
+									context,
+									new { userid, count });
+			return videos.ToList();
 		}
 
 		[Route("GET", "/my_videos")]
@@ -1173,11 +1197,11 @@ namespace VivistaServer
 															@"select ts_rank(search, websearch_to_tsquery('english', @query)) as rank, v.*, u.username
 																from videos v
 																inner join users u on v.userid = u.userid
-																where search @@ to_tsquery('english', @query)
+																where search @@ to_tsquery('english', @query) and privacy = privacy
 																order by rank
 																limit @count",
 																context,
-																new { query, count });
+																new { query, count, privacy = VideoPrivacy.Public });
 				return result;
 			}
 			catch (Exception e)
