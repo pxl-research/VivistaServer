@@ -40,8 +40,7 @@ namespace VivistaServer
 				var form = context.Request.Form;
 				var username = form["username"].ToString();
 
-				int userid = 0;
-				userid = await Database.QuerySingleOrDefaultAsync<int>(connection, "SELECT userId FROM USERS WHERE username = @username;", context, new { username });
+				int userid = await Database.QuerySingleOrDefaultAsync<int>(connection, "SELECT userId FROM USERS WHERE username = @username;", context, new { username });
 				if (userid > 0)
 				{
 					if (!await UserRoleExist(userid, roleid, connection, context))
@@ -116,19 +115,19 @@ namespace VivistaServer
 			{
 				await using var connection = Database.OpenNewConnection();
 				return await Database.QueryAsync<User>(connection,
-					"SELECT users.username as username FROM users INNER JOIN user_roles ON users.userid = user_roles.userid WHERE roleid = @roleid;", context, new { roleid });
+					@"SELECT users.username as username 
+						FROM users 
+						INNER JOIN user_roles ON users.userid = user_roles.userid 
+						WHERE roleid = @roleid;", context, new { roleid });
 			});
 
-			//var admins = await adminTask;
 			adminTask.Wait();
-
 
 			var templateContext = new TemplateContext(new
 			{
-				admins = adminTask.Result.Select(a => new { a.username }).ToList(),
-				//admins = admins.Select(a => new { a.username }).ToList(),
-				error = error,
-				success = success
+				admins = adminTask.Result.Select(a => new { a.username }).AsList(),
+				error,
+				success
 			});
 
 			await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\roles.liquid", templateContext));

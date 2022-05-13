@@ -721,15 +721,16 @@ namespace VivistaServer
 		{
 			try
 			{
-				var adminRoleId = RoleController.GetRoleId("admin");
+				int adminRole = RoleController.GetRoleId("admin");
 				if (await User.IsUserAdmin(context, connection))
 				{
-					var admins = (List<int>)await Database.QueryAsync<int>(connection, "SELECT userid FROM user_roles WHERE roleid = @adminRoleId;", context, new { adminRoleId });
-					if (admins.Count <= 1)
+					int adminCount = await Database.QuerySingleAsync<int>(connection, "SELECT count(*) FROM user_roles WHERE roleid = @adminRoleId;", context, new { adminRoleId = adminRole });
+					if (adminCount <= 1)
 					{
 						return "You can't delete the last admin!";
 					}
 				}
+
 				await Database.ExecuteAsync(connection, "DELETE FROM sessions where userid = @id;", context, new { id });
 				await Database.ExecuteAsync(connection, "DELETE FROM user_roles where userid = @id;", context, new { id });
 				await Database.ExecuteAsync(connection, "DELETE FROM users where userid = @id;", context, new { id });
@@ -739,8 +740,9 @@ namespace VivistaServer
 
 				return "";
 			}
-			catch
+			catch (Exception e)
 			{
+				DashboardController.AddUnCaughtException();
 				return "Something went wrong";
 			}
 		}
@@ -754,18 +756,24 @@ namespace VivistaServer
 				{
 					return "You can only delete yourself in Settings!";
 				}
-				var adminId = RoleController.GetRoleId("admin");
-				var admins = (List<int>) await Database.QueryAsync<int>(connection, "SELECT userid FROM user_roles WHERE userid = @id AND roleid = @adminId", context, new { id, adminId });
-				if(admins.Count == 1)
+
+				int adminRole = RoleController.GetRoleId("admin");
+				int adminCount = await Database.QuerySingleAsync<int>(connection, "SELECT COUNT(*) FROM user_roles WHERE userid = @id AND roleid = @adminId", context, new { id, adminId = adminRole });
+
+				if(adminCount == 1)
 				{
 					return "You can't delete another admin!";
 				}
+
 				await Database.ExecuteAsync(connection, "DELETE FROM sessions where userid = @id;", context, new { id });
 				await Database.ExecuteAsync(connection, "DELETE FROM user_roles where userid = @id;", context, new { id });
 				await Database.ExecuteAsync(connection, "DELETE FROM users where userid = @id;", context, new { id });
+
 				return "";
-			} catch(Exception ex)
+			} 
+			catch(Exception ex)
 			{
+				DashboardController.AddUnCaughtException();
 				return "Something went wrong";
 			}
 		}
