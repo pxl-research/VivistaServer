@@ -230,7 +230,6 @@ namespace VivistaServer
 					downloads = downloadTask.Result,
 					endpoints = endpoints.Result,
 					averagesMinutes = minuteData.Result.Select(s => new { x = s.timestamp, y = s.average, s.endpoint }),
-					//TODO(Tom & Simon): check why select is necessary 
 					minuteData = minuteData.Result,
 					hourData = hourData.Result,
 					dayData = dayData.Result,
@@ -383,9 +382,6 @@ namespace VivistaServer
 								renderTime = averageRenderTime,
 								dbExecTime = averageDbExecTime
 							});
-
-
-
 				}
 
 				Process.GetCurrentProcess().Refresh();
@@ -411,7 +407,6 @@ namespace VivistaServer
 							countTotalRequests = count,
 							countUserCache,
 							countUploadCache
-
 						});
 
 				downloads = 0;
@@ -470,7 +465,6 @@ namespace VivistaServer
 								hourData.renderTime,
 								hourData.dbExecTime
 							});
-
 				}
 			}
 
@@ -540,20 +534,17 @@ namespace VivistaServer
 							VALUES(@median, @average, @timestamp, @countrequests, @percentile95, @percentile99, @endpoint, @renderTime, @dbExecTime);",
 						new
 						{
-							median = dayData.median,
-							average = dayData.average,
-							timestamp = dayData.timestamp,
-							countrequests = dayData.countrequests,
-							percentile95 = dayData.percentile95,
-							percentile99 = dayData.percentile99,
-							endpoint = specificEndpointList[0].endpoint,
-							renderTime = dayData.renderTime,
-							dbExecTime = dayData.dbExecTime
+							dayData.median,
+							dayData.average,
+							dayData.timestamp,
+							dayData.countrequests,
+							dayData.percentile95,
+							dayData.percentile99,
+							specificEndpointList[0].endpoint,
+							dayData.renderTime,
+							dayData.dbExecTime
 						});
 				}
-			}
-			else
-			{
 			}
 
 			if (hoursGeneralData.Count > 0)
@@ -569,16 +560,16 @@ namespace VivistaServer
 					new
 					{
 						timestamp,
-						downloads = generalData.downloads,
-						views = generalData.views,
-						privateMemory = generalData.privateMemory,
-						workingSet = generalData.workingSet,
-						virtualMemory = generalData.virtualMemory,
-						uploads = generalData.uploads,
-						uncaughtExceptions = generalData.uncaughtExceptions,
-						countTotalRequests = generalData.countTotalRequests,
-						countItemsUserCache = generalData.countItemsUserCache,
-						countItemsUploadCache = generalData.countItemsUploadCache
+						generalData.downloads,
+						generalData.views,
+						generalData.privateMemory,
+						generalData.workingSet,
+						generalData.virtualMemory,
+						generalData.uploads,
+						generalData.uncaughtExceptions,
+						generalData.countTotalRequests,
+						generalData.countItemsUserCache,
+						generalData.countItemsUploadCache
 					});
 			}
 
@@ -598,8 +589,6 @@ namespace VivistaServer
 			connection.ExecuteAsync(@"DELETE FROM statistics_hours 
 										WHERE timestamp < @dateHours;",
 										new { dateHours });
-
-
 		}
 
 
@@ -688,9 +677,9 @@ namespace VivistaServer
 				countrequests += req.countrequests;
 				averageDbExecTime += req.dbExecTime;
 			}
-			average = average / requestData.Count;
+			average /= requestData.Count;
 			averageRenderTime = average / requestData.Count;
-			averageDbExecTime = averageDbExecTime / requestData.Count;
+			averageDbExecTime /= requestData.Count;
 
 			var timestamp = requestData[requestData.Count / 2].timestamp;
 
