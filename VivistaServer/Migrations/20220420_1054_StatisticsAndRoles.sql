@@ -2,7 +2,6 @@
 -- For the circular dependencies, the order in which Schema Diff writes the objects is not very sophisticated 
 -- and may require manual changes to the script to ensure changes are applied in the correct order.
 -- Please report an issue for any failure with the reproduction steps. 
-BEGIN;
 CREATE SEQUENCE public.day_id_seq
     INCREMENT 1
     START 1
@@ -206,5 +205,3 @@ VALUES ('user'), ('admin');
 -- Assign a default role to every user
 INSERT INTO user_roles ( userid, roleid )
 SELECT userid, 1 FROM users;
-
-END;

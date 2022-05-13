@@ -2,8 +2,6 @@
 -- For the circular dependencies, the order in which Schema Diff writes the objects is not very sophisticated
 -- and may require manual changes to the script to ensure changes are applied in the correct order.
 -- Please report an issue for any failure with the reproduction steps.
-BEGIN;
-
 CREATE EXTENSION pg_trgm;
 
 CREATE SEQUENCE public.bug_reports_id_seq
@@ -105,5 +103,3 @@ CREATE INDEX video_search_index
     ON public.videos USING gin
     (search)
     TABLESPACE pg_default;
-
-END;

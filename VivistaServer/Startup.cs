@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Runtime.ExceptionServices;
 using System.Threading.Tasks;
+using Dapper;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Hosting;
@@ -36,6 +37,8 @@ namespace VivistaServer
 			CheckForFfmpeg();
 
 			CreateDataDirectoryIfNeeded();
+
+			Database.PerformMigrations();
 		}
 
 		public void CheckForFfmpeg()
