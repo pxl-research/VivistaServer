@@ -220,7 +220,7 @@ namespace VivistaServer
 							ORDER BY timestamp", context, new { startDate, endDate });
 				});
 
-				Task.WaitAll(userTask, videoTask, downloadTask, minuteData, hourData, dayData, endpoints, generalDayData, generalHourData, generalMinuteData, outliers);
+				Task.WaitAll(userTask, videoTask, downloadTask, minuteData, hourData, dayData, generalDayData, generalHourData, generalMinuteData, outliers);
 
 				var templateContext = new TemplateContext(new
 				{
