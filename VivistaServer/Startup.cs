@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.ExceptionServices;
@@ -16,7 +17,7 @@ using tusdotnet.Models;
 using tusdotnet.Models.Configuration;
 using tusdotnet.Stores;
 using static VivistaServer.CommonController;
-
+using Dapper;
 
 namespace VivistaServer
 {
@@ -26,6 +27,9 @@ namespace VivistaServer
 
 		public void ConfigureServices(IServiceCollection services)
 		{
+			using var connection = Database.OpenNewConnection();
+			connection.Execute(@"INSERT INTO server_restart (timestamp) 
+											VALUES(@timestamp);", new { timestamp = DateTime.Now });
 			services.Configure<FormOptions>(config => { config.MultipartBodyLengthLimit = long.MaxValue; });
 
 			router = new Router();
@@ -135,28 +139,31 @@ namespace VivistaServer
 				requestTime.Stop();
 				IFormCollection form = null;
 
-				//NOTE(Tom): Do no not allow to show password in database
-				if (context.Request.HasFormContentType && !context.Request.Form.ContainsKey("password"))
+				if (router.RouteExists(context.Request))
 				{
-					form = context.Request.Form;
+					//NOTE(Tom): Do no not allow to show password in database
+					if (context.Request.HasFormContentType && !context.Request.Form.ContainsKey("password"))
+					{
+						form = context.Request.Form;
+					}
+
+					var requestInfo = new RequestInfo
+					{
+						query = (QueryCollection)context.Request.Query,
+						form = (FormCollection)form
+					};
+
+					var request = new Request
+					{
+						seconds = (float)requestTime.Elapsed.TotalSeconds,
+						requestInfo = requestInfo,
+						endpoint = $"/{context.Request.Method}:  {context.Request.Path.Value}",
+						renderTime = (float)context.Items[DashboardController.RENDER_TIME],
+						dbExecTime = (float)context.Items[DashboardController.DB_EXEC_TIME]
+
+					};
+					DashboardController.AddRequestToCache(request);
 				}
-
-				var requestInfo = new RequestInfo
-				{
-					query = (QueryCollection)context.Request.Query,
-					form = (FormCollection)form
-				};
-
-				var request = new Request
-				{
-					seconds = (float)requestTime.Elapsed.TotalSeconds,
-					requestInfo = requestInfo,
-					endpoint = $"/{context.Request.Method}:  {context.Request.Path.Value}",
-					renderTime = (float)context.Items[DashboardController.RENDER_TIME],
-					dbExecTime = (float)context.Items[DashboardController.DB_EXEC_TIME]
-
-				};
-				DashboardController.AddRequestToCache(request);
 			});
 		}
 
@@ -221,5 +228,11 @@ namespace VivistaServer
 #pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
 
 		}
+
+		public static List<string> GetEndpointsOfRoute()
+		{
+			return router.GetDatabaseFormattedEndpoints();
+		}
+
 	}
 }

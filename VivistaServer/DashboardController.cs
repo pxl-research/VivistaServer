@@ -125,16 +125,26 @@ namespace VivistaServer
 					return await Database.QueryAsync<int>(connection, "SELECT COALESCE(SUM(downloads), 0) FROM videos;", context);
 				});
 
+				var startDateMinute = new DateTime(date.Year, date.Month, date.Day);
+				var endDateMinute = startDateMinute.AddDays(1);
 				var minuteData = Task.Run(async () =>
 				{
-					var startDate = new DateTime(date.Year, date.Month, date.Day);
-					var endDate = startDate.AddDays(1);
 					using var connection = Database.OpenNewConnection();
 					return await Database.QueryAsync<RequestData>(connection,
 						@"SELECT median, average, timestamp, countrequests, percentile95, percentile99, endpoint, render_time as renderTime, db_exec_time as dbExecTime 
 							FROM statistics_minutes 
 							WHERE @startDate <= timestamp AND @endDate > timestamp 
-							ORDER BY timestamp", context, new { startDate, endDate });
+							ORDER BY timestamp", context, new { startDate = startDateMinute, endDate = endDateMinute });
+				});
+
+				var serverRestart = Task.Run(async () =>
+				{
+					using var connection = Database.OpenNewConnection();
+					return await Database.QueryAsync<DateTime>(connection,
+						@"SELECT timestamp
+							FROM server_restart
+							WHERE @startDate <= timestamp AND @endDate > timestamp 
+							ORDER BY timestamp", context, new { startDate = startDateMinute, endDate = endDateMinute });
 				});
 
 				var hourData = Task.Run(async () =>
@@ -196,18 +206,7 @@ namespace VivistaServer
 							ORDER BY timestamp", context, new { startDate, endDate });
 				});
 
-				var endpoints = Task.Run(async () =>
-				{
-					using var connection = Database.OpenNewConnection();
-					return await Database.QueryAsync<string>(connection,
-						@"SELECT endpoint 
-							FROM statistics_minutes 
-								UNION SELECT endpoint 
-								FROM statistics_hours 
-									UNION SELECT endpoint 
-									FROM statistics_days 
-							ORDER BY endpoint;", context);
-				});
+				var endpoints = Startup.GetEndpointsOfRoute();
 
 				var outliers = Task.Run(async () =>
 				{
@@ -221,14 +220,14 @@ namespace VivistaServer
 							ORDER BY timestamp", context, new { startDate, endDate });
 				});
 
-				Task.WaitAll(userTask, videoTask, downloadTask, minuteData, hourData, dayData, endpoints, generalDayData, generalHourData, generalMinuteData, outliers);
+				Task.WaitAll(userTask, videoTask, downloadTask, minuteData, hourData, dayData, generalDayData, generalHourData, generalMinuteData, outliers);
 
 				var templateContext = new TemplateContext(new
 				{
 					users = userTask.Result,
 					videos = videoTask.Result,
 					downloads = downloadTask.Result,
-					endpoints = endpoints.Result,
+					endpoints = endpoints,
 					averagesMinutes = minuteData.Result.Select(s => new { x = s.timestamp, y = s.average, s.endpoint }),
 					minuteData = minuteData.Result,
 					hourData = hourData.Result,
@@ -237,9 +236,9 @@ namespace VivistaServer
 					generalHourData = generalHourData.Result,
 					generalDayData = generalDayData.Result,
 					outliers = outliers.Result,
-					countOutliers = outliers.Result.Count()
+					countOutliers = outliers.Result.Count(),
+					serverRestart = serverRestart.Result
 				});
-
 				await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\dashboard.liquid", templateContext));
 			}
 			else
@@ -701,6 +700,11 @@ namespace VivistaServer
 		{
 			int count = values.Length;
 			float desiredIndex = (count - 1) * percentile + 1;
+
+			if (values.Length == 1)
+			{
+				return values[0];
+			}
 
 			int realIndex = (int)desiredIndex;
 			float t = desiredIndex % realIndex;

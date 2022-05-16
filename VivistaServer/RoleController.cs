@@ -1,6 +1,5 @@
 ﻿using Fluid;
 using Microsoft.AspNetCore.Http;
-using System.Linq;
 using System.Threading.Tasks;
 using System.Diagnostics;
 using static VivistaServer.CommonController;
@@ -8,6 +7,7 @@ using System.Collections.Generic;
 using System;
 using Dapper;
 using Npgsql;
+using System.Linq;
 
 namespace VivistaServer
 {
@@ -38,9 +38,11 @@ namespace VivistaServer
 				int roleid = GetRoleId("admin");
 
 				var form = context.Request.Form;
-				var username = form["username"].ToString();
+				string username = form["username"];
 
-				int userid = await Database.QuerySingleOrDefaultAsync<int>(connection, "SELECT userId FROM USERS WHERE username = @username;", context, new { username });
+				int userid = await Database.QuerySingleOrDefaultAsync<int>(connection, @"SELECT userId 
+																							FROM users
+																							WHERE username = @username;", context, new { username });
 				if (userid > 0)
 				{
 					if (!await UserRoleExist(userid, roleid, connection, context))
@@ -72,7 +74,9 @@ namespace VivistaServer
 			{
 				var username = context.Request.Query["username"].ToString();
 
-				var userid = await Database.QuerySingleOrDefaultAsync<int>(connection, "SELECT userid FROM users WHERE username = @username;", context, new { username });
+				var userid = await Database.QuerySingleOrDefaultAsync<int>(connection, @"SELECT userid 
+																							FROM users 
+																							WHERE username = @username;", context, new { username });
 
 				var roleid = GetRoleId("admin");
 				var loggedInUser = await UserSessions.GetLoggedInUser(context);
@@ -82,7 +86,8 @@ namespace VivistaServer
 					{
 						try
 						{
-							await Database.ExecuteAsync(connection, "DELETE FROM user_roles WHERE userid = @userid AND roleid = @roleid;", context, new { userid, roleid });
+							await Database.ExecuteAsync(connection, @"DELETE FROM user_roles 
+																		WHERE userid = @userid AND roleid = @roleid;", context, new { userid, roleid });
 							await LoadRolesPage(context, "", $"{username} his admin role is deleted.");
 						}
 						catch (Exception ex)
@@ -108,24 +113,20 @@ namespace VivistaServer
 
 		public static async Task LoadRolesPage(HttpContext context, string error = "", string success = "")
 		{
-			var roleid = GetRoleId("admin");
+			int roleid = GetRoleId("admin");
 
 			SetHTMLContentType(context);
-			var adminTask = Task.Run(async () =>
-			{
-				await using var connection = Database.OpenNewConnection();
-				return await Database.QueryAsync<User>(connection,
-					@"SELECT users.username as username 
-						FROM users 
-						INNER JOIN user_roles ON users.userid = user_roles.userid 
-						WHERE roleid = @roleid;", context, new { roleid });
-			});
+			await using var connection = Database.OpenNewConnection();
 
-			adminTask.Wait();
+			var admins = await Database.QueryAsync<string>(connection,
+				@"SELECT users.username as username 
+					FROM users 
+					INNER JOIN user_roles ON users.userid = user_roles.userid 
+					WHERE roleid = @roleid;", context, new { roleid });
 
 			var templateContext = new TemplateContext(new
 			{
-				admins = adminTask.Result.Select(a => new { a.username }).AsList(),
+				admins,
 				error,
 				success
 			});
@@ -136,6 +137,7 @@ namespace VivistaServer
 		public static int GetRoleId(string role)
 		{
 			Debug.Assert(role.ToLower() == role, "Role needs to be written in lowercase");
+
 			int roleid = 0;
 			try
 			{
@@ -144,6 +146,7 @@ namespace VivistaServer
 					if (r.name == role)
 					{
 						roleid = r.id;
+						break;
 					}
 				}
 			}
@@ -151,13 +154,14 @@ namespace VivistaServer
 			{
 				CommonController.LogDebug(ex.StackTrace);
 			}
-			Debug.Assert((roleid > 0), $"{role} doesn't exist");
+
+			Debug.Assert(roleid > 0, $"{role} doesn't exist");
 			return roleid;
 		}
 
 		public static async Task LoadRoles()
 		{
-			using var connection = Database.OpenNewConnection();
+			await using var connection = Database.OpenNewConnection();
 			var roles = await connection.QueryAsync<Role>(@"SELECT id, name FROM roles;");
 			allRoles = (List<Role>)roles;
 
@@ -174,7 +178,9 @@ namespace VivistaServer
 		{
 			try
 			{
-				int count = await Database.QuerySingleAsync<int>(connection, "select count(*) from user_roles where userid = @userid AND roleid = @roleid", context, new { userid, roleid });
+				int count = await Database.QuerySingleAsync<int>(connection, @"SELECT count(*) 
+																				FROM user_roles 
+																				WHERE userid = @userid AND roleid = @roleid", context, new { userid, roleid });
 				return count > 0;
 			}
 			catch
