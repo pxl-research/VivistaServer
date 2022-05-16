@@ -128,7 +128,7 @@ namespace VivistaServer
 			files.Sort((a, b) => String.Compare(b, a, StringComparison.Ordinal));
 
 			//NOTE(Simon): Get most recently performed migration
-			string latest = conn.QuerySingle<string>("SELECT * FROM migrations ORDER BY name DESC LIMIT 1");
+			string latest = conn.QuerySingleOrDefault<string>("SELECT * FROM migrations ORDER BY name DESC LIMIT 1");
 
 			int index = files.IndexOf(latest);
 
@@ -160,9 +160,7 @@ namespace VivistaServer
 		private static void CreateMigrationTableIfNecessary(NpgsqlConnection conn)
 		{
 			var command = new NpgsqlCommand(@"CREATE TABLE IF NOT EXISTS public.migrations 
-												(name text, time timestamptz, PRIMARY KEY (name)); 
-											ALTER TABLE public.migrations
-												OWNER to postgres;", conn);
+												(name text, time timestamp, PRIMARY KEY (name));", conn);
 			command.ExecuteNonQuery();
 		}
 	}

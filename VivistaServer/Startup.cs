@@ -2,9 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Runtime.ExceptionServices;
 using System.Threading.Tasks;
-using Dapper;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Hosting;
@@ -17,7 +15,6 @@ using tusdotnet.Models;
 using tusdotnet.Models.Configuration;
 using tusdotnet.Stores;
 using static VivistaServer.CommonController;
-using Dapper;
 
 namespace VivistaServer
 {
@@ -27,9 +24,6 @@ namespace VivistaServer
 
 		public void ConfigureServices(IServiceCollection services)
 		{
-			using var connection = Database.OpenNewConnection();
-			connection.Execute(@"INSERT INTO server_restart (timestamp) 
-											VALUES(@timestamp);", new { timestamp = DateTime.Now });
 			services.Configure<FormOptions>(config => { config.MultipartBodyLengthLimit = long.MaxValue; });
 
 			router = new Router();
@@ -43,6 +37,8 @@ namespace VivistaServer
 			CreateDataDirectoryIfNeeded();
 
 			Database.PerformMigrations();
+
+			DashboardController.RegisterRestart();
 		}
 
 		public void CheckForFfmpeg()

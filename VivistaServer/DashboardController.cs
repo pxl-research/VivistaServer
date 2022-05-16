@@ -141,10 +141,10 @@ namespace VivistaServer
 				{
 					using var connection = Database.OpenNewConnection();
 					return await Database.QueryAsync<DateTime>(connection,
-						@"SELECT timestamp
+						@"SELECT time
 							FROM server_restart
-							WHERE @startDate <= timestamp AND @endDate > timestamp 
-							ORDER BY timestamp", context, new { startDate = startDateMinute, endDate = endDateMinute });
+							WHERE @startDate <= time AND @endDate > time 
+							ORDER BY time", context, new { startDate = startDateMinute, endDate = endDateMinute });
 				});
 
 				var hourData = Task.Run(async () =>
@@ -719,6 +719,13 @@ namespace VivistaServer
 		private static string SerializeToBson(RequestInfo requestInfo)
 		{
 			return JsonSerializer.Serialize(requestInfo);
+		}
+
+		public static void RegisterRestart()
+		{
+			using var connection = Database.OpenNewConnection();
+			connection.Execute(@"INSERT INTO server_restart (time)
+									VALUES(@time);", new { time = DateTime.UtcNow });
 		}
 	}
 }

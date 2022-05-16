@@ -41,7 +41,7 @@ function InitPlayButton() {
 			var message = document.getElementsByClassName("install-message")[0];
 			message.classList.remove("hidden");
 
-			if (!event.originalTarget.classList.contains("install-download-anchor")) {
+			if (!event.target.classList.contains("install-download-anchor")) {
 				window.location = button.dataset.uri;
 			}
 		});
