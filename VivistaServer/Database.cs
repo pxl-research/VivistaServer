@@ -161,7 +161,7 @@ namespace VivistaServer
 		{
 			var command = new NpgsqlCommand(@"CREATE TABLE IF NOT EXISTS public.migrations 
 												(name text, time timestamptz, PRIMARY KEY (name)); 
-											ALTER TABLE public.migrations 
+											ALTER TABLE public.migrations
 												OWNER to postgres;", conn);
 			command.ExecuteNonQuery();
 		}
