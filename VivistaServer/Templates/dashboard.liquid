@@ -16,7 +16,7 @@
 						<strong>Choose date and time:</strong>
 						<div>
 							<input type="date" id="date" name="date" />
-							<input type="time" id="time" name="time" value="09:00" />
+							<input type="time" id="time" name="time"/>
 						</div>
 						<button class="pure-button" id="previousTime"><<</button>
 						<button class="pure-button" id="nextTime">>></button>
@@ -168,18 +168,31 @@
 	Custom.id = 'topBottomLine';
 	Chart.register(Custom);
 
+	function applyTimeZoneOffset(timestamp) {
+		let date = new Date(timestamp);
+		date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+		return date;
+	}
+
 	const urlParams = new URLSearchParams(window.location.search);
 	let dataOfDay = {{ minuteData | json }};
+	dataOfDay.forEach(obj => obj.timestamp = applyTimeZoneOffset(obj.timestamp));
+
 	let dataOfWeek = {{ hourData | json }};
+	dataOfWeek.forEach(obj => obj.timestamp = applyTimeZoneOffset(obj.timestamp));
+
 	let dataOfMonth = {{ dayData | json }};
+	dataOfMonth.forEach(obj => obj.timestamp = applyTimeZoneOffset(obj.timestamp));
+
 	let endpoints = {{ endpoints | json }};
 	let outliers = {{ outliers | json }};
+	outliers.forEach(obj => obj.timestamp = applyTimeZoneOffset(obj.timestamp));
+
 	let serverRestartDateTime = {{ serverRestart | json }};
 	let serverRestart = [];
 	serverRestartDateTime.forEach(a => {
-		serverRestart.push({ x: a, y: 0});
-	})
-
+		serverRestart.push({ x: applyTimeZoneOffset(a), y: 0 });
+	});
 	let selectedOutliers = [];
 
 	const kb = 1024;
@@ -300,8 +313,11 @@
 	}
 
 	let generalDataOfDay = {{ generalMinuteData | json}};
+	generalDataOfDay.forEach(obj => obj.timestamp = applyTimeZoneOffset(obj.timestamp));
 	let generalDataOfWeek = {{ generalHourData | json}};
+	generalDataOfWeek.forEach(obj => obj.timestamp = applyTimeZoneOffset(obj.timestamp));
 	let generalDataOfMonth = {{ generalDayData | json}};
+	generalDataOfMonth.forEach(obj => obj.timestamp = applyTimeZoneOffset(obj.timestamp));
 
 	let endpointParam = urlParams.get('endpoint');
 	let selectedEndpoint;
@@ -397,7 +413,7 @@
 				label: 'Server restart',
 				borderColor: 'hsl(250, 100%, 73%)',
 				backgroundColor: 'hsl(250, 100%, 73%)',
-				data: serverRestart,
+				data: FilterWithTime(serverRestart),
 				type: 'topBottomLine',
 				order: 0,
 				yAxisID: 'y1'
@@ -418,8 +434,8 @@
 					time: {
 						unit: timeUnit,
 						displayFormats: {
-							minute: 'hh:mm',
-							hour: 'MMM dd - hh:mm',
+							minute: 'HH:mm',
+							hour: 'MMM dd - HH:mm',
 							day: 'MMM dd'
 
 						},
@@ -524,8 +540,8 @@
 					time: {
 						unit: timeUnit,
 						displayFormats: {
-							minute: 'hh:mm',
-							hour: 'MMM dd - hh:mm',
+							minute: 'HH:mm',
+							hour: 'MMM dd - HH:mm',
 							day: 'MMM dd'
 
 						}
@@ -573,8 +589,8 @@
 					time: {
 						unit: timeUnit,
 						displayFormats: {
-							minute: 'hh:mm',
-							hour: 'MMM dd - hh:mm',
+							minute: 'HH:mm',
+							hour: 'MMM dd - HH:mm',
 							day: 'MMM dd'
 
 						}
@@ -611,7 +627,7 @@
 		options: {
 			animation: false,
 			responsive: true,
-			normalized:true,
+			//normalized:true,
 			scales: {
 				x: {
 					type: 'time',
@@ -620,8 +636,8 @@
 					time: {
 						unit: timeUnit,
 						displayFormats: {
-							minute: 'hh:mm',
-							hour: 'MMM dd - hh:mm',
+							minute: 'HH:mm',
+							hour: 'MMM dd - HH:mm',
 							day: 'MMM dd'
 
 						}
@@ -752,11 +768,10 @@
 			barChart.options.scales.x.min = GiveMinHours();
 			barChart.options.scales.x.max = GiveMaxHours();
 			barChartMemory.options.scales.x.min = GiveMinHours();
-			barChartMemory.options.scales.x.min = GiveMaxHours();
+			barChartMemory.options.scales.x.max = GiveMaxHours();
 
 			mixedChart.data.datasets[0].data = FilterWithEndpointAndTime(GetCountRequestData());
 			mixedChart.data.datasets[2].data = FilterWithEndpointAndTime(GetOutliersSeconds());
-			mixedChart.data.datasets[3].data = serverRestart;
 
 			areaChart.data.datasets[0].data = FilterWithEndpointAndTime(GetDataInMs("dbExecTime"));
 			areaChart.data.datasets[1].data = FilterWithEndpointAndTime(GetDataInMs("renderTime"));
@@ -797,6 +812,7 @@
 			areaChart.data.datasets[4].data = FilterWithEndpoint(GetDataInMs("percentile95"));
 			areaChart.data.datasets[5].data = FilterWithEndpoint(GetDataInMs("percentile99"));
 		}
+		mixedChart.data.datasets[3].data = FilterWithTime(serverRestart);
 		ParameterChanged();
 		GeneralParameterChanged();
 		GeneralParameterMemoryChanged();
@@ -1022,7 +1038,6 @@
 			SetDateAndTimes();
 			data = FilterWithTime(data);
 		}
-
 		barChartMemory.data.datasets[0].data = data;
 		barChartMemory.data.datasets[0].label = generalDataTypeMemory + " in mb";
 		barChartMemory.options.plugins.title.text = generalDataTypeMemory + " in mb";
