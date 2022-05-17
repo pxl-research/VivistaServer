@@ -149,13 +149,32 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 <script>
+	class Custom extends Chart.BarController {
+		draw() {
+			const meta = this.getMeta();
+			if (meta.data.length > 0) {
+				const { ctx, chartArea: { top, height } } = this.chart;
+				ctx.save();
+				meta.data.forEach(point => {
+					ctx.strokeStyle = 'hsl(260, 100%, 75%)';
+					ctx.lineWidth = 2;
+					ctx.strokeRect(point.x, top, 0, height);
+					ctx.restore();
+				})
+			}
+		}
+	}
+
+	Custom.id = 'topBottomLine';
+	Chart.register(Custom);
+
 	const urlParams = new URLSearchParams(window.location.search);
-	let dataOfDay = {{ minuteData | json}};
-	let dataOfWeek = {{ hourData | json}};
-	let dataOfMonth = {{ dayData | json}};
+	let dataOfDay = {{ minuteData | json }};
+	let dataOfWeek = {{ hourData | json }};
+	let dataOfMonth = {{ dayData | json }};
 	let endpoints = {{ endpoints | json }};
-	let outliers = {{ outliers | json}};
-	let serverRestartDateTime = {{ serverRestart | json}};
+	let outliers = {{ outliers | json }};
+	let serverRestartDateTime = {{ serverRestart | json }};
 	let serverRestart = [];
 	serverRestartDateTime.forEach(a => {
 		serverRestart.push({ x: a, y: 0});
@@ -378,9 +397,8 @@
 				label: 'Server restart',
 				borderColor: 'hsl(250, 100%, 73%)',
 				backgroundColor: 'hsl(250, 100%, 73%)',
-				pointRadius: 10,
 				data: serverRestart,
-				type: 'scatter',
+				type: 'topBottomLine',
 				order: 0,
 				yAxisID: 'y1'
 			}
@@ -770,6 +788,7 @@
 			}
 			mixedChart.data.datasets[0].data = FilterWithEndpoint(GetCountRequestData());
 			mixedChart.data.datasets[2].data = {};
+			mixedChart.data.datasets[3].data = serverRestart;
 
 			areaChart.data.datasets[0].data = FilterWithEndpoint(GetDataInMs("dbExecTime"));
 			areaChart.data.datasets[1].data = FilterWithEndpoint(GetDataInMs("renderTime"));
