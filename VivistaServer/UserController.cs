@@ -490,6 +490,7 @@ namespace VivistaServer
 
 				if (!userExists)
 				{
+					var transaction = connection.BeginTransaction();
 					string verificationToken = Tokens.NewVerifyEmailToken();
 					int querySuccess = await Database.ExecuteAsync(connection, @"insert into users (username, email, pass, verification_token)
 																	values (@username, @email, @hashedPassword, @verificationToken)",
@@ -507,8 +508,9 @@ namespace VivistaServer
 																	values (@userid, @roleid)",
 																	context,
 																new { userid, roleid });
-
+					transaction.Commit();
 					EmailClient.SendEmailConfirmationMail(email, verificationToken);
+
 				}
 				else
 				{

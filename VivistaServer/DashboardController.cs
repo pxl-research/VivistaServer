@@ -290,6 +290,7 @@ namespace VivistaServer
 		{
 			using var connection = Database.OpenNewConnection();
 			int count = cachedRequests.Count;
+			var transaction = connection.BeginTransaction();
 			if (count > 0)
 			{
 				//Note(Tom): Add tempOutliers so lock can close fast
@@ -413,12 +414,13 @@ namespace VivistaServer
 				uploads = 0;
 				uncaughtExceptions = 0;
 			}
+			transaction.Commit();
 		}
 
 		public static void AddHourData(DateTime startTime)
 		{
 			using var connection = Database.OpenNewConnection();
-
+			var transaction = connection.BeginTransaction();
 			//NOTE(Tom): round down to xx:00:00
 			startTime = startTime.RoundUp(TimeSpan.FromMinutes(60)).AddHours(-1);
 
@@ -493,12 +495,13 @@ namespace VivistaServer
 
 						});
 			}
+			transaction.Commit();
 		}
 
 		public static void AddDayData(DateTime startTime)
 		{
 			using var connection = Database.OpenNewConnection();
-
+			var transaction = connection.BeginTransaction();
 			//NOTE(Tom): round down to 00:00:00
 			startTime = startTime.RoundUp(TimeSpan.FromHours(24)).AddDays(-1);
 
@@ -588,6 +591,7 @@ namespace VivistaServer
 			connection.ExecuteAsync(@"DELETE FROM statistics_hours 
 										WHERE timestamp < @dateHours;",
 										new { dateHours });
+			transaction.Commit();
 		}
 
 
