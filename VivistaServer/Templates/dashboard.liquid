@@ -153,15 +153,12 @@
 		draw() {
 			const meta = this.getMeta();
 			if (meta.data.length > 0) {
-				console.log("hit");
 				const { ctx, chartArea: { top, height } } = this.chart;
 				ctx.save();
-
 				meta.data.forEach(a => {
 					ctx.strokeStyle = 'hsl(250, 100%, 73%)';
 					ctx.lineWidth = 1;
 					const { x, y } = a.getProps(['x', 'y']);
-					console.log(x, y);
 					ctx.strokeRect(x, top, 0, height);
 					ctx.restore();
 				})
