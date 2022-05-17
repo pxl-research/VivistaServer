@@ -76,6 +76,10 @@ body {
 	flex-direction: column;
 }
 
+.related-videos a{
+	text-decoration:none;
+}
+
 a {
 	color: var(--anchor-font);
 }
