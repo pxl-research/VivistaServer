@@ -155,11 +155,10 @@
 			if (meta.data.length > 0) {
 				const { ctx, chartArea: { top, height } } = this.chart;
 				ctx.save();
-				meta.data.forEach(a => {
-					ctx.strokeStyle = 'hsl(250, 100%, 73%)';
-					ctx.lineWidth = 1;
-					const { x, y } = a.getProps(['x', 'y']);
-					ctx.strokeRect(x, top, 0, height);
+				meta.data.forEach(point => {
+					ctx.strokeStyle = 'hsl(260, 100%, 75%)';
+					ctx.lineWidth = 2;
+					ctx.strokeRect(point.x, top, 0, height);
 					ctx.restore();
 				})
 			}
@@ -169,15 +168,13 @@
 	Custom.id = 'topBottomLine';
 	Chart.register(Custom);
 
-
-
 	const urlParams = new URLSearchParams(window.location.search);
-	let dataOfDay = {{ minuteData | json}};
-	let dataOfWeek = {{ hourData | json}};
-	let dataOfMonth = {{ dayData | json}};
+	let dataOfDay = {{ minuteData | json }};
+	let dataOfWeek = {{ hourData | json }};
+	let dataOfMonth = {{ dayData | json }};
 	let endpoints = {{ endpoints | json }};
-	let outliers = {{ outliers | json}};
-	let serverRestartDateTime = {{ serverRestart | json}};
+	let outliers = {{ outliers | json }};
+	let serverRestartDateTime = {{ serverRestart | json }};
 	let serverRestart = [];
 	serverRestartDateTime.forEach(a => {
 		serverRestart.push({ x: a, y: 0});

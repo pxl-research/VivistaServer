@@ -29,7 +29,7 @@ namespace VivistaServer
 		{
 			using var connection = Database.OpenNewConnection();
 			connection.Execute(@"INSERT INTO server_restart (timestamp) 
-											VALUES(@timestamp);", new { timestamp = DateTime.Now });
+											VALUES(@timestamp);", new { timestamp = DateTime.UtcNow });
 			services.Configure<FormOptions>(config => { config.MultipartBodyLengthLimit = long.MaxValue; });
 
 			router = new Router();

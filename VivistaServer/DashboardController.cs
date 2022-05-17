@@ -290,7 +290,7 @@ namespace VivistaServer
 		{
 			using var connection = Database.OpenNewConnection();
 			int count = cachedRequests.Count;
-			var transaction = connection.BeginTransaction();
+			using var transaction = connection.BeginTransaction();
 			if (count > 0)
 			{
 				//Note(Tom): Add tempOutliers so lock can close fast
@@ -303,7 +303,7 @@ namespace VivistaServer
 					var percentilesPerEndpoint = connection.Query<EndpointPercentile>(
 						@"SELECT avg(percentile99) as percentile99, endpoint
 						FROM statistics_days
-						GROUP BY endpoint;")
+						GROUP BY endpoint;", null,transaction)
 						.ToDictionary(p => p.endpoint, p => p.percentile99);
 
 					foreach (var req in cachedRequests)
@@ -325,7 +325,7 @@ namespace VivistaServer
 					string reqinfo = SerializeToBson(req.requestInfo);
 					connection.Execute(@"insert into statistics_outliers(timestamp, seconds, reqinfo, endpoint) 
 										values(@timestamp, @seconds, @reqinfo::jsonb, @endpoint);",
-										new { req.timestamp, req.seconds, reqinfo, req.endpoint });
+										new { req.timestamp, req.seconds, reqinfo, req.endpoint }, transaction);
 				}
 
 
@@ -407,7 +407,7 @@ namespace VivistaServer
 							countTotalRequests = count,
 							countUserCache,
 							countUploadCache
-						});
+						}, transaction);
 
 				downloads = 0;
 				views = 0;
@@ -420,7 +420,7 @@ namespace VivistaServer
 		public static void AddHourData(DateTime startTime)
 		{
 			using var connection = Database.OpenNewConnection();
-			var transaction = connection.BeginTransaction();
+			using var transaction = connection.BeginTransaction();
 			//NOTE(Tom): round down to xx:00:00
 			startTime = startTime.RoundUp(TimeSpan.FromMinutes(60)).AddHours(-1);
 
@@ -430,13 +430,13 @@ namespace VivistaServer
 				@"SELECT median, average, timestamp, countrequests, percentile95, percentile99, endpoint, render_time as renderTime, db_exec_time as dbExecTime
 					FROM statistics_minutes  
 					WHERE timestamp >= @startTime AND timestamp < @endTime;",
-					new { startTime, endTime });
+					new { startTime, endTime }, transaction);
 
 			var minutesGeneralData = (List<GeneralData>)connection.Query<GeneralData>(
 				@"SELECT timestamp, downloads, views, private_memory as privateMemory, working_set as workingSet, virtual_memory as virtualMemory, uploads, uncaught_exceptions as uncaughtExceptions, count_total_requests as countTotalRequests, count_items_user_cache as countItemsUserCache, count_items_upload_cache as countItemsUploadCache
 					FROM statistics_general_minutes  
 					WHERE timestamp >= @startTime AND timestamp < @endTime;",
-					new { startTime, endTime });
+					new { startTime, endTime }, transaction);
 
 			if (minutesData.Count > 0)
 			{
@@ -465,7 +465,7 @@ namespace VivistaServer
 								specificEndpointList[0].endpoint,
 								hourData.renderTime,
 								hourData.dbExecTime
-							});
+							}, transaction);
 				}
 			}
 
@@ -493,7 +493,7 @@ namespace VivistaServer
 							generalData.countItemsUserCache,
 							generalData.countItemsUploadCache
 
-						});
+						}, transaction);
 			}
 			transaction.Commit();
 		}
@@ -501,7 +501,7 @@ namespace VivistaServer
 		public static void AddDayData(DateTime startTime)
 		{
 			using var connection = Database.OpenNewConnection();
-			var transaction = connection.BeginTransaction();
+			using var transaction = connection.BeginTransaction();
 			//NOTE(Tom): round down to 00:00:00
 			startTime = startTime.RoundUp(TimeSpan.FromHours(24)).AddDays(-1);
 
@@ -511,13 +511,13 @@ namespace VivistaServer
 				@"SELECT median, average, timestamp, countrequests, percentile95, percentile99, endpoint, render_time as renderTime, db_exec_time as dbExecTime
 					FROM statistics_hours  
 					WHERE timestamp >= @startTime AND timestamp < @endTime;",
-				new { startTime, endTime });
+				new { startTime, endTime }, transaction);
 
 			var hoursGeneralData = (List<GeneralData>)connection.Query<GeneralData>(
 				@"SELECT timestamp, downloads, views, private_memory as privateMemory, working_set as workingSet, virtual_memory as virtualMemory, uploads, uncaught_exceptions as uncaughtExceptions, count_total_requests as countTotalRequests, count_items_user_cache as countItemsUserCache, count_items_upload_cache as countItemsUploadCache
 					FROM statistics_general_hours 
 					WHERE timestamp >= @startTime AND timestamp < @endTime;",
-				new { startTime, endTime });
+				new { startTime, endTime }, transaction);
 
 			if (hoursData.Count > 0)
 			{
@@ -545,7 +545,7 @@ namespace VivistaServer
 							specificEndpointList[0].endpoint,
 							dayData.renderTime,
 							dayData.dbExecTime
-						});
+						}, transaction);
 				}
 			}
 
@@ -572,25 +572,26 @@ namespace VivistaServer
 						generalData.countTotalRequests,
 						generalData.countItemsUserCache,
 						generalData.countItemsUploadCache
-					});
+					}, transaction);
 			}
 
 			//NOTE(Tom): Delete old data
 			var dateMinutes = DateTime.UtcNow.AddMonths(-1);
 			connection.ExecuteAsync(@"DELETE FROM statistics_general_minutes 
 										WHERE timestamp < @dateMinutes;",
-										new { dateMinutes });
+										new { dateMinutes }, transaction);
 			connection.ExecuteAsync(@"DELETE FROM statistics_minutes 
 										WHERE timestamp < @dateMinutes;",
-										new { dateMinutes });
+										new { dateMinutes }, transaction);
 
 			var dateHours = DateTime.UtcNow.AddMonths(-6);
 			connection.ExecuteAsync(@"DELETE FROM statistics_general_hours
 										WHERE timestamp < @dateHours;",
-										new { dateHours });
+										new { dateHours }, transaction);
 			connection.ExecuteAsync(@"DELETE FROM statistics_hours 
 										WHERE timestamp < @dateHours;",
-										new { dateHours });
+										new { dateHours }, transaction);
+
 			transaction.Commit();
 		}
 
