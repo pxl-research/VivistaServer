@@ -3,11 +3,11 @@
 		<div class="download-message">
 			<button data-uri="vivista://video/{{ video.id | guidbase64 }}" class="pure-button download-button">
 				<span class="play-icon svg-icon">
-					<svg version="1.1" viewBox="0 0 10 10" >
+					<svg version="1.1" viewBox="0 0 10 10">
 						<path d="M 1,1 8,5 1,9 z"></path>
 					</svg>
 				</span> Play In Vivista
-				
+
 				<p class="hidden install-message">Don't have Vivista installed? <a class="install-download-anchor" href="/install/latest" download>Download now</a></p>
 			</button>
 		</div>
@@ -15,6 +15,8 @@
 	</div>
 	<div class="video-info pure-u-1 pure-u-md-1-2">
 		<h1 class="title">{{ video.title | escape }}</h1>
+
+		<button id="addToPlaylist" class="pure-button">Add to playlist</button>
 		<p class="view-stats">{{ video.timestamp | date: "%e %b %Y"}} • {{ video.views | format_number: "N0" }} views • {{ video.downloads | format_number: "N0" }} downloads • {{ video.downloadsize | format_bytes }}</p>
 		<div class="user">
 			<a class="username" href="/user?name={{ video.username | escape }}">
@@ -22,13 +24,13 @@
 				{{ video.username | escape }}
 			</a>
 			{% if userOwnsVideo %}
-				<a class="pure-button edit-video" href="/edit_video?id={{ video.id | guidbase64 }}">Edit Video</a>
+			<a class="pure-button edit-video" href="/edit_video?id={{ video.id | guidbase64 }}">Edit Video</a>
 			{% endif %}
 		</div>
 		<p class="description">{{ video.description | escape }}</p>
 		<p>
 			{% for tag in video.tags %}
-				<span class="tag">{{ tag.name | escape }}</span>
+			<span class="tag">{{ tag.name | escape }}</span>
 			{% endfor %}
 		</p>
 	</div>
@@ -48,4 +50,250 @@
 		</a>
 		{% endfor %}
 	</div>
+
+	<div class="overlay hidden" id="popup">
+		<div class="wrapper">
+			<h2>Add to playlist</h2>
+			<button id="close" class="close">&times;</button>
+			<div class="main-content">
+				<div class="container">
+					<form id="form" method="dialog">
+						<div class="pure-menu-scrollable playlists" id="playlists">
+							{% for playlist in userPlaylists %}
+							{% if playlist.playListContainsVideo == true %}
+							<input type="checkbox" id="{{ playlist.name}}" name="{{ playlist.name }}" value="{{ playlist.name }}" checked>
+							{% else %}
+							<input type="checkbox" id="{{ playlist.name}}" name="{{ playlist.name }}" value="{{ playlist.name }}">
+							{% endif %}
+							<label for="{{playlist.name}}"> {{playlist.name}}</label><br>
+							{% endfor %}
+						</div>
+						<h3>Make new playlist</h3>
+						<label>Playlist name</label>
+						<input type="text" name="name" id="name" /> <br /> <br />
+						<label>Privacy</label>
+						<select name="video-privacy" id="videoPrivacy">
+							<option value="0" selected>Public</option>
+							<option value="1">Organization</option>
+							<option value="2">Unlisted</option>
+							<option value="3">Private</option>
+						</select> <br /> <br />
+						<button class="pure-button button" id="addPlaylist" type="submit">Submit</button>
+						<p class="formsuccess" id="message"></p>
+					</form>
+				</div>
+			</div>
+		</div>
+	</div>
 </div>
+
+<script>
+	const queryString = window.location.search;
+	let id = new URLSearchParams(queryString).get('id');
+	document.getElementById("form").addEventListener("submit", function () {
+		let name = document.getElementById("name").value;
+		fetch('/api/makePlaylist?name=' + name + "&videoid=" + id + "&privacy=" + document.getElementById("videoPrivacy").value, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+			}
+		})
+			.then(response => response.json())
+			.then(message => {
+				if (message.includes("Video has been added to")) {
+					fetch('/api/get_playlists_with_video_check?videoid=' + id, {
+						method: 'GET',
+						headers: {
+							'Content-Type': 'application/json',
+						}
+					})
+						.then(response => response.json())
+						.then(playlists => {
+							document.getElementById("playlists").innerHTML = "";
+							playlists.forEach(playlist => {
+								let inputElement = document.createElement("INPUT");
+								inputElement.setAttribute("type", "checkbox");
+								inputElement.setAttribute("id", playlist.name);
+								inputElement.setAttribute("name", playlist.name);
+								inputElement.setAttribute("value", playlist.name);
+								if (playlist.playListContainsVideo) {
+									inputElement.checked = true;
+								}
+								let label = document.createElement("LABEL");
+								label.setAttribute("for", playlist.name);
+								label.innerHTML = playlist.name;
+
+								document.getElementById("playlists").appendChild(inputElement);
+								document.getElementById("playlists").appendChild(label);
+								document.getElementById("playlists").appendChild(document.createElement('br'));
+							});
+							AddEventListeners(playlists);
+
+							document.getElementById("message").innerText = message;
+						})
+						.catch((error) => {
+						});
+				}
+				else {
+					document.getElementById("message").innerText = message;
+				}
+			})
+			.catch((error) => {
+				document.getElementById("message").innerText = "Something went wrong!";
+			});
+	});
+	document.getElementById("addToPlaylist").addEventListener("click", function () {
+		let popupDiv = document.getElementById("popup");
+		popupDiv.classList.remove("hidden");
+
+	});
+	document.getElementById("close").addEventListener("click", function () {
+		let popupDiv = document.getElementById("popup");
+		popupDiv.classList.add("hidden");
+	});
+
+	let playlists = {{ userPlaylists | json }};
+	AddEventListeners(playlists);
+
+	function AddEventListeners(playlists){
+		playlists.forEach(playlist => {
+			document.getElementById(playlist.name).addEventListener('change', function () {
+				if (this.checked) {
+					fetch('/api/AddVideoToPlaylist?playlistid=' + playlist.id + "&videoid=" + id, {
+						method: 'POST',
+						headers: {
+							'Content-Type': 'application/json',
+						}
+					})
+						.then(response => response.json())
+						.then(message => {
+							if (message.includes("Something went wrong")) {
+								document.getElementById(playlistName.name).checked = false;
+							}
+							document.getElementById("message").innerText = message;
+						})
+						.catch((error) => {
+							document.getElementById("message").innerText = message;
+							document.getElementById(playlistName.name).checked = false;
+						});
+				} else {
+					fetch('/api/DeleteVideoFromPlaylist?playlistid=' + playlist.id + "&videoid=" + id, {
+						method: 'POST',
+						headers: {
+							'Content-Type': 'application/json',
+						}
+					})
+						.then(response => response.json())
+						.then(message => {
+							if (message.includes("Something went wrong")) {
+								document.getElementById(playlistName.name).checked = false;
+							}
+							document.getElementById("message").innerText = message;
+						})
+						.catch((error) => {
+							document.getElementById("message").innerText = message;
+							document.getElementById(playlistName.name).checked = true;
+						});
+				}
+			});
+		});
+	}
+</script>
+<style>
+	.button {
+		text-decoration: none;
+		background: hsl(0, 0%, 30%);
+		color: white;
+	}
+
+		.button:hover {
+			background: hsl(0, 0%, 40%);
+		}
+
+	.overlay {
+		position: fixed;
+		top: 0;
+		bottom: 0;
+		left: 0;
+		right: 0;
+		background: rgba(0, 0, 0, 0.8);
+		transition: opacity 500ms;
+		z-index: 2000;
+	}
+
+
+	.playlists {
+		max-height: 100px;
+	}
+
+	.wrapper {
+		margin: 70px auto;
+		padding: 20px;
+		background: #e7e7e7;
+		color: black;
+		border-radius: 5px;
+		width: 30%;
+		max-width: 400px;
+		position: relative;
+		transition: all 1s ease-in-out;
+		letter-spacing: normal;
+	}
+
+		.wrapper h2 {
+			margin-top: 0;
+			color: #333;
+		}
+
+		.wrapper .close {
+			position: absolute;
+			top: 20px;
+			right: 30px;
+			transition: all 200ms;
+			font-size: 30px;
+			font-weight: bold;
+			text-decoration: none;
+			color: #333;
+			border: none;
+		}
+
+			.wrapper .close:hover {
+				cursor:pointer;
+			}
+
+		.wrapper .content {
+			max-height: 90%;
+			overflow: auto;
+		}
+
+	.container {
+		border-radius: 5px;
+		background-color: #e7e7e7;
+		padding: 20px 0;
+	}
+
+	form label {
+		font-weight: 500;
+	}
+
+	input[type=text] textarea {
+		/*width:100%;*/
+		padding: 12px;
+		margin: 2px;
+		box-sizing: border-box;
+		margin-top: 6px;
+		margin-bottom: 16px;
+		/*resize: vertical;*/
+	}
+
+	input[type="submit"] {
+		background-color: #413b3b;
+		color: #fff;
+		padding: 15px 50px;
+		border: none;
+		border-radius: 50px;
+		cursor: pointer;
+		font-size: 15px;
+		margin: 2px;
+		text-transform: uppercase;
+	}
+</style>
