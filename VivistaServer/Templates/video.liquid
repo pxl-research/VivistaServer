@@ -159,7 +159,8 @@
 		playlists.forEach(playlist => {
 			document.getElementById(playlist.name).addEventListener('change', function () {
 				if (this.checked) {
-					fetch('/api/AddVideoToPlaylist?playlistid=' + playlist.id + "&videoid=" + id, {
+					console.log(playlist)
+					fetch('/api/AddVideoToPlaylist?playlistid=' + playlist.idBase64 + "&videoid=" + id, {
 						method: 'POST',
 						headers: {
 							'Content-Type': 'application/json',
@@ -167,18 +168,18 @@
 					})
 						.then(response => response.json())
 						.then(message => {
-							if (message.includes("Something went wrong")) {
-								document.getElementById(playlistName.name).checked = false;
+							if (message.includes("Something went wrong") || message.includes("Playlist is full")) {
+								document.getElementById(playlist.name).checked = false;
 							}
 							document.getElementById("message").innerText = message;
 						})
 						.catch((error) => {
 							document.getElementById("message").innerText = message;
-							document.getElementById(playlistName.name).checked = false;
+							document.getElementById(playlist.name).checked = false;
 						});
 				} else {
-					fetch('/api/DeleteVideoFromPlaylist?playlistid=' + playlist.id + "&videoid=" + id, {
-						method: 'POST',
+					fetch('/api/DeleteVideoFromPlaylist?playlistid=' + playlist.idBase64 + "&videoid=" + id, {
+						method: 'GET',
 						headers: {
 							'Content-Type': 'application/json',
 						}

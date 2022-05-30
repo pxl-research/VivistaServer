@@ -12,12 +12,12 @@
 					<td width="50%">
 						<span>
 							<img width="120px" class="video-thumb" src="/api/thumbnail?id={{ playlist.videos[0].id }}">
-							<a href="/video?id={{ playlist.videos[0].id | guidbase64 }}">{{ playlist.name | escape }}</a>
+							<strong>{{ playlist.name | escape }}</strong>
 						</span>
 					</td>
 					<td>
-						<form class="pure-form" method="post" action="/update_video_privacy?id={{ playlist.videos[0].id | guidbase64 }}">
-							<select name="video-privacy">
+						<form class="pure-form" method="post" action="/update_playlist_privacy?id={{ playlist.id | guidbase64}}">
+							<select name="playlist-privacy">
 								<option value="0" {% if playlist.privacy == 0 %} selected {% endif %}>Public</option>
 								<option value="1" {% if playlist.privacy == 1 %} selected {% endif %}>Organization</option>
 								<option value="2" {% if playlist.privacy == 2 %} selected {% endif %}>Unlisted</option>
@@ -27,9 +27,9 @@
 						</form>
 					</td>
 					<td>
-						<a class="pure-button" href="/edit_playlist?id={{ playlist.id  }}">Edit Playlist</a>
+						<a class="pure-button" href="/detail_playlist?id={{ playlist.id | guidbase64 }}">Detail/Edit Playlist</a>
 						&nbsp;
-						<a class="pure-button dangerous-button" href="/delete_playlist?id={{ playlist.id }}">Delete Playlist</a>
+						<a class="pure-button dangerous-button" href="/delete_playlist?id={{ playlist.id | guidbase64}}">Delete Playlist</a>
 					</td>
 				</tr>
 				{% endfor %}
@@ -37,3 +37,7 @@
 		</table>
 	</div>
 </div>
+
+<script>
+
+</script>

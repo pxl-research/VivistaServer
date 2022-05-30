@@ -39,9 +39,12 @@
 	<ItemGroup>
 	  <None Remove="Migrations\20220502_1530_CacheCounter.sql" />
 	  <None Remove="Templates\dashboard.liquid" />
+	  <None Remove="Templates\deletePlaylistConfirm.liquid" />
+	  <None Remove="Templates\detailPlaylist.liquid" />
 	  <None Remove="Templates\editVideo.liquid" />
 	  <None Remove="Templates\myPlaylists.liquid" />
 	  <None Remove="Templates\outliers.liquid" />
+	  <None Remove="Templates\playlist.liquid" />
 	  <None Remove="Templates\roles.liquid" />
 	  <None Remove="Templates\TextFile.txt" />
 	</ItemGroup>

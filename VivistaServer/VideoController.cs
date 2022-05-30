@@ -94,13 +94,15 @@ namespace VivistaServer
 
 		public class Playlist
 		{
-			public int id { get; set; }
+			public Guid id { get; set; }
 			public string name { get; set; }
 			public int userid { get; set; }
+			public string username { get; set; }
 			public VideoPrivacy privacy { get; set; }
 			public int count { get; set; }
 			public bool playListContainsVideo { get; set; }
 			public List<Video> videos { get; set; }
+			public string idBase64 { get; set; }
 		}
 
 
@@ -557,9 +559,15 @@ namespace VivistaServer
 					var numVideos = await NumPublicVideosForUser(user.userid, connection, context);
 					var VideosTask = PublicVideosForUser(user.userid, countPerPage, offset, connection, context);
 
+					var playlists = await GetPublicPlaylists(user.userid, connection, context);
+					foreach(var playlist in playlists)
+					{
+						playlist.videos = await GetVideosOfPlaylist(playlist.id, connection, context);
+					}
+
 					var pagination = new Pagination(numVideos, countPerPage, offset);
 
-					var templateContext = new TemplateContext(new { videos = await VideosTask, user, pagination });
+					var templateContext = new TemplateContext(new { videos = await VideosTask, user, pagination, playlists });
 
 					await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\user.liquid", templateContext));
 				}
@@ -808,7 +816,7 @@ namespace VivistaServer
 			}
 		}
 
-		[Route("POST", "/api/DeleteVideoFromPlaylist")]
+		[Route("GET", "/api/DeleteVideoFromPlaylist")]
 		private static async Task DeleteVideoFromPlaylist(HttpContext context)
 		{
 			var userTask = UserSessions.GetLoggedInUser(context);
@@ -817,13 +825,19 @@ namespace VivistaServer
 
 			if (user != null)
 			{
-				Int32.TryParse(context.Request.Query["playlistid"], out var playlistid);
+				GuidHelpers.TryDecode(context.Request.Query["playlistid"], out var playlistid);
 				GuidHelpers.TryDecode(context.Request.Query["videoid"].ToString(), out var videoid);
 				var message = "";
 
-				if (await DeleteVideoFromPlaylist(playlistid, videoid, connection, context))
-				{
-					message = "Video is deleted from the playlist.";
+				if (await UserOwnsPlaylist(playlistid, user.userid, connection, context)){
+					if (await DeleteVideoFromPlaylist(playlistid, videoid, connection, context))
+					{
+						message = "Video is deleted from the playlist.";
+					}
+					else
+					{
+						message = "Something went wrong";
+					}
 				}
 				else
 				{
@@ -847,19 +861,32 @@ namespace VivistaServer
 
 			if (user != null)
 			{
-				Int32.TryParse(context.Request.Query["playlistid"], out var playlistid);
+				GuidHelpers.TryDecode(context.Request.Query["playlistid"], out var playlistid);
 				GuidHelpers.TryDecode(context.Request.Query["videoid"].ToString(), out var videoid);
 				var message = "";
 
-				if (await AddVideoToPlaylist(playlistid, videoid, connection, context))
+				if (await UserOwnsPlaylist(playlistid, user.userid, connection, context))
 				{
-					message = "Video is added to the playlist.";
+					if(await IsThereRoomInPlaylist(playlistid, connection, context))
+					{
+						if (await AddVideoToPlaylist(playlistid, videoid, connection, context))
+						{
+							message = "Video is added to the playlist.";
+						}
+						else
+						{
+							message = "Something went wrong";
+						}
+					}
+					else
+					{
+						message = "Playlist is full";
+					}
 				}
 				else
 				{
 					message = "Something went wrong";
 				}
-
 				await context.Response.Body.WriteAsync(Utf8Json.JsonSerializer.SerializeUnsafe(message));
 			}
 			else
@@ -868,8 +895,8 @@ namespace VivistaServer
 			}
 		}
 
-		[Route("GET", "/GetPlaylists")]
-		private static async Task GetPlaylists(HttpContext context)
+		[Route("GET", "/my_playlists")]
+		private static async Task GetMyPlaylists(HttpContext context)
 		{
 			CommonController.SetHTMLContentType(context);
 
@@ -895,7 +922,7 @@ namespace VivistaServer
 		}
 
 		[Route("GET", "/delete_playlist")]
-		private static async Task DeletePlaylist(HttpContext context)
+		private static async Task DeletePlaylistGet(HttpContext context)
 		{
 			CommonController.SetHTMLContentType(context);
 
@@ -903,11 +930,44 @@ namespace VivistaServer
 			using var connection = Database.OpenNewConnection();
 			var user = await userTask;
 
-			if (user != null && Int32.TryParse(context.Request.Query["id"], out var playlistId))
+			if (user != null && GuidHelpers.TryDecode(context.Request.Query["id"], out var playlistid))
 			{
-				//Note: Check if user is owner of playlist
-				if (await GetPlaylistWithIdAndUserid(playlistId, user.userid, connection, context) != null){
-					await DeletePlaylist(playlistId, connection, context);
+				if(await UserOwnsPlaylist(playlistid, user.userid, connection, context))
+				{
+					var playlist = await GetPlaylistWithId(playlistid, connection, context);
+					var videos = await GetVideosOfPlaylist(playlistid, connection, context);
+
+					var templateContext = new TemplateContext(new { playlist, videos });
+					await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\deletePlaylistConfirm.liquid", templateContext));
+				}
+				else
+				{
+					await CommonController.Write404(context);
+				}
+
+			}
+			else
+			{
+				await CommonController.Write404(context);
+			}
+
+		}
+
+		[Route("GET", "/delete_playlist_confirm")]
+		private static async Task DeletePlaylistConfirmGet(HttpContext context)
+		{
+			CommonController.SetHTMLContentType(context);
+
+			var userTask = UserSessions.GetLoggedInUser(context);
+			using var connection = Database.OpenNewConnection();
+			var user = await userTask;
+
+			if (user != null && GuidHelpers.TryDecode(context.Request.Query["id"], out var playlistid))
+			{
+				if(await UserOwnsPlaylist(playlistid, user.userid, connection, context))
+				{
+					await DeletePlaylist(playlistid, user.userid, connection, context);
+					context.Response.Redirect("/my_playlists");
 				}
 				else
 				{
@@ -918,7 +978,6 @@ namespace VivistaServer
 			{
 				await CommonController.Write404(context);
 			}
-
 		}
 
 		[Route("GET", "/api/get_playlists_with_video_check")]
@@ -941,6 +1000,64 @@ namespace VivistaServer
 			}
 		}
 
+		[Route("POST", "/update_playlist_privacy")]
+		private static async Task UpdatePlaylistPrivacy(HttpContext context)
+		{
+			CommonController.SetHTMLContentType(context);
+
+			var userTask = UserSessions.GetLoggedInUser(context);
+			using var connection = Database.OpenNewConnection();
+			var user = await userTask;
+
+			if (user != null && GuidHelpers.TryDecode(context.Request.Query["id"], out var playlistid))
+			{
+				if (await UserOwnsPlaylist(playlistid, user.userid, connection, context))
+				{
+					if (Int32.TryParse(context.Request.Form["playlist-privacy"], out int privacy))
+					{
+						await SetPlaylistPrivacy(playlistid, (VideoPrivacy)privacy, connection, context);
+					}
+				}
+			}
+
+			context.Response.Redirect("/my_playlists");
+		}
+
+		[Route("GET", "/detail_playlist")]
+		private static async Task DetailPlaylist(HttpContext context)
+		{
+			CommonController.SetHTMLContentType(context);
+
+			var userTask = UserSessions.GetLoggedInUser(context);
+			using var connection = Database.OpenNewConnection();
+			var user = await userTask;
+
+			if (GuidHelpers.TryDecode(context.Request.Query["id"], out var playlistid))
+			{
+				var playlist = await GetPlaylistWithId(playlistid, connection, context);
+				if (user != null && await UserOwnsPlaylist(playlistid, user.userid, connection, context))
+				{
+					playlist.videos = await GetVideosOfPlaylist(playlist.id, connection, context);
+					var templateContext = new TemplateContext(new { playlist, IsOwner = true });
+					await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\detailPlaylist.liquid", templateContext));
+				}
+				else if(playlist.privacy == VideoPrivacy.Public)
+				{
+					playlist.videos = await GetVideosOfPlaylist(playlist.id, connection, context);
+					var templateContext = new TemplateContext(new { playlist, IsOwner = false });
+					await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\detailPlaylist.liquid", templateContext));
+				}
+				else
+				{
+					await CommonController.Write404(context);
+				}
+			}
+			else
+			{
+				await CommonController.Write404(context);
+			}
+		}
+
 		public static async Task<bool> AddPlaylist(string name, VideoPrivacy privacy, int userid, NpgsqlConnection connection, HttpContext context)
 		{
 			try
@@ -950,10 +1067,10 @@ namespace VivistaServer
 					return false;
 				}
 				await Database.ExecuteAsync(connection,
-											@"INSERT INTO playlists (name, userid, privacy)
-												VALUES (@name, @userid, @privacy)",
+											@"INSERT INTO playlists (id, name, userid, privacy)
+												VALUES (@id::uuid, @name, @userid, @privacy)",
 												context,
-												new { name, userid, privacy });
+												new { id = Guid.NewGuid(), name, userid, privacy });
 				return true;
 			}
 			catch (Exception e)
@@ -961,14 +1078,29 @@ namespace VivistaServer
 				return false;
 			}
 		}
-
-		public static async Task<bool> AddVideoToPlaylist(int playlistid, Guid videoid, NpgsqlConnection connection, HttpContext context)
+		public static async Task<bool> UserOwnsPlaylist(Guid playlistid, int userid, NpgsqlConnection connection, HttpContext context)
 		{
 			try
 			{
-				var indexes = await Database.QueryAsync<int>(connection, @"SELECT index FROM playlist_videos WHERE playlistid = @playlistid", context, new { playlistid });
+				var playlist = await Database.QuerySingleAsync<Playlist>(connection,
+											@"SELECT * FROM playlists WHERE userid = @userid AND id = @playlistid::uuid;",
+												context,
+												new { userid, playlistid });
+				return playlist != null;
+			}
+			catch (Exception e)
+			{
+				return false;
+			}
+		}
+
+		public static async Task<bool> AddVideoToPlaylist(Guid playlistid, Guid videoid, NpgsqlConnection connection, HttpContext context)
+		{
+			try
+			{
+				var indexes = await Database.QueryAsync<int>(connection, @"SELECT index FROM playlist_videos WHERE playlistid = @playlistid::uuid", context, new { playlistid });
 				var index = 0;
-				if(indexes.Count() > 0)
+				if (indexes.Count() > 0)
 				{
 					index = indexes.Max();
 				}
@@ -976,13 +1108,13 @@ namespace VivistaServer
 				index++;
 				await Database.ExecuteAsync(connection,
 										@"INSERT INTO playlist_videos (playlistid, videoid, index)
-												VALUES (@playlistid, @videoid, @index)",
+												VALUES (@playlistid::uuid, @videoid, @index)",
 											context,
 											new { playlistid, videoid, index });
 				await Database.ExecuteAsync(connection,
 								@"UPDATE  playlists 
 											SET count = count + 1
-												WHERE id = @playlistid",
+												WHERE id = @playlistid::uuid",
 									context,
 									new { playlistid });
 
@@ -1026,12 +1158,12 @@ namespace VivistaServer
 			}
 		}
 
-		public static async Task<bool> IsVideoInPlaylist(int playlistid, Guid videoid, NpgsqlConnection connection, HttpContext context)
+		public static async Task<bool> IsVideoInPlaylist(Guid playlistid, Guid videoid, NpgsqlConnection connection, HttpContext context)
 		{
 			try
 			{
 				var playlist_video = await Database.QuerySingleAsync<Playlist>(connection,
-											@"SELECT * FROM playlist_videos WHERE playlistid = @playlistid AND videoid = @videoid;",
+											@"SELECT * FROM playlist_videos WHERE playlistid = @playlistid::uuid AND videoid = @videoid::uuid;",
 												context,
 												new { playlistid, videoid });
 				return true;
@@ -1042,19 +1174,19 @@ namespace VivistaServer
 			}
 		}
 
-		public static async Task<bool> DeleteVideoFromPlaylist(int playlistid, Guid videoid, NpgsqlConnection connection, HttpContext context)
+		public static async Task<bool> DeleteVideoFromPlaylist(Guid playlistid, Guid videoid, NpgsqlConnection connection, HttpContext context)
 		{
 			try
 			{
 				await Database.ExecuteAsync(connection,
 											@"DELETE FROM playlist_videos
-												WHERE playlistid = @playlistid AND videoid = @videoid;",
+												WHERE playlistid = @playlistid::uuid AND videoid = @videoid::uuid;",
 												context,
 												new { playlistid, videoid });
 				await Database.ExecuteAsync(connection,
 									@"UPDATE  playlists 
 											SET count = count - 1
-												WHERE id = @playlistid",
+												WHERE id = @playlistid::uuid",
 					context,
 					new { playlistid });
 				return true;
@@ -1064,14 +1196,16 @@ namespace VivistaServer
 				return false;
 			}
 		}
-		public static async Task<List<Video>> GetVideosOfPlaylist(int playlistid, NpgsqlConnection connection, HttpContext context)
+		public static async Task<List<Video>> GetVideosOfPlaylist(Guid playlistid, NpgsqlConnection connection, HttpContext context)
 		{
 			try
 			{
 				var videos = await Database.QueryAsync<Video>(connection,
-											@"SELECT v.* FROM videos v 
+											@"SELECT v.*, u.username FROM videos v 
 											INNER JOIN playlist_videos p on p.videoid = v.id 
-											WHERE playlistid = @playlistid;",
+											INNER JOIN users u on u.userid = v.userid
+											WHERE playlistid = @playlistid::uuid
+											ORDER BY p.index;",
 												context,
 												new { playlistid });
 				return videos.ToList();
@@ -1082,32 +1216,40 @@ namespace VivistaServer
 			}
 		}
 
-		public static async Task<bool> DeletePlaylist(int playlistid, NpgsqlConnection connection, HttpContext context)
+		public static async Task<bool> DeletePlaylist(Guid playlistid, int userid, NpgsqlConnection connection, HttpContext context)
 		{
 			try
 			{
-				var result = await Database.ExecuteAsync(connection,
-														@"delete from playlist_videos
-															where playlistid=@playlistid",
-															context,
-														new { playlistid });
 
-				return result > 0;
+				await Database.ExecuteAsync(connection,
+														@"delete from playlist_videos
+															where playlistid=@playlistid::uuid",
+															context,
+														new { playlistid, userid });
+
+				await Database.ExecuteAsync(connection,
+														@"delete from playlists
+															where id=@playlistid::uuid
+															AND userid = @userid",
+															context,
+														new { playlistid, userid });
+
+				return true;
 			}
 			catch (Exception e)
 			{
 				return false;
+
 			}
 		}
-
-		public static async Task<Playlist> GetPlaylistWithIdAndUserid(int playlistid, int userid, NpgsqlConnection connection, HttpContext context)
+		public static async Task<Playlist> GetPlaylistWithId(Guid playlistid, NpgsqlConnection connection, HttpContext context)
 		{
 			try
 			{
 				var playlist = await Database.QuerySingleAsync<Playlist>(connection,
-											@"SELECT * FROM playlists WHERE id = @playlistid p userid = @userid;",
+											@"SELECT * FROM playlists WHERE id = @playlistid::uuid;",
 												context,
-												new { userid, playlistid });
+												new { playlistid });
 				return playlist;
 			}
 			catch (Exception e)
@@ -1122,9 +1264,63 @@ namespace VivistaServer
 			foreach (var playlist in userPlaylists)
 			{
 				playlist.playListContainsVideo = await IsVideoInPlaylist(playlist.id, videoid, connection, context);
+				playlist.idBase64 = GuidHelpers.Encode(playlist.id);
 			}
 			return userPlaylists;
 		}
+		
+		private static async Task<bool> SetPlaylistPrivacy(Guid playlistid, VideoPrivacy privacy, NpgsqlConnection connection, HttpContext context)
+		{
+			try
+			{
+				var success = await Database.ExecuteAsync(connection,
+															@"update playlists
+															set privacy=@privacy
+															where id=@playlistid::uuid",
+															context,
+														new { playlistid, privacy = (int)privacy });
+
+				return success > 0;
+			}
+			catch (Exception e)
+			{
+				return false;
+			}
+		}
+
+		private static async Task<bool> IsThereRoomInPlaylist(Guid playlistid, NpgsqlConnection connection, HttpContext context)
+		{
+			try
+			{
+				var playlist = await Database.QuerySingleAsync<Playlist>(connection,
+											@"SELECT * FROM playlists WHERE id = @playlistid::uuid;",
+												context,
+												new { playlistid });
+				return playlist.count < 50;
+			}
+			catch (Exception e)
+			{
+				return false;
+			}
+		}
+
+		private static async Task<List<Playlist>> GetPublicPlaylists(int userid, NpgsqlConnection connection, HttpContext context)
+		{
+			try
+			{
+				var publicPlaylists = await Database.QueryAsync<Playlist>(connection, @"SELECT p.*, u.username FROM playlists p
+																							INNER JOIN users u on u.userid = p.userid
+																							WHERE p.userid = @userid AND p.privacy = @privacy",
+																							context,
+																							new { userid, privacy = VideoPrivacy.Public });
+				return publicPlaylists.ToList();
+			}
+			catch(Exception e)
+			{
+				return new List<Playlist>();
+			}
+		}
+
 
 		public static async Task AuthorizeUploadTus(AuthorizeContext arg)
 		{
