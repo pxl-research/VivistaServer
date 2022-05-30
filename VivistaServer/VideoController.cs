@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using Dapper;
 using Fluid;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Net.Http.Headers;
 using Npgsql;
 using tusdotnet.Interfaces;
@@ -1035,6 +1036,7 @@ namespace VivistaServer
 			if (GuidHelpers.TryDecode(context.Request.Query["id"], out var playlistid))
 			{
 				var playlist = await GetPlaylistWithId(playlistid, connection, context);
+				playlist.idBase64 = context.Request.Query["id"];
 				if (user != null && await UserOwnsPlaylist(playlistid, user.userid, connection, context))
 				{
 					playlist.videos = await GetVideosOfPlaylist(playlist.id, connection, context);
@@ -1046,6 +1048,66 @@ namespace VivistaServer
 					playlist.videos = await GetVideosOfPlaylist(playlist.id, connection, context);
 					var templateContext = new TemplateContext(new { playlist, IsOwner = false });
 					await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\detailPlaylist.liquid", templateContext));
+				}
+				else
+				{
+					await CommonController.Write404(context);
+				}
+			}
+			else
+			{
+				await CommonController.Write404(context);
+			}
+		}
+
+		[Route("POST", "/api/edit_playlist_order")]
+		private static async Task EditPlaylistOrder(HttpContext context)
+		{
+			var userTask = UserSessions.GetLoggedInUser(context);
+			using var connection = Database.OpenNewConnection();
+			var user = await userTask;
+
+			if (user != null && GuidHelpers.TryDecode(context.Request.Query["playlistid"], out var playlistid) && GuidHelpers.TryDecode(context.Request.Query["video1"], out var video1) && GuidHelpers.TryDecode(context.Request.Query["video2"], out var video2))
+			{
+				if (await UserOwnsPlaylist(playlistid, user.userid, connection, context))
+				{
+					var playlist = await GetPlaylistWithId(playlistid, connection, context);
+					int indexVideo1 = 0;
+					int indexVideo2 = 0;
+
+					playlist.videos = await GetVideosOfPlaylist(playlistid, connection, context);
+
+					int counter = 0;
+					if (playlist.videos.Exists(video => video.id == video1) && playlist.videos.Exists(video => video.id == video2))
+					{
+						foreach (var video in playlist.videos)
+						{
+							if (video.id == video1)
+							{
+								indexVideo1 = counter;
+							}
+							if (video.id == video2)
+							{
+								indexVideo2 = counter;
+							}
+							counter++;
+						}
+
+						var temp = playlist.videos[indexVideo1];
+						playlist.videos[indexVideo1] = playlist.videos[indexVideo2];
+						playlist.videos[indexVideo2] = temp;
+
+						var maxIndex = await GetMaxIndexOfPlaylist(playlistid, connection, context) + 1;
+						foreach (var video in playlist.videos)
+						{
+							await SetPlaylistVideosIndex(playlistid, video.id, maxIndex, connection, context);
+							maxIndex++;
+						}
+					}
+					else
+					{
+						await CommonController.Write404(context);
+					}
 				}
 				else
 				{
@@ -1321,6 +1383,40 @@ namespace VivistaServer
 			}
 		}
 
+		public static async Task<int> GetMaxIndexOfPlaylist(Guid playlistid, NpgsqlConnection connection, HttpContext context)
+		{
+			try
+			{
+				var index = await Database.QuerySingleAsync<int>(connection,
+											@"SELECT MAX(index) FROM playlist_videos WHERE playlistid = @playlistid::uuid;",
+												context,
+												new { playlistid });
+				return index;
+			}
+			catch (Exception e)
+			{
+				return -1;
+			}
+		}
+
+		private static async Task<bool> SetPlaylistVideosIndex(Guid playlistid, Guid videoid, int index, NpgsqlConnection connection, HttpContext context)
+		{
+			try
+			{
+				var success = await Database.ExecuteAsync(connection,
+															@"update playlist_videos
+															set index=@index
+															where playlistid=@playlistid::uuid AND videoid=@videoid::uuid",
+															context,
+														new { playlistid, videoid, index });
+
+				return success > 0;
+			}
+			catch (Exception e)
+			{
+				return false;
+			}
+		}
 
 		public static async Task AuthorizeUploadTus(AuthorizeContext arg)
 		{

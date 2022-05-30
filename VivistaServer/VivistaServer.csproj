@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net5.0</TargetFramework>
@@ -44,7 +44,6 @@
 	  <None Remove="Templates\editVideo.liquid" />
 	  <None Remove="Templates\myPlaylists.liquid" />
 	  <None Remove="Templates\outliers.liquid" />
-	  <None Remove="Templates\playlist.liquid" />
 	  <None Remove="Templates\roles.liquid" />
 	  <None Remove="Templates\TextFile.txt" />
 	</ItemGroup>

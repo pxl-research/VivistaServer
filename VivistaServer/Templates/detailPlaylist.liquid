@@ -1,4 +1,24 @@
-﻿<h1>{{playlist.name}}</h1>
+﻿<h1 class="center-text">Playlist: {{playlist.name}}</h1>
+{% if IsOwner %}
+<div class="pure-g videos-detail draggable-container">
+	{% for video in playlist.videos %}
+	<div class="video-detail pure-u-1 draggable" draggable="true" id="{{ video.id | guidbase64 }}">
+		<div class="download-message">
+			<button data-uri="vivista://video/{{ video.id | guidbase64 }}" class="pure-button download-button">
+				<span class="play-icon svg-icon">
+					<svg version="1.1" viewBox="0 0 10 10">
+						<path d="M 1,1 8,5 1,9 z"></path>
+					</svg>
+				</span> Play In Vivista {{video.id | guidbase64 }}
+
+				<p class="hidden install-message">Don't have Vivista installed? <a class="install-download-anchor" href="/install/latest" download>Download now</a></p>
+			</button>
+		</div>
+		<img class="pure-img" src="/api/thumbnail?id={{ video.id }}">
+	</div>
+	{% endfor %}
+</div>
+{% else %}
 <div class="pure-g videos-detail">
 	{% for video in playlist.videos %}
 	<div class="video-detail pure-u-1">
@@ -8,7 +28,7 @@
 					<svg version="1.1" viewBox="0 0 10 10">
 						<path d="M 1,1 8,5 1,9 z"></path>
 					</svg>
-				</span> Play In Vivista
+				</span> Play In Vivista {{video.id | guidbase64 }}
 
 				<p class="hidden install-message">Don't have Vivista installed? <a class="install-download-anchor" href="/install/latest" download>Download now</a></p>
 			</button>
@@ -16,45 +36,122 @@
 		<img class="pure-img" src="/api/thumbnail?id={{ video.id }}">
 	</div>
 	{% endfor %}
-	<!--<div class="pure-u-1">
-		<table class="pure-table video-list">
-			<thead>
-			<th>Playlist</th>
-			</thead>
-			<tbody>
-				{% for video in playlist.videos %}
-				<tr>
-					<td width="50%">
-						<span>
-							<img width="120px" class="video-thumb" src="/api/thumbnail?id={{ playlist.videos[0].id }}">
-							<strong>{{ playlist.name | escape }}</strong>
-						</span>
-					</td>
-					<td>
-						<a class="pure-button dangerous-button" href="/DeleteVideoFromPlaylist?id={{ playlist.id }}">Delete Video</a>
-					</td>
-				</tr>
-				{% endfor %}
-			</tbody>
-		</table>
-	</div>-->
 </div>
 
-<script>
+{% endif %}
 
+<script>
+	const draggables = document.querySelectorAll('.draggable');
+	const containers = document.querySelectorAll('.draggable-container');
+	let playlist = {{ playlist | json }};
+
+	let indexDrag;
+
+	draggables.forEach(draggable => {
+		draggable.addEventListener('dragstart', () => {
+			draggable.classList.add('dragging');
+
+			//Note: Get index of draggedObject
+			let videoIds = [];
+			document.querySelectorAll('.draggable').forEach(element => {
+				videoIds.push(element.id);
+			});
+			indexDrag = videoIds.indexOf(draggable.id);
+		})
+	});
+
+	draggables.forEach(draggable => {
+		draggable.addEventListener('dragend', () => {
+			draggable.classList.remove('dragging');
+			let newOrderDragables = document.querySelectorAll('.draggable');
+			let videoIds = [];
+			newOrderDragables.forEach(element => {
+				videoIds.push(element.id);
+			});
+
+			let video1 = draggable.id;
+			let index = videoIds.indexOf(draggable.id);
+			let video2;
+			if (indexDrag >  index) {
+				video2 = videoIds[index + 1];
+			}
+			else {
+				video2 = videoIds[index - 1];
+			}
+
+			//Note: Check if there something is changed
+			if (video1 != video2 && video2 != undefined) {
+				fetch('/api/edit_playlist_order?playlistid=' + playlist.idBase64 + "&video1=" + video1 + "&video2=" + video2, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+				},
+			})
+				.then(response => response.json())
+				.then(message => {
+				})
+				.catch((error) => {
+				});
+			}
+		})
+	});
+
+	containers.forEach(container => {
+		container.addEventListener('dragover', e => {
+			const afterElement = getDragAfterElement(container, e.clientY);
+			const draggable = document.querySelector('.dragging');
+			if (afterElement == null) {
+				container.appendChild(draggable);
+			}
+			else {
+				container.insertBefore(draggable, afterElement);
+			}
+		})
+	});
+
+	function getDragAfterElement(container, y) {
+		//Note: Every draggable that we are not currently dragging
+		const draggableElements = [...container.querySelectorAll('.draggable:not(.dragging)')];
+
+		//Note: check the closest element
+		return draggableElements.reduce((closest, child) => {
+			const box = child.getBoundingClientRect();
+			const offset = y - box.top - box.height / 2;
+			if (offset < 0 && offset > closest.offset) {
+				return { offset: offset, element: child }
+			}
+			else {
+				return closest;
+			}
+		}, { offset: Number.NEGATIVE_INFINITY }).element;
+	}
 </script>
 <style>
-	.videos-detail{
-		display:block;
+	.draggable-container {
 	}
+
+	.draggable {
+		cursor: move;
+	}
+
+		.draggable.dragging {
+			opacity: .5;
+		}
+
+
+
+	.videos-detail {
+		display: block;
+	}
+
 	.video-detail {
 		position: relative;
 		/*margin: -2em -2em 0 -2em;*/
 		margin-bottom: 2em;
-		margin-left:auto;
-		margin-right:auto;
+		margin-left: auto;
+		margin-right: auto;
 		width: calc(25% + 4em);
-		display:block;
+		display: block;
 	}
 
 		.video-detail img {
