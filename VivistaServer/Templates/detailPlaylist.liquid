@@ -1,0 +1,111 @@
+﻿<h1>{{playlist.name}}</h1>
+<div class="pure-g videos-detail">
+	{% for video in playlist.videos %}
+	<div class="video-detail pure-u-1">
+		<div class="download-message">
+			<button data-uri="vivista://video/{{ video.id | guidbase64 }}" class="pure-button download-button">
+				<span class="play-icon svg-icon">
+					<svg version="1.1" viewBox="0 0 10 10">
+						<path d="M 1,1 8,5 1,9 z"></path>
+					</svg>
+				</span> Play In Vivista
+
+				<p class="hidden install-message">Don't have Vivista installed? <a class="install-download-anchor" href="/install/latest" download>Download now</a></p>
+			</button>
+		</div>
+		<img class="pure-img" src="/api/thumbnail?id={{ video.id }}">
+	</div>
+	{% endfor %}
+	<!--<div class="pure-u-1">
+		<table class="pure-table video-list">
+			<thead>
+			<th>Playlist</th>
+			</thead>
+			<tbody>
+				{% for video in playlist.videos %}
+				<tr>
+					<td width="50%">
+						<span>
+							<img width="120px" class="video-thumb" src="/api/thumbnail?id={{ playlist.videos[0].id }}">
+							<strong>{{ playlist.name | escape }}</strong>
+						</span>
+					</td>
+					<td>
+						<a class="pure-button dangerous-button" href="/DeleteVideoFromPlaylist?id={{ playlist.id }}">Delete Video</a>
+					</td>
+				</tr>
+				{% endfor %}
+			</tbody>
+		</table>
+	</div>-->
+</div>
+
+<script>
+
+</script>
+<style>
+	.videos-detail{
+		display:block;
+	}
+	.video-detail {
+		position: relative;
+		/*margin: -2em -2em 0 -2em;*/
+		margin-bottom: 2em;
+		margin-left:auto;
+		margin-right:auto;
+		width: calc(25% + 4em);
+		display:block;
+	}
+
+		.video-detail img {
+			width: 100%;
+			max-height: 60vh;
+			object-fit: contain;
+			filter: brightness(.4);
+		}
+
+		.video-detail .download-message {
+			z-index: 1000;
+			float: left;
+			position: absolute;
+			left: 50%;
+			top: 50%;
+		}
+
+		.video-detail .download-button {
+			background-color: var(--button-download-bg);
+			color: var(--button-download-font);
+			font-size: 1em;
+			transform: translate(-50%, -50%);
+			border: 5px solid var(--button-download-font);
+			box-shadow: hsla(0, 100%, 100%, .75) 0 0px 20px
+		}
+
+	.video-info-image .install-message {
+		margin-top: .5em;
+		margin-bottom: 0em;
+		font-size: .6em;
+	}
+
+	.video-detail .install-message a {
+		color: var(--button-download-font);
+	}
+
+		.video-detail .install-message a:hover {
+			color: var(--button-download-font-hover);
+			text-decoration: none;
+		}
+
+	.video-detail .download-button:hover {
+		background-color: var(--button-download-bg-hover);
+		box-shadow: hsla(0, 100%, 100%, .95) 0 0px 20px
+	}
+
+	.video-detail .download-button:focus {
+		background-color: var(--button-download-bg-hover);
+	}
+
+	.video-detail .download-button:active {
+		background-color: var(--button-download-bg-active);
+	}
+</style>

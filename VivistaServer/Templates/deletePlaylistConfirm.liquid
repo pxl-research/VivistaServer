@@ -1,0 +1,12 @@
+﻿<div class="pure-g center">
+    <div class="pure-u-1 pure-u-md-1-2 pure-u-lg-1-3 pure-u-xl-1-4">
+        <h1>Delete playlist?</h1>
+        <p>Are you sure you want to permanently delete this playlist?</p>
+        <div class="video-tile pure-u-1">
+            <img class="pure-img" src="/api/thumbnail?id={{ videos[0].id }}">
+            <p>{{ playist.name | escape}}</p>
+        </div>
+        <a href="/delete_playlist_confirm?id={{ playlist.id | guidbase64}}" class="pure-button dangerous-button">Permanently delete playlist</a>
+        <a href="/my_playlists" class="pure-button safe-button">Keep video</a>
+    </div>
+</div>
