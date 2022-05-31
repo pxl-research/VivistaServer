@@ -1094,8 +1094,8 @@ namespace VivistaServer
 						}
 
 						var temp = playlist.videos[indexVideo1];
-						playlist.videos[indexVideo1] = playlist.videos[indexVideo2];
-						playlist.videos[indexVideo2] = temp;
+						playlist.videos.Remove(temp);
+						playlist.videos.Insert(indexVideo2, temp);
 
 						var maxIndex = await GetMaxIndexOfPlaylist(playlistid, connection, context) + 1;
 						foreach (var video in playlist.videos)

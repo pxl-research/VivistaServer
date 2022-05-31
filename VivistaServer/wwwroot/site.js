@@ -34,17 +34,21 @@ function InitDarkModeToggles() {
 }
 
 function InitPlayButton() {
-	var button = document.getElementsByClassName("download-button")[0];
+	var buttons = document.getElementsByClassName("download-button");
+	if (buttons != undefined) {
+		for (const button of buttons) {
+			if (button != undefined) {
+				button.addEventListener("click", function (event) {
+					var message = button.getElementsByClassName("install-message")[0];
+					message.classList.remove("hidden");
 
-	if (button != undefined) {
-		button.addEventListener("click", function (event) {
-			var message = document.getElementsByClassName("install-message")[0];
-			message.classList.remove("hidden");
-
-			if (!event.target.classList.contains("install-download-anchor")) {
-				window.location = button.dataset.uri;
+					if (!event.target.classList.contains("install-download-anchor")) {
+						window.location = button.dataset.uri;
+						console.log(button.dataset.uri)
+					}
+				});
 			}
-		});
+		}
 	}
 }
 
@@ -118,7 +122,7 @@ function InitTagInput() {
 		inputElement.oninput = OnTagInput;
 		for (let i = 0; i < tags.length; i++) {
 			let tag = tags[i];
-			tag.addEventListener("click", function() { OnTagRemove(tag) });
+			tag.addEventListener("click", function () { OnTagRemove(tag) });
 		}
 	}
 }
@@ -149,7 +153,7 @@ function AddTag(tag) {
 
 		newTag.classList.add("tag");
 		newTag.classList.add("tag-editable");
-		newTag.addEventListener("click", function() { OnTagRemove(newTag) });
+		newTag.addEventListener("click", function () { OnTagRemove(newTag) });
 
 		newTag.appendChild(content);
 		tagHolderElement.append(newTag);
