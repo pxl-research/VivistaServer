@@ -3,6 +3,7 @@ window.onload = function () {
 	InitPlayButton();
 	InitSearch();
 	InitTagInput();
+	InitDetailPlaylist();
 	CheckCookieConsent();
 }
 
@@ -178,3 +179,37 @@ function UpdateTagFormValue() {
 
 	tagElement.value = Array.from(tagSet).join(",");
 }
+
+
+function InitDetailPlaylist() {
+	let videoButton = document.getElementById("videos-button");
+	if (videoButton != undefined) {
+		videoButton.addEventListener("click", function () {
+			if (!this.classList.contains("pure-button-active")) {
+				this.classList.add("pure-button-active");
+				document.getElementById("playlists-button").classList.remove("pure-button-active");
+				document.getElementById("videos-userpage").classList.remove("hidden");
+				document.getElementById("playlists-userpage").classList.add("hidden");
+				document.getElementById("size-videos").classList.remove("hidden");
+				document.getElementById("size-playlists").classList.add("hidden");
+			}
+		});
+	}
+
+	let playlistButton = document.getElementById("playlists-button")
+
+	if (playlistButton != undefined) {
+		playlistButton.addEventListener("click", function () {
+			if (!this.classList.contains("pure-button-active")) {
+				this.classList.add("pure-button-active");
+				document.getElementById("videos-button").classList.remove("pure-button-active");
+				document.getElementById("videos-userpage").classList.add("hidden");
+				document.getElementById("playlists-userpage").classList.remove("hidden");
+				document.getElementById("size-videos").classList.add("hidden");
+				document.getElementById("size-playlists").classList.remove("hidden");
+			}
+		});
+
+	}
+}
+

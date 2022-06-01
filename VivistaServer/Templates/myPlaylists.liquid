@@ -5,6 +5,7 @@
 			<thead>
 			<th>Playlist</th>
 			<th>Visibility</th>
+			<th> </th>
 			</thead>
 			<tbody>
 				{% for playlist in playlists %}
@@ -12,7 +13,7 @@
 					<td width="50%">
 						<span>
 							<img width="120px" class="video-thumb" src="/api/thumbnail?id={{ playlist.videos[0].id }}">
-							<strong>{{ playlist.name | escape }}</strong>
+							<a href="/detail_playlist?id={{ playlist.id | guidbase64 }}">{{ playlist.name | escape }}</a>
 						</span>
 					</td>
 					<td>

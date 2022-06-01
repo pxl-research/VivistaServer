@@ -46,8 +46,9 @@
 {% endif %}
 
 <script>
+	//Note(Tom): Script needs to stay here, because of {{ playlist | json }}
 	const draggables = document.querySelectorAll('.draggable');
-	const containers = document.querySelectorAll('.draggable-container');
+	const container = document.querySelectorAll('.draggable-container')[0];
 	let playlist = {{ playlist | json }};
 
 	let indexDrag;
@@ -101,18 +102,18 @@
 		})
 	});
 
-	containers.forEach(container => {
-		container.addEventListener('dragover', e => {
-			const afterElement = getDragAfterElement(container, e.clientY);
-			const draggable = document.querySelector('.dragging');
-			if (afterElement == null) {
-				container.appendChild(draggable);
-			}
-			else {
-				container.insertBefore(draggable, afterElement);
-			}
-		})
-	});
+
+	container.addEventListener('dragover', e => {
+		const afterElement = getDragAfterElement(container, e.clientY);
+		const draggable = document.querySelector('.dragging');
+		if (afterElement == null) {
+			container.appendChild(draggable);
+		}
+		else {
+			container.insertBefore(draggable, afterElement);
+		}
+	})
+
 
 	function getDragAfterElement(container, y) {
 		//Note(Tom): Every draggable that we are not currently dragging
@@ -131,85 +132,3 @@
 		}, { offset: Number.NEGATIVE_INFINITY }).element;
 	}
 </script>
-<style>
-	.draggable-container {
-	}
-
-	.draggable {
-		cursor: move;
-	}
-
-		.draggable.dragging {
-			opacity: .5;
-		}
-
-
-
-	.videos-detail {
-		display: block;
-	}
-
-	.video-detail {
-		position: relative;
-		margin-bottom: 2em;
-		width:100%;
-		display: flex;
-	}
-
-		.video-detail img {
-			width: 50%;
-			max-height: 60vh;
-			object-fit: contain;
-			max-width: 300px;
-		}
-		.video-detail .metadata{
-			width:20%;
-			margin-left: 1em;
-		}
-
-		.video-detail .metadata .title{
-			font-size: 14px;
-			font-weight:bold;
-		}
-
-			.video-detail .metadata .uploader {
-				font-size: 11px;
-				
-			}
-
-		.video-detail .download-button {
-			background-color: var(--button-download-bg);
-			color: var(--button-download-font);
-			font-size: 0.8em;
-			border: 5px solid var(--button-download-font);
-			box-shadow: hsla(0, 100%, 100%, .75) 0 0px 20px
-		}
-
-	.video-info-image .install-message {
-		margin-top: .5em;
-		margin-bottom: 0em;
-		font-size: .6em;
-	}
-
-	.video-detail .install-message a {
-		color: var(--button-download-font);
-	}
-
-		.video-detail .install-message a:hover {
-			color: var(--button-download-font-hover);
-			text-decoration: none;
-		}
-
-	.video-detail .download-button:hover {
-		background-color: var(--button-download-bg-hover);
-		box-shadow: hsla(0, 100%, 100%, .95) 0 0px 20px
-	}
-
-	.video-detail .download-button:focus {
-		background-color: var(--button-download-bg-hover);
-	}
-
-	.video-detail .download-button:active {
-		background-color: var(--button-download-bg-active);
-	}
-</style>

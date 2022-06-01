@@ -78,7 +78,7 @@
 							<option value="2">Unlisted</option>
 							<option value="3">Private</option>
 						</select> <br /> <br />
-						<button class="pure-button button" id="addPlaylist" type="submit">Submit</button>
+						<button class="button" id="addPlaylist" type="submit">Submit</button>
 						<p class="formsuccess" id="message"></p>
 					</form>
 				</div>
@@ -86,8 +86,11 @@
 		</div>
 	</div>
 </div>
-
 <script>
+	//Note(Tom): Script needs to stay here, because of {{ userPlaylists | json }}
+	let playlists = {{ userPlaylists | json }};
+	AddEventListeners(playlists);
+
 	const queryString = window.location.search;
 	let id = new URLSearchParams(queryString).get('id');
 	document.getElementById("form").addEventListener("submit", function () {
@@ -152,10 +155,7 @@
 		popupDiv.classList.add("hidden");
 	});
 
-	let playlists = {{ userPlaylists | json }};
-	AddEventListeners(playlists);
-
-	function AddEventListeners(playlists){
+	function AddEventListeners(playlists) {
 		playlists.forEach(playlist => {
 			document.getElementById(playlist.name).addEventListener('change', function () {
 				if (this.checked) {
@@ -200,101 +200,3 @@
 		});
 	}
 </script>
-<style>
-	.button {
-		text-decoration: none;
-		background: hsl(0, 0%, 30%);
-		color: white;
-	}
-
-		.button:hover {
-			background: hsl(0, 0%, 40%);
-		}
-
-	.overlay {
-		position: fixed;
-		top: 0;
-		bottom: 0;
-		left: 0;
-		right: 0;
-		background: rgba(0, 0, 0, 0.8);
-		transition: opacity 500ms;
-		z-index: 2000;
-	}
-
-
-	.playlists {
-		max-height: 100px;
-	}
-
-	.wrapper {
-		margin: 70px auto;
-		padding: 20px;
-		background: #e7e7e7;
-		color: black;
-		border-radius: 5px;
-		width: 30%;
-		max-width: 400px;
-		position: relative;
-		transition: all 1s ease-in-out;
-		letter-spacing: normal;
-	}
-
-		.wrapper h2 {
-			margin-top: 0;
-			color: #333;
-		}
-
-		.wrapper .close {
-			position: absolute;
-			top: 20px;
-			right: 30px;
-			transition: all 200ms;
-			font-size: 30px;
-			font-weight: bold;
-			text-decoration: none;
-			color: #333;
-			border: none;
-		}
-
-			.wrapper .close:hover {
-				cursor:pointer;
-			}
-
-		.wrapper .content {
-			max-height: 90%;
-			overflow: auto;
-		}
-
-	.container {
-		border-radius: 5px;
-		background-color: #e7e7e7;
-		padding: 20px 0;
-	}
-
-	form label {
-		font-weight: 500;
-	}
-
-	input[type=text] textarea {
-		/*width:100%;*/
-		padding: 12px;
-		margin: 2px;
-		box-sizing: border-box;
-		margin-top: 6px;
-		margin-bottom: 16px;
-		/*resize: vertical;*/
-	}
-
-	input[type="submit"] {
-		background-color: #413b3b;
-		color: #fff;
-		padding: 15px 50px;
-		border: none;
-		border-radius: 50px;
-		cursor: pointer;
-		font-size: 15px;
-		margin: 2px;
-		text-transform: uppercase;
-	}
-</style>
