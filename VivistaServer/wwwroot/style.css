@@ -76,6 +76,10 @@ body {
 	flex-direction: column;
 }
 
+.related-videos a{
+	text-decoration:none;
+}
+
 a {
 	color: var(--anchor-font);
 }
@@ -532,9 +536,162 @@ footer a:hover {
 	border-left: none;
 }
 
+.button {
+	text-decoration: none;
+	background: hsl(0, 0%, 40%);
+	border: 1px solid var(--button-border);
+	padding: 6px;
+	cursor: pointer;
+	font-size: 18px;
+	color: white;
+}
+
+	.button:hover {
+		background: hsl(0, 0%, 50%);
+	}
+
+.overlay {
+	position: fixed;
+	top: 0;
+	bottom: 0;
+	left: 0;
+	right: 0;
+	background: rgba(0, 0, 0, 0.8);
+	transition: opacity 500ms;
+	z-index: 2000;
+}
 
 
-input.toggle[type=checkbox]{
+.playlists {
+	max-height: 100px;
+}
+
+.wrapper {
+	margin: 70px auto;
+	padding: 20px;
+	background: #e7e7e7;
+	color: black;
+	border-radius: 5px;
+	width: 30%;
+	max-width: 400px;
+	position: relative;
+	transition: all 1s ease-in-out;
+	letter-spacing: normal;
+}
+
+	.wrapper h2 {
+		margin-top: 0;
+		color: #333;
+	}
+
+	.wrapper .close {
+		position: absolute;
+		top: 20px;
+		right: 30px;
+		transition: all 200ms;
+		font-size: 30px;
+		font-weight: bold;
+		text-decoration: none;
+		color: #333;
+		border: none;
+	}
+
+		.wrapper .close:hover {
+			cursor: pointer;
+		}
+
+	.wrapper .content {
+		max-height: 90%;
+		overflow: auto;
+	}
+
+.container {
+	border-radius: 5px;
+	background-color: #e7e7e7;
+	padding: 20px 0;
+}
+
+form label {
+	font-weight: 500;
+}
+
+.draggable {
+	cursor: move;
+}
+
+	.draggable.dragging {
+		opacity: .5;
+	}
+
+.video-detail {
+	position: relative;
+	margin-bottom: 2em;
+	width: 100%;
+	display: flex;
+}
+
+	.video-detail img {
+		width: 50%;
+		max-height: 60vh;
+		object-fit: contain;
+		max-width: 300px;
+	}
+
+	.video-detail .metadata {
+		width: 20%;
+		margin-left: 1em;
+	}
+		.video-detail .metadata a {
+			text-decoration: none;
+			color: inherit !important;
+		}
+
+		.video-detail .metadata .title {
+			font-size: 14px;
+			font-weight: bold;
+		}
+
+		.video-detail .metadata .uploader {
+			font-size: 11px;
+		}
+
+	.video-detail .download-button {
+		background-color: var(--button-download-bg);
+		color: var(--button-download-font);
+		font-size: 0.8em;
+		border: 5px solid var(--button-download-font);
+		box-shadow: hsla(0, 100%, 100%, .75) 0 0px 20px
+	}
+
+.video-info-image .install-message {
+	margin-top: .5em;
+	margin-bottom: 0em;
+	font-size: .6em;
+}
+
+.video-detail .install-message a {
+	color: var(--button-download-font);
+}
+
+	.video-detail .install-message a:hover {
+		color: var(--button-download-font-hover);
+		text-decoration: none;
+	}
+
+.video-detail .download-button:hover {
+	background-color: var(--button-download-bg-hover);
+	box-shadow: hsla(0, 100%, 100%, .95) 0 0px 20px
+}
+
+.video-detail .download-button:focus {
+	background-color: var(--button-download-bg-hover);
+}
+
+.video-detail .download-button:active {
+	background-color: var(--button-download-bg-active);
+}
+
+input.toggle[type=checkbox] {
 	height: 0;
 	width: 0;
 	visibility: hidden;

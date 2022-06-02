@@ -5,10 +5,19 @@
 		</div>
 		<div class="profile-info">
 			<h1>{{ user.username | escape }}</h1>
-			<p>{{ pagination.totalCount }} videos</p>
+			<p id="size-videos">{{ pagination.totalCount }} videos</p>
+			<p id="size-playlists" class="hidden"> {{ playlists.size }} playlists </p>
 		</div>
 	</div>
-	{% for video in videos %}
+	<div class="pure-u-1">
+		<div class="pure-button-group" role="group">
+			<button id="videos-button" class="pure-button pure-button-active">Videos</button>
+			<button id="playlists-button" class="pure-button">Playlists</button>
+		</div>
+		<br>
+	</div>
+	<div id="videos-userpage">
+		{% for video in videos %}
 		<div class="video-tile pure-u-1 pure-u-sm-1-2 pure-u-md-1-3 pure-u-lg-1-4 pure-u-xl-1-6">
 			<a href="/video?id={{ video.id | guidbase64 }}">
 				<img class="video-thumb pure-img" src="/api/thumbnail?id={{ video.id }}">
@@ -17,17 +26,34 @@
 				<a href="/video?id={{ video.id | guidbase64 }}">{{ video.title | escape }}</a>
 			</p>
 		</div>
-	{% endfor %}
-	
-	{% if pagination.totalCount > pagination.count %}
-		<div class="pure-u-1">
-			{% for i in pagination.pageNumbers %}
-				{% if i == pagination.page %}
-					<a href="?name={{ user.username | escape }}&page={{i}}" class="pure-button pure-button-active">{{i}}</a>
-				{% else %}
-					<a href="?name={{ user.username | escape }}&page={{i}}" class="pure-button">{{i}}</a>
-				{% endif %}
-			{% endfor %}
+		{% endfor %}
+	</div>
+	<div id="playlists-userpage" class="hidden">
+		{% for playlist in playlists %}
+		<div class="video-tile pure-u-1 pure-u-sm-1-2 pure-u-md-1-3 pure-u-lg-1-4 pure-u-xl-1-6">
+			<a href="/detail_playlist?id={{ playlist.id | guidbase64 }}">
+				<img class="video-thumb pure-img" src="/api/thumbnail?id={{ playlist.videos[0].id }}">
+			</a>
+			<p>
+				<a href="/detail_playlist?id={{ playlist.id | guidbase64 }}">{{ playlist.name | escape }}</a>
+			</p>
+			<a class="uploader" href="/user?name={{ palylist.username | escape }}">{{ playlist.username | escape }}</a>
 		</div>
+		{% endfor %}
+	</div>
+
+
+	{% if pagination.totalCount > pagination.count %}
+	<div class="pure-u-1">
+		{% for i in pagination.pageNumbers %}
+		{% if i == pagination.page %}
+		<a href="?name={{ user.username | escape }}&page={{i}}" class="pure-button pure-button-active">{{i}}</a>
+		{% else %}
+		<a href="?name={{ user.username | escape }}&page={{i}}" class="pure-button">{{i}}</a>
+		{% endif %}
+		{% endfor %}
+	</div>
 	{% endif %}
 </div>
+
+

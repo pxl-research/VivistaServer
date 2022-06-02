@@ -1,0 +1,50 @@
+﻿<h1>Playlist: {{playlist.name}}</h1>
+{% if IsOwner %}
+<div class="pure-g videos-detail draggable-container">
+	{% for video in playlist.videos %}
+	<div class="video-detail pure-u-1 draggable" draggable="true" id="{{ video.id | guidbase64 }}">
+		<img class="pure-img" src="/api/thumbnail?id={{ video.id }}">
+		<div class="text metadata">
+			<a href="/video?id={{ video.id | guidbase64 }}">
+				<p class="title">{{ video.title | escape }}</p>
+			</a>
+			<a href="/user?name={{ video.username | escape }}">
+				<p class="uploader">{{ video.username | escape }}</p>
+			</a>
+			<div class="download-message">
+				<button data-uri="vivista://video/{{ video.id | guidbase64 }}" class="pure-button download-button">
+					<span class="play-icon svg-icon">
+						<svg version="1.1" viewBox="0 0 10 10">
+							<path d="M 1,1 8,5 1,9 z"></path>
+						</svg>
+					</span> Play In Vivista
+
+					<p class="hidden install-message">Don't have Vivista installed? <a class="install-download-anchor" href="/install/latest" download>Download now</a></p>
+				</button>
+			</div>
+		</div>
+
+	</div>
+	{% endfor %}
+</div>
+{% else %}
+<div class="pure-g videos-detail">
+	{% for video in playlist.videos %}
+	<div class="video-detail pure-u-1">
+		<div class="download-message">
+			<button data-uri="vivista://video/{{ video.id | guidbase64 }}" class="pure-button download-button">
+				<span class="play-icon svg-icon">
+					<svg version="1.1" viewBox="0 0 10 10">
+						<path d="M 1,1 8,5 1,9 z"></path>
+					</svg>
+				</span> Play In Vivista
+
+				<p class="hidden install-message">Don't have Vivista installed? <a class="install-download-anchor" href="/install/latest" download>Download now</a></p>
+			</button>
+		</div>
+		<img class="pure-img" src="/api/thumbnail?id={{ video.id }}">
+	</div>
+	{% endfor %}
+</div>
+
+{% endif %}
