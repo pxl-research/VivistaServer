@@ -781,7 +781,7 @@ namespace VivistaServer
 				else
 				{
 					CommonController.LogDebug("User not authorized to update this video");
-					arg.FailRequest("This user is not authorized to update this video");
+					arg.FailRequest(System.Net.HttpStatusCode.Forbidden, "This user is not authorized to update this video");
 					return;
 				}
 
@@ -793,7 +793,7 @@ namespace VivistaServer
 				}
 			}
 
-			arg.FailRequest("This user is not authorized to update this video");
+			arg.FailRequest(System.Net.HttpStatusCode.Unauthorized, "No user logged in");
 			CommonController.LogDebug("User not authorized to upload videos");
 		}
 
