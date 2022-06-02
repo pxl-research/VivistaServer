@@ -3,8 +3,9 @@ window.onload = function () {
 	InitPlayButton();
 	InitSearch();
 	InitTagInput();
-	InitDetailPlaylist();
+	InitUser();
 	CheckCookieConsent();
+	InitDetailPlaylist();
 }
 
 function UpdateDarkModeToggles() {
@@ -181,7 +182,7 @@ function UpdateTagFormValue() {
 }
 
 
-function InitDetailPlaylist() {
+function InitUser() {
 	let videoButton = document.getElementById("videos-button");
 	if (videoButton != undefined) {
 		videoButton.addEventListener("click", function () {
@@ -213,3 +214,93 @@ function InitDetailPlaylist() {
 	}
 }
 
+const draggables = document.querySelectorAll('.draggable');
+const container = document.querySelectorAll('.draggable-container')[0];
+let playlistid = new URLSearchParams(window.location.search).get('id');
+
+function InitDetailPlaylist() {
+	let indexDrag;
+
+	if (draggables != undefined) {
+		draggables.forEach(draggable => {
+			draggable.addEventListener('dragstart', () => {
+				draggable.classList.add('dragging');
+
+				//Note: Get index of draggedObject
+				let videoIds = [];
+				document.querySelectorAll('.draggable').forEach(element => {
+					videoIds.push(element.id);
+				});
+				indexDrag = videoIds.indexOf(draggable.id);
+			})
+		});
+
+		draggables.forEach(draggable => {
+			draggable.addEventListener('dragend', () => {
+				draggable.classList.remove('dragging');
+				let newOrderDragables = document.querySelectorAll('.draggable');
+				let videoIds = [];
+				newOrderDragables.forEach(element => {
+					videoIds.push(element.id);
+				});
+
+				let video1 = draggable.id;
+				let index = videoIds.indexOf(draggable.id);
+				let video2;
+				if (indexDrag > index) {
+					video2 = videoIds[index + 1];
+				}
+				else {
+					video2 = videoIds[index - 1];
+				}
+
+				//Note: Check if there something is changed
+				if (video1 != video2 && video2 != undefined) {
+					fetch('/api/edit_playlist_order?playlistid=' + playlistid + "&video1=" + video1 + "&video2=" + video2, {
+						method: 'POST',
+						headers: {
+							'Content-Type': 'application/json',
+						},
+					})
+						.then(response => response.json())
+						.then(message => {
+						})
+						.catch((error) => {
+						});
+				}
+			})
+		});
+
+	}
+
+
+	if (container != undefined) {
+		container.addEventListener('dragover', e => {
+			const afterElement = getDragAfterElement(container, e.clientY);
+			const draggable = document.querySelector('.dragging');
+			if (afterElement == null) {
+				container.appendChild(draggable);
+			}
+			else {
+				container.insertBefore(draggable, afterElement);
+			}
+		})
+	}
+}
+
+function getDragAfterElement(container, y) {
+	//Note(Tom): Every draggable that we are not currently dragging
+	const draggableElements = [...container.querySelectorAll('.draggable:not(.dragging)')];
+
+	//Note(Tom): check the closest element
+	return draggableElements.reduce((closest, child) => {
+		const box = child.getBoundingClientRect();
+		const offset = y - box.top - box.height / 2;
+		if (offset < 0 && offset > closest.offset) {
+			return { offset: offset, element: child }
+		}
+		else {
+			return closest;
+		}
+	}, { offset: Number.NEGATIVE_INFINITY }).element;
+}

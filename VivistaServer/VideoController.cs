@@ -763,7 +763,7 @@ namespace VivistaServer
 			}
 		}
 
-		[Route("POST", "/api/makePlaylist")]
+		[Route("POST", "/api/make_playlist")]
 		private static async Task MakePlaylist(HttpContext context)
 		{
 			var userTask = UserSessions.GetLoggedInUser(context);
@@ -782,7 +782,6 @@ namespace VivistaServer
 				GuidHelpers.TryDecode(context.Request.Query["videoid"].ToString(), out var videoid);
 
 				var existingPlaylist = await GetPlaylistWithNameAndUserid(name, user.userid, connection, context);
-				var message = "";
 				if (existingPlaylist == null)
 				{
 					bool success = await AddPlaylist(name, privacy, user.userid, connection, context);
@@ -791,25 +790,24 @@ namespace VivistaServer
 						var playlist = await GetPlaylistWithNameAndUserid(name, user.userid, connection, context);
 						if (await AddVideoToPlaylist(playlist.id, videoid, connection, context))
 						{
-							message = $"Video has been added to { name }";
+							await context.Response.Body.WriteAsync(Utf8Json.JsonSerializer.SerializeUnsafe($"Video has been added to { name }"));
 						}
 						else
 						{
-							message = "Playlist is made, but something went wrong with the video!";
+							await CommonController.WriteError(context, "Playlist is made, but something went wrong with the video", StatusCodes.Status500InternalServerError);
 						}
 					}
 					else
 					{
-						message = "Something went wrong!";
+						await CommonController.WriteError(context, "Something went wrong", StatusCodes.Status500InternalServerError);
 					}
 				}
 				else
 				{
 
-					message = $"Playlist {name} allready exist.";
+					await CommonController.WriteError(context, $"Playlist {name} allready exist", StatusCodes.Status500InternalServerError);
 
 				}
-				await context.Response.Body.WriteAsync(Utf8Json.JsonSerializer.SerializeUnsafe(message));
 			}
 			else
 			{
@@ -817,7 +815,7 @@ namespace VivistaServer
 			}
 		}
 
-		[Route("GET", "/api/DeleteVideoFromPlaylist")]
+		[Route("GET", "/api/delete_video_from_playlist")]
 		private static async Task DeleteVideoFromPlaylist(HttpContext context)
 		{
 			var userTask = UserSessions.GetLoggedInUser(context);
@@ -828,24 +826,20 @@ namespace VivistaServer
 			{
 				GuidHelpers.TryDecode(context.Request.Query["playlistid"], out var playlistid);
 				GuidHelpers.TryDecode(context.Request.Query["videoid"].ToString(), out var videoid);
-				var message = "";
-
 				if (await UserOwnsPlaylist(playlistid, user.userid, connection, context)){
 					if (await DeleteVideoFromPlaylist(playlistid, videoid, connection, context))
 					{
-						message = "Video is deleted from the playlist.";
+						await context.Response.Body.WriteAsync(Utf8Json.JsonSerializer.SerializeUnsafe("Video is deleted from the playlist."));
 					}
 					else
 					{
-						message = "Something went wrong";
+						await CommonController.WriteError(context, "Something went wrong", StatusCodes.Status500InternalServerError);
 					}
 				}
 				else
 				{
-					message = "Something went wrong";
+					await CommonController.WriteError(context, "Something went wrong", StatusCodes.Status500InternalServerError);
 				}
-
-				await context.Response.Body.WriteAsync(Utf8Json.JsonSerializer.SerializeUnsafe(message));
 			}
 			else
 			{
@@ -853,7 +847,7 @@ namespace VivistaServer
 			}
 		}
 
-		[Route("POST", "/api/AddVideoToPlaylist")]
+		[Route("POST", "/api/add_video_to_playlist")]
 		private static async Task AddVideoToPlaylist(HttpContext context)
 		{
 			var userTask = UserSessions.GetLoggedInUser(context);
@@ -864,7 +858,6 @@ namespace VivistaServer
 			{
 				GuidHelpers.TryDecode(context.Request.Query["playlistid"], out var playlistid);
 				GuidHelpers.TryDecode(context.Request.Query["videoid"].ToString(), out var videoid);
-				var message = "";
 
 				if (await UserOwnsPlaylist(playlistid, user.userid, connection, context))
 				{
@@ -872,23 +865,23 @@ namespace VivistaServer
 					{
 						if (await AddVideoToPlaylist(playlistid, videoid, connection, context))
 						{
-							message = "Video is added to the playlist.";
+							await context.Response.Body.WriteAsync(Utf8Json.JsonSerializer.SerializeUnsafe("Video is added to the playlist"));
+
 						}
 						else
 						{
-							message = "Something went wrong";
+							await CommonController.WriteError(context, "Something went wrong", StatusCodes.Status500InternalServerError);
 						}
 					}
 					else
 					{
-						message = "Playlist is full";
+						await CommonController.WriteError(context, "Playlist is full", StatusCodes.Status500InternalServerError);
 					}
 				}
 				else
 				{
-					message = "Something went wrong";
+					await CommonController.WriteError(context, "Something went wrong", StatusCodes.Status500InternalServerError);
 				}
-				await context.Response.Body.WriteAsync(Utf8Json.JsonSerializer.SerializeUnsafe(message));
 			}
 			else
 			{

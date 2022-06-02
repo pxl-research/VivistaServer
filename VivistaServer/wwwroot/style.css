@@ -615,21 +615,6 @@ form label {
 	font-weight: 500;
 }
 
-input[type=text] textarea {
-	/*width:100%;*/
-	padding: 12px;
-	margin: 2px;
-	box-sizing: border-box;
-	margin-top: 6px;
-	margin-bottom: 16px;
-}
-
-input.toggle[type=checkbox]{
-	height: 0;
-	width: 0;
-	visibility: hidden;
-}
-
 .draggable {
 	cursor: move;
 }
@@ -656,6 +641,10 @@ input.toggle[type=checkbox]{
 		width: 20%;
 		margin-left: 1em;
 	}
+		.video-detail .metadata a {
+			text-decoration: none;
+			color: inherit !important;
+		}
 
 		.video-detail .metadata .title {
 			font-size: 14px;
@@ -700,6 +689,12 @@ input.toggle[type=checkbox]{
 
 .video-detail .download-button:active {
 	background-color: var(--button-download-bg-active);
+}
+
+input.toggle[type=checkbox] {
+	height: 0;
+	width: 0;
+	visibility: hidden;
 }
 
 input.toggle + label {

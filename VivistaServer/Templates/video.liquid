@@ -95,55 +95,52 @@
 	let id = new URLSearchParams(queryString).get('id');
 	document.getElementById("form").addEventListener("submit", function () {
 		let name = document.getElementById("name").value;
-		fetch('/api/makePlaylist?name=' + name + "&videoid=" + id + "&privacy=" + document.getElementById("videoPrivacy").value, {
+		fetch('/api/make_playlist?name=' + name + "&videoid=" + id + "&privacy=" + document.getElementById("videoPrivacy").value, {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
 			}
 		})
-			.then(response => response.json())
-			.then(message => {
-				if (message.includes("Video has been added to")) {
-					fetch('/api/get_playlists_with_video_check?videoid=' + id, {
-						method: 'GET',
-						headers: {
-							'Content-Type': 'application/json',
-						}
-					})
-						.then(response => response.json())
-						.then(playlists => {
-							document.getElementById("playlists").innerHTML = "";
-							playlists.forEach(playlist => {
-								let inputElement = document.createElement("INPUT");
-								inputElement.setAttribute("type", "checkbox");
-								inputElement.setAttribute("id", playlist.name);
-								inputElement.setAttribute("name", playlist.name);
-								inputElement.setAttribute("value", playlist.name);
-								if (playlist.playListContainsVideo) {
-									inputElement.checked = true;
-								}
-								let label = document.createElement("LABEL");
-								label.setAttribute("for", playlist.name);
-								label.innerHTML = playlist.name;
-
-								document.getElementById("playlists").appendChild(inputElement);
-								document.getElementById("playlists").appendChild(label);
-								document.getElementById("playlists").appendChild(document.createElement('br'));
-							});
-							AddEventListeners(playlists);
-
-							document.getElementById("message").innerText = message;
-						})
-						.catch((error) => {
+			.then(response => {
+				if (response.status == 500) {
+					response.text()
+						.then(text => {
+							let error = JSON.parse(text);
+							document.getElementById("message").innerText  = error.error;
 						});
 				}
 				else {
-					document.getElementById("message").innerText = message;
+					response.json().then(message => {
+						fetch('/api/get_playlists_with_video_check?videoid=' + id, {
+							method: 'GET',
+						})
+							.then(response => response.json())
+							.then(playlists => {
+								document.getElementById("playlists").innerHTML = "";
+								playlists.forEach(playlist => {
+									let inputElement = document.createElement("INPUT");
+									inputElement.setAttribute("type", "checkbox");
+									inputElement.setAttribute("id", playlist.name);
+									inputElement.setAttribute("name", playlist.name);
+									inputElement.setAttribute("value", playlist.name);
+									if (playlist.playListContainsVideo) {
+										inputElement.checked = true;
+									}
+									let label = document.createElement("LABEL");
+									label.setAttribute("for", playlist.name);
+									label.innerHTML = " " + playlist.name;
+
+									document.getElementById("playlists").appendChild(inputElement);
+									document.getElementById("playlists").appendChild(label);
+									document.getElementById("playlists").appendChild(document.createElement('br'));
+								});
+								AddEventListeners(playlists);
+
+								document.getElementById("message").innerText = message;
+							})
+					});
 				}
 			})
-			.catch((error) => {
-				document.getElementById("message").innerText = "Something went wrong!";
-			});
 	});
 	document.getElementById("addToPlaylist").addEventListener("click", function () {
 		let popupDiv = document.getElementById("popup");
@@ -159,41 +156,51 @@
 		playlists.forEach(playlist => {
 			document.getElementById(playlist.name).addEventListener('change', function () {
 				if (this.checked) {
-					console.log(playlist)
-					fetch('/api/AddVideoToPlaylist?playlistid=' + playlist.idBase64 + "&videoid=" + id, {
+					fetch('/api/add_video_to_playlist?playlistid=' + playlist.idBase64 + "&videoid=" + id, {
 						method: 'POST',
 						headers: {
 							'Content-Type': 'application/json',
 						}
 					})
-						.then(response => response.json())
-						.then(message => {
-							if (message.includes("Something went wrong") || message.includes("Playlist is full")) {
-								document.getElementById(playlist.name).checked = false;
+						.then(response => {
+							if (response.status == 500) {
+								response.text()
+									.then(text => {
+										let error = JSON.parse(text);
+										document.getElementById("message").innerText = error.error;
+										document.getElementById(playlist.name).checked = false;
+									});
 							}
-							document.getElementById("message").innerText = message;
+							else {
+								response.json().then(message => {
+									document.getElementById("message").innerText = message;
+								});
+							}
 						})
 						.catch((error) => {
-							document.getElementById("message").innerText = message;
 							document.getElementById(playlist.name).checked = false;
 						});
 				} else {
-					fetch('/api/DeleteVideoFromPlaylist?playlistid=' + playlist.idBase64 + "&videoid=" + id, {
+					fetch('/api/delete_video_from_playlist?playlistid=' + playlist.idBase64 + "&videoid=" + id, {
 						method: 'GET',
-						headers: {
-							'Content-Type': 'application/json',
-						}
 					})
-						.then(response => response.json())
-						.then(message => {
-							if (message.includes("Something went wrong")) {
-								document.getElementById(playlistName.name).checked = false;
+						.then(response => {
+							if (response.status == 500) {
+								response.text()
+									.then(text => {
+										let error = JSON.parse(text);
+										document.getElementById("message").innerText = error.error;
+										document.getElementById(playlist.name).checked = true;
+									});
 							}
-							document.getElementById("message").innerText = message;
+							else {
+								response.json().then(message => {
+									document.getElementById("message").innerText = message;
+								});
+							}
 						})
 						.catch((error) => {
-							document.getElementById("message").innerText = message;
-							document.getElementById(playlistName.name).checked = true;
+							document.getElementById(playlist.name).checked = true;
 						});
 				}
 			});

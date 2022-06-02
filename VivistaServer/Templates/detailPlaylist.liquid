@@ -5,8 +5,12 @@
 	<div class="video-detail pure-u-1 draggable" draggable="true" id="{{ video.id | guidbase64 }}">
 		<img class="pure-img" src="/api/thumbnail?id={{ video.id }}">
 		<div class="text metadata">
-			<p class="title">{{ video.title | escape }}</p>
-			<p class="uploader">{{ video.username | escape }}</p>
+			<a href="/video?id={{ video.id | guidbase64 }}">
+				<p class="title">{{ video.title | escape }}</p>
+			</a>
+			<a href="/user?name={{ video.username | escape }}">
+				<p class="uploader">{{ video.username | escape }}</p>
+			</a>
 			<div class="download-message">
 				<button data-uri="vivista://video/{{ video.id | guidbase64 }}" class="pure-button download-button">
 					<span class="play-icon svg-icon">
@@ -44,91 +48,3 @@
 </div>
 
 {% endif %}
-
-<script>
-	//Note(Tom): Script needs to stay here, because of {{ playlist | json }}
-	const draggables = document.querySelectorAll('.draggable');
-	const container = document.querySelectorAll('.draggable-container')[0];
-	let playlist = {{ playlist | json }};
-
-	let indexDrag;
-
-	draggables.forEach(draggable => {
-		draggable.addEventListener('dragstart', () => {
-			draggable.classList.add('dragging');
-
-			//Note: Get index of draggedObject
-			let videoIds = [];
-			document.querySelectorAll('.draggable').forEach(element => {
-				videoIds.push(element.id);
-			});
-			indexDrag = videoIds.indexOf(draggable.id);
-		})
-	});
-
-	draggables.forEach(draggable => {
-		draggable.addEventListener('dragend', () => {
-			draggable.classList.remove('dragging');
-			let newOrderDragables = document.querySelectorAll('.draggable');
-			let videoIds = [];
-			newOrderDragables.forEach(element => {
-				videoIds.push(element.id);
-			});
-
-			let video1 = draggable.id;
-			let index = videoIds.indexOf(draggable.id);
-			let video2;
-			if (indexDrag >  index) {
-				video2 = videoIds[index + 1];
-			}
-			else {
-				video2 = videoIds[index - 1];
-			}
-
-			//Note: Check if there something is changed
-			if (video1 != video2 && video2 != undefined) {
-				fetch('/api/edit_playlist_order?playlistid=' + playlist.idBase64 + "&video1=" + video1 + "&video2=" + video2, {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-				},
-			})
-				.then(response => response.json())
-				.then(message => {
-				})
-				.catch((error) => {
-				});
-			}
-		})
-	});
-
-
-	container.addEventListener('dragover', e => {
-		const afterElement = getDragAfterElement(container, e.clientY);
-		const draggable = document.querySelector('.dragging');
-		if (afterElement == null) {
-			container.appendChild(draggable);
-		}
-		else {
-			container.insertBefore(draggable, afterElement);
-		}
-	})
-
-
-	function getDragAfterElement(container, y) {
-		//Note(Tom): Every draggable that we are not currently dragging
-		const draggableElements = [...container.querySelectorAll('.draggable:not(.dragging)')];
-
-		//Note(Tom): check the closest element
-		return draggableElements.reduce((closest, child) => {
-			const box = child.getBoundingClientRect();
-			const offset = y - box.top - box.height / 2;
-			if (offset < 0 && offset > closest.offset) {
-				return { offset: offset, element: child }
-			}
-			else {
-				return closest;
-			}
-		}, { offset: Number.NEGATIVE_INFINITY }).element;
-	}
-</script>
