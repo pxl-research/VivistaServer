@@ -109,13 +109,9 @@ namespace VivistaServer
 					}
 				};
 			});
-#if !VIVISTA_DONT_COLLECT_PERF_DATA
+
 			Task.Run(CollectPeriodicStatistics);
-			
-#endif
-#if !VIVISTA_DONT_COLLECT_ROLES
 			Task.Run(RoleController.LoadRoles);
-#endif
 
 			app.Run(async (context) =>
 			{
@@ -229,6 +225,5 @@ namespace VivistaServer
 		{
 			return router.GetDatabaseFormattedEndpoints();
 		}
-
 	}
 }
