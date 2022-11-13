@@ -5,9 +5,11 @@ using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
+using JetBrains.Annotations;
 
 namespace VivistaServer
 {
+	[MeansImplicitUse]
 	[AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]
 	public class RouteAttribute : Attribute
 	{

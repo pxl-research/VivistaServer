@@ -1155,7 +1155,7 @@ namespace VivistaServer
 			{
 				var indexes = await Database.QueryAsync<int>(connection, @"SELECT index FROM playlist_videos WHERE playlistid = @playlistid::uuid", context, new { playlistid });
 				var index = 0;
-				if (indexes.Count() > 0)
+				if (indexes.Any())
 				{
 					index = indexes.Max();
 				}
@@ -1628,7 +1628,7 @@ namespace VivistaServer
 			}
 		}
 
-		private static async Task<bool> VideoExists(Guid guid, NpgsqlConnection connection, HttpContext context)
+		public static async Task<bool> VideoExists(Guid guid, NpgsqlConnection connection, HttpContext context)
 		{
 			int count;
 			try
@@ -1846,7 +1846,7 @@ namespace VivistaServer
 			}
 		}
 
-		private async static Task<List<Video>> GetRelatedVideosWithUserid(NpgsqlConnection connection, HttpContext context, int count, int userid)
+		private static async Task<List<Video>> GetRelatedVideosWithUserid(NpgsqlConnection connection, HttpContext context, int count, int userid)
 		{
 			var videos = await Database.QueryAsync<Video>(connection,
 									@"select v.*, u.username from videos v

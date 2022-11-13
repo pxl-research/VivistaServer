@@ -22,11 +22,11 @@ namespace VivistaServer
 				using var connection = Database.OpenNewConnection();
 
 				bool success = await AddBugReport(problem, repro, email, connection, context);
-				await context.Response.Body.WriteAsync(Utf8Json.JsonSerializer.SerializeUnsafe(new {success}));
+				await context.Response.Body.WriteAsync(Utf8Json.JsonSerializer.SerializeUnsafe(new { success }));
 			}
 			else
 			{
-				await CommonController.WriteError(context, "This request is missing data" ,StatusCodes.Status400BadRequest);
+				await CommonController.WriteError(context, "This request is missing data", StatusCodes.Status400BadRequest);
 			}
 		}
 
@@ -34,8 +34,8 @@ namespace VivistaServer
 		{
 			try
 			{
-                int success = await Database.ExecuteAsync(connection,@"insert into bug_reports (problem, repro, email) values (@problem, @repro, @email)", context, new { problem, repro, email });
-                return success > 0;
+				int success = await Database.ExecuteAsync(connection, @"insert into bug_reports (problem, repro, email) values (@problem, @repro, @email)", context, new { problem, repro, email });
+				return success > 0;
 			}
 			catch (Exception e)
 			{
