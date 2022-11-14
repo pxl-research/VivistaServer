@@ -17,6 +17,7 @@ _test
 *.prof
 
 \.vs/VivistaServer/
+\.vs/ProjectEvaluation/
 
 VivistaServer/bin/
 

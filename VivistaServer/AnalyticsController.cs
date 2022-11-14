@@ -73,6 +73,7 @@ namespace VivistaServer
 
 				var transaction = await connection.BeginTransactionAsync();
 				int[] average = await connection.QuerySingleAsync<int[]>("", id, transaction);
+
 				for (int i = 0; i < viewData.Length; i++)
 				{
 					average[i] += viewData[i];
@@ -81,6 +82,24 @@ namespace VivistaServer
 				await connection.ExecuteAsync("", average, transaction);
 				await transaction.CommitAsync();
 			}
+		}
+
+		private static int[] DecodeVideoViewData(string toDecode)
+		{
+			byte[] bytes = System.Text.Encoding.UTF8.GetBytes(toDecode);
+
+			int[] result = new int[toDecode.Length / sizeof(int)];
+			Buffer.BlockCopy(bytes, 0, result, 0, bytes.Length);
+
+			return result;
+		}
+
+		private static string EncodeVideoViewData(int[] toEncode)
+		{
+			byte[] result = new byte[toEncode.Length * sizeof(int)];
+			Buffer.BlockCopy(toEncode, 0, result, 0, result.Length);
+			
+			return System.Text.Encoding.UTF8.GetString(result);
 		}
 	}
 }
