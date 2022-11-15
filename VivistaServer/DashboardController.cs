@@ -88,7 +88,7 @@ namespace VivistaServer
 		[Route("GET", "/admin/dashboard")]
 		private static async Task DashboardGet(HttpContext context)
 		{
-			using var connection = Database.OpenNewConnection();
+			await using var connection = Database.OpenNewConnection();
 			if (await User.IsUserAdmin(context, connection))
 			{
 				string searchQuery = context.Request.Query["date"].ToString();
@@ -252,8 +252,56 @@ namespace VivistaServer
 		[Route("GET", "/admin/outliers")]
 		private static async Task OutliersPost(HttpContext context)
 		{
-			SetHTMLContentType(context);
-			await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\outliers.liquid", new TemplateContext { }));
+			await using var connection = Database.OpenNewConnection();
+			if (await User.IsUserAdmin(context, connection))
+			{
+				SetHTMLContentType(context);
+				await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\outliers.liquid", new TemplateContext { }));
+			}
+			else
+			{
+				await CommonController.Write404(context);
+			}
+		}
+
+		[Route("GET", "/admin/logs")]
+		private static async Task LogsGet(HttpContext context)
+		{
+			await using var connection = Database.OpenNewConnection();
+			if (await User.IsUserAdmin(context, connection))
+			{
+				SetHTMLContentType(context);
+
+				var process = new Process();
+				process.StartInfo.UseShellExecute = false;
+				process.StartInfo.RedirectStandardOutput = true;
+				process.StartInfo.RedirectStandardError = true;
+				process.StartInfo.FileName = "/usr/bin/journalctl";
+				process.StartInfo.Arguments = "-u vivista.service -e --no-pager";
+
+				try
+				{
+					process.Start();
+				}
+				catch (Exception e)
+				{
+					await CommonController.WriteError(context, "Something went wrong while trying to gather logs", 500, e);
+				}
+
+				await process.WaitForExitAsync();
+
+				string logs = await process.StandardOutput.ReadToEndAsync();
+
+				string encoded = System.Text.Encodings.Web.HtmlEncoder.Default.Encode(logs);
+
+				string[] lines = encoded.Split('\n');
+
+				await context.Response.WriteAsync(await HTMLRenderer.Render(context, "Templates\\logs.liquid", new TemplateContext(new { lines })));
+			}
+			else
+			{
+				await CommonController.Write404(context);
+			}
 		}
 
 		public static void AddDownloads()
@@ -309,7 +357,7 @@ namespace VivistaServer
 					foreach (var req in cachedRequests)
 					{
 						float outlierThreshold = percentilesPerEndpoint.ContainsKey(req.endpoint)
-							? percentilesPerEndpoint[req.endpoint] * 2f
+							? percentilesPerEndpoint[req.endpoint] * 3f
 							: float.MaxValue;
 
 						if (req.seconds > outlierThreshold)

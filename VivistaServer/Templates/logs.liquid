@@ -1,0 +1,14 @@
+﻿<div class="pure-g">
+	<div class="pure-u-1" >
+		<h1>Logs</h1>
+		
+		<pre>
+		{% for line in lines %}
+			{{ line }}
+		{% else %}
+			No logs to show
+		{% endfor %}
+		</pre>
+
+	</div>
+</div>

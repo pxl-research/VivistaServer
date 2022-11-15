@@ -93,6 +93,11 @@ footer a:hover {
 	color: var(--main-font);
 }
 
+pre {
+	font-size: .6em;
+	line-height: .7;
+}
+
 .chartBox {
 	width: 50%;
 	height: 50%;

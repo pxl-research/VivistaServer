@@ -57,7 +57,9 @@ namespace VivistaServer
 			}
 		}
 
-		public static async Task VideoViewResultPost(HttpContext context)
+		[Route("POST", "/api/video_view_result")]
+		[Route("POST", "/api/v1/video_view_result")]
+		private static async Task VideoViewResultPost(HttpContext context)
 		{
 			if (!Guid.TryParse(context.Request.Query["id"], out var id))
 			{

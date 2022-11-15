@@ -132,6 +132,11 @@ namespace VivistaServer
 
 			int index = files.IndexOf(latest);
 
+			if (index == -1)
+			{
+				index = files.Count;
+			}
+
 			using var transaction = conn.BeginTransaction();
 
 			try
