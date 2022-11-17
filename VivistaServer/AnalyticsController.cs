@@ -61,7 +61,7 @@ namespace VivistaServer
 		[Route("POST", "/api/v1/video_view_result")]
 		private static async Task VideoViewResultPost(HttpContext context)
 		{
-			if (!Guid.TryParse(context.Request.Query["id"], out var id))
+			if (!Guid.TryParse(context.Request.Query["id"], out var videoId))
 			{
 				await CommonController.Write404(context);
 				return;
@@ -69,39 +69,41 @@ namespace VivistaServer
 
 			var connection = Database.OpenNewConnection();
 
-			if (await VideoController.VideoExists(id, connection, context))
+			if (await VideoController.VideoExists(videoId, connection, context))
 			{
 				int[] viewData = JsonSerializer.Deserialize<JsonArrayWrapper<int>>(context.Request.Form["0"]).array;
 
 				var transaction = await connection.BeginTransactionAsync();
-				int[] average = await connection.QuerySingleAsync<int[]>("", id, transaction);
+				byte[] encodedHistogram = await Database.QuerySingleAsync<byte[]>(connection, "SELECT histogram FROM video_view_data WHERE videoid=@videoId", context, new { videoId }, transaction);
+				int[] histogram = new int[encodedHistogram.Length / sizeof(int)];
+				Buffer.BlockCopy(encodedHistogram, 0, histogram, 0, encodedHistogram.Length);
 
 				for (int i = 0; i < viewData.Length; i++)
 				{
-					average[i] += viewData[i];
+					histogram[i] += viewData[i];
 				}
 
-				await connection.ExecuteAsync("", average, transaction);
+				Buffer.BlockCopy(histogram, 0, encodedHistogram, 0, encodedHistogram.Length);
+			
+				await Database.ExecuteAsync(connection, "UPDATE video_view_data SET histogram=@encodedHistogram WHERE videoid=@videoId", context, encodedHistogram, transaction);
 				await transaction.CommitAsync();
 			}
 		}
 
-		private static int[] DecodeVideoViewData(string toDecode)
+		private static int[] DecodeVideoViewData(byte[] toDecode)
 		{
-			byte[] bytes = System.Text.Encoding.UTF8.GetBytes(toDecode);
-
 			int[] result = new int[toDecode.Length / sizeof(int)];
-			Buffer.BlockCopy(bytes, 0, result, 0, bytes.Length);
+			Buffer.BlockCopy(toDecode, 0, result, 0, toDecode.Length);
 
 			return result;
 		}
 
-		private static string EncodeVideoViewData(int[] toEncode)
+		private static byte[] EncodeVideoViewData(int[] toEncode)
 		{
 			byte[] result = new byte[toEncode.Length * sizeof(int)];
 			Buffer.BlockCopy(toEncode, 0, result, 0, result.Length);
 			
-			return System.Text.Encoding.UTF8.GetString(result);
+			return result;
 		}
 	}
 }
