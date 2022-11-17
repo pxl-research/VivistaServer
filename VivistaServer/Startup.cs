@@ -188,37 +188,35 @@ namespace VivistaServer
 		//TODO(Simon): Minute data should probably work similarly to hour/day, so we don't have to rely on the margin after rounding.
 		private static async Task CollectPeriodicStatistics()
 		{
-#pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
 			var lastHours = DateTime.UtcNow;
 			var lastDay = DateTime.UtcNow;
 			while (true)
 			{
-#if DEBUG
 				//NOTE(Simon): Add a little margin to account for rounding errors in Task.Delay. If ran without margin, Task.Delay would sometimes be done too early causing many rapid runs of the AddMinuteData Task
 				var nextTime = DateTime.UtcNow.RoundUp(TimeSpan.FromSeconds(60)) + TimeSpan.FromSeconds(1);
-#else
-				var nextTime = DateTime.UtcNow.RoundUp(TimeSpan.FromMinutes(1)) + TimeSpan.FromSeconds(1);
-#endif
+
 				var delay = nextTime - DateTime.UtcNow;
 				await Task.Delay(delay);
 
-				Task.Run(DashboardController.AddMinuteData);
+				Task minute, hour, day;
+				minute = Task.Run(DashboardController.AddMinuteData);
+				hour = day = Task.CompletedTask;
 				if (DateTime.UtcNow.Hour != lastHours.Hour)
 				{
 					var hoursTemp = lastHours;
-					Task.Run(() => DashboardController.AddHourData(hoursTemp));
+					hour = Task.Run(() => DashboardController.AddHourData(hoursTemp));
 					lastHours = DateTime.UtcNow;
 				}
 
 				if (DateTime.UtcNow.Day != lastDay.Day)
 				{
 					var dayTemp = lastDay;
-					Task.Run(() => DashboardController.AddDayData(dayTemp));
+					day = Task.Run(() => DashboardController.AddDayData(dayTemp));
 					lastDay = DateTime.UtcNow;
 				}
-			}
-#pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
 
+				Task.WaitAll(minute, hour, day);
+			}
 		}
 
 		public static List<string> GetEndpointsOfRoute()
