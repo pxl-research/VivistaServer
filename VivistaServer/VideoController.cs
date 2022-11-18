@@ -452,7 +452,7 @@ namespace VivistaServer
 		{
 			CommonController.SetHTMLContentType(context);
 
-			if (GuidHelpers.TryDecode(context.Request.Query["id"], out var videoId))
+			if (GuidHelpers.TryUrlDecode(context.Request.Query["id"], out var videoId))
 			{
 				using var connection = Database.OpenNewConnection();
 				var video = await GetVideo(videoId, connection, context);
@@ -592,7 +592,7 @@ namespace VivistaServer
 			using var connection = Database.OpenNewConnection();
 			var user = await userTask;
 
-			if (user != null && GuidHelpers.TryDecode(context.Request.Query["id"], out var videoId))
+			if (user != null && GuidHelpers.TryUrlDecode(context.Request.Query["id"], out var videoId))
 			{
 				var video = await GetVideo(videoId, connection, context);
 				if (UserOwnsVideo(video, user.userid))
@@ -621,7 +621,7 @@ namespace VivistaServer
 			using var connection = Database.OpenNewConnection();
 			var user = await userTask;
 
-			if (user != null && GuidHelpers.TryDecode(context.Request.Query["id"], out var videoId))
+			if (user != null && GuidHelpers.TryUrlDecode(context.Request.Query["id"], out var videoId))
 			{
 				var video = await GetVideo(videoId, connection, context);
 				if (UserOwnsVideo(video, user.userid))
@@ -651,7 +651,7 @@ namespace VivistaServer
 			using var connection = Database.OpenNewConnection();
 			var user = await userTask;
 
-			if (user != null && GuidHelpers.TryDecode(context.Request.Query["id"], out var videoId))
+			if (user != null && GuidHelpers.TryUrlDecode(context.Request.Query["id"], out var videoId))
 			{
 				var video = await GetVideo(videoId, connection, context);
 				if (UserOwnsVideo(video, user.userid))
@@ -679,7 +679,7 @@ namespace VivistaServer
 			using var connection = Database.OpenNewConnection();
 			var user = await userTask;
 
-			if (user != null && GuidHelpers.TryDecode(context.Request.Query["id"], out var videoId))
+			if (user != null && GuidHelpers.TryUrlDecode(context.Request.Query["id"], out var videoId))
 			{
 				var video = await GetVideo(videoId, connection, context);
 				if (UserOwnsVideo(video, user.userid))
@@ -721,7 +721,7 @@ namespace VivistaServer
 			using var connection = Database.OpenNewConnection();
 			var user = await userTask;
 
-			if (user != null && GuidHelpers.TryDecode(context.Request.Query["id"], out var videoid))
+			if (user != null && GuidHelpers.TryUrlDecode(context.Request.Query["id"], out var videoid))
 			{
 				var video = await GetVideo(videoid, connection, context);
 				if (UserOwnsVideo(video, user.userid))
@@ -779,7 +779,7 @@ namespace VivistaServer
 					privacy = (VideoPrivacy)privacyInt;
 				}
 
-				GuidHelpers.TryDecode(context.Request.Query["videoid"].ToString(), out var videoid);
+				GuidHelpers.TryUrlDecode(context.Request.Query["videoid"].ToString(), out var videoid);
 
 				var existingPlaylist = await GetPlaylistWithNameAndUserid(name, user.userid, connection, context);
 				if (existingPlaylist == null)
@@ -824,8 +824,8 @@ namespace VivistaServer
 
 			if (user != null)
 			{
-				GuidHelpers.TryDecode(context.Request.Query["playlistid"], out var playlistid);
-				GuidHelpers.TryDecode(context.Request.Query["videoid"].ToString(), out var videoid);
+				GuidHelpers.TryUrlDecode(context.Request.Query["playlistid"], out var playlistid);
+				GuidHelpers.TryUrlDecode(context.Request.Query["videoid"].ToString(), out var videoid);
 				if (await UserOwnsPlaylist(playlistid, user.userid, connection, context)){
 					if (await DeleteVideoFromPlaylist(playlistid, videoid, connection, context))
 					{
@@ -856,8 +856,8 @@ namespace VivistaServer
 
 			if (user != null)
 			{
-				GuidHelpers.TryDecode(context.Request.Query["playlistid"], out var playlistid);
-				GuidHelpers.TryDecode(context.Request.Query["videoid"].ToString(), out var videoid);
+				GuidHelpers.TryUrlDecode(context.Request.Query["playlistid"], out var playlistid);
+				GuidHelpers.TryUrlDecode(context.Request.Query["videoid"].ToString(), out var videoid);
 
 				if (await UserOwnsPlaylist(playlistid, user.userid, connection, context))
 				{
@@ -924,7 +924,7 @@ namespace VivistaServer
 			using var connection = Database.OpenNewConnection();
 			var user = await userTask;
 
-			if (user != null && GuidHelpers.TryDecode(context.Request.Query["id"], out var playlistid))
+			if (user != null && GuidHelpers.TryUrlDecode(context.Request.Query["id"], out var playlistid))
 			{
 				if(await UserOwnsPlaylist(playlistid, user.userid, connection, context))
 				{
@@ -956,7 +956,7 @@ namespace VivistaServer
 			using var connection = Database.OpenNewConnection();
 			var user = await userTask;
 
-			if (user != null && GuidHelpers.TryDecode(context.Request.Query["id"], out var playlistid))
+			if (user != null && GuidHelpers.TryUrlDecode(context.Request.Query["id"], out var playlistid))
 			{
 				if(await UserOwnsPlaylist(playlistid, user.userid, connection, context))
 				{
@@ -983,7 +983,7 @@ namespace VivistaServer
 
 			if (user != null)
 			{
-				GuidHelpers.TryDecode(context.Request.Query["videoid"].ToString(), out var videoid);
+				GuidHelpers.TryUrlDecode(context.Request.Query["videoid"].ToString(), out var videoid);
 
 				var userPlaylists = await GetPlaylistsWithCheckIfVideoIsInPlaylist(user.userid, videoid, connection, context);
 				await context.Response.Body.WriteAsync(Utf8Json.JsonSerializer.SerializeUnsafe(userPlaylists));
@@ -1003,7 +1003,7 @@ namespace VivistaServer
 			using var connection = Database.OpenNewConnection();
 			var user = await userTask;
 
-			if (user != null && GuidHelpers.TryDecode(context.Request.Query["id"], out var playlistid))
+			if (user != null && GuidHelpers.TryUrlDecode(context.Request.Query["id"], out var playlistid))
 			{
 				if (await UserOwnsPlaylist(playlistid, user.userid, connection, context))
 				{
@@ -1026,7 +1026,7 @@ namespace VivistaServer
 			using var connection = Database.OpenNewConnection();
 			var user = await userTask;
 
-			if (GuidHelpers.TryDecode(context.Request.Query["id"], out var playlistid))
+			if (GuidHelpers.TryUrlDecode(context.Request.Query["id"], out var playlistid))
 			{
 				var playlist = await GetPlaylistWithId(playlistid, connection, context);
 				playlist.idBase64 = context.Request.Query["id"];
@@ -1060,7 +1060,7 @@ namespace VivistaServer
 			using var connection = Database.OpenNewConnection();
 			var user = await userTask;
 
-			if (user != null && GuidHelpers.TryDecode(context.Request.Query["playlistid"], out var playlistid) && GuidHelpers.TryDecode(context.Request.Query["video1"], out var video1) && GuidHelpers.TryDecode(context.Request.Query["video2"], out var video2))
+			if (user != null && GuidHelpers.TryUrlDecode(context.Request.Query["playlistid"], out var playlistid) && GuidHelpers.TryUrlDecode(context.Request.Query["video1"], out var video1) && GuidHelpers.TryUrlDecode(context.Request.Query["video2"], out var video2))
 			{
 				if (await UserOwnsPlaylist(playlistid, user.userid, connection, context))
 				{
@@ -1319,7 +1319,7 @@ namespace VivistaServer
 			foreach (var playlist in userPlaylists)
 			{
 				playlist.playListContainsVideo = await IsVideoInPlaylist(playlist.id, videoid, connection, context);
-				playlist.idBase64 = GuidHelpers.Encode(playlist.id);
+				playlist.idBase64 = GuidHelpers.UrlEncode(playlist.id);
 			}
 			return userPlaylists;
 		}

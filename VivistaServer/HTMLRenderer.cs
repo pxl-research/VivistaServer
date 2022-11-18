@@ -58,15 +58,9 @@ namespace VivistaServer
 
 		public static ValueTask<FluidValue> GuidBase64(FluidValue input, FilterArguments arguments, TemplateContext context)
 		{
-			if (input.Type != FluidValues.Object)
+			if (Guid.TryParse(input.ToStringValue(), out var guid))
 			{
-				throw new ArgumentException("Value should be of Guid Type");
-			}
-
-			var objValue = input.ToObjectValue();
-			if (objValue is Guid guid)
-			{
-				return new StringValue(guid.Encode());
+				return new StringValue(guid.UrlEncode());
 			}
 
 			throw new ArgumentException("Value should be of Guid Type");

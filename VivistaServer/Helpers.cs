@@ -31,14 +31,14 @@ namespace VivistaServer
 
 	public static class GuidHelpers
 	{
-		public static string Encode(this Guid guid)
+		public static string UrlEncode(this Guid guid)
 		{
 			string encoded = Convert.ToBase64String(guid.ToByteArray());
 			encoded = encoded.Replace("/", "_").Replace("+", "-");
 			return encoded.Substring(0, 22);
 		}
 
-		public static bool TryDecode(string value, out Guid guid)
+		public static bool TryUrlDecode(string value, out Guid guid)
 		{
 			value = value.Replace("_", "/").Replace("-", "+");
 			byte[] buffer = Convert.FromBase64String(value + "==");
