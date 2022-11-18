@@ -38,6 +38,9 @@ namespace VivistaServer
 
 	public class AnalyticsController
 	{
+		private const int VIDEO_VIEW_HISTOGRAM_INTS = 100;
+		private const int VIDEO_VIEW_HISTOGRAM_BYTES = VIDEO_VIEW_HISTOGRAM_INTS * 4;
+
 		[Route("POST", "/api/video_result")]
 		[Route("POST", "/api/v1/video_result")]
 		private static async Task VideoResultPost(HttpContext context)
@@ -73,9 +76,22 @@ namespace VivistaServer
 			{
 				int[] viewData = JsonSerializer.Deserialize<JsonArrayWrapper<int>>(context.Request.Form["0"]).array;
 
+				if (viewData.Length != VIDEO_VIEW_HISTOGRAM_INTS)
+				{
+					await CommonController.WriteError(context, $"Length of submitted view histogram should be exactly {VIDEO_VIEW_HISTOGRAM_INTS}.", StatusCodes.Status400BadRequest);
+					return;
+				}
+
 				var transaction = await connection.BeginTransactionAsync();
 				byte[] encodedHistogram = await Database.QuerySingleAsync<byte[]>(connection, "SELECT histogram FROM video_view_data WHERE videoid=@videoId", context, new { videoId }, transaction);
 				int[] histogram = new int[encodedHistogram.Length / sizeof(int)];
+
+				//NOTE(Simon): Create histogram bytes if it doesn't exist yet or is corrupted
+				if (encodedHistogram.Length != VIDEO_VIEW_HISTOGRAM_BYTES)
+				{
+					encodedHistogram = new byte[VIDEO_VIEW_HISTOGRAM_BYTES];
+				}
+
 				Buffer.BlockCopy(encodedHistogram, 0, histogram, 0, encodedHistogram.Length);
 
 				for (int i = 0; i < viewData.Length; i++)
@@ -88,22 +104,6 @@ namespace VivistaServer
 				await Database.ExecuteAsync(connection, "UPDATE video_view_data SET histogram=@encodedHistogram WHERE videoid=@videoId", context, encodedHistogram, transaction);
 				await transaction.CommitAsync();
 			}
-		}
-
-		private static int[] DecodeVideoViewData(byte[] toDecode)
-		{
-			int[] result = new int[toDecode.Length / sizeof(int)];
-			Buffer.BlockCopy(toDecode, 0, result, 0, toDecode.Length);
-
-			return result;
-		}
-
-		private static byte[] EncodeVideoViewData(int[] toEncode)
-		{
-			byte[] result = new byte[toEncode.Length * sizeof(int)];
-			Buffer.BlockCopy(toEncode, 0, result, 0, result.Length);
-			
-			return result;
 		}
 	}
 }
