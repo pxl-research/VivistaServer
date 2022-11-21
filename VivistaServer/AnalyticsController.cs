@@ -74,7 +74,8 @@ namespace VivistaServer
 
 			if (await VideoController.VideoExists(videoId, connection, context))
 			{
-				int[] viewData = JsonSerializer.Deserialize<JsonArrayWrapper<int>>(context.Request.Form["0"]).array;
+				var values = context.Request.Form["values"];
+				int[] viewData = JsonSerializer.Deserialize<JsonArrayWrapper<int>>(values).array;
 
 				if (viewData.Length != VIDEO_VIEW_HISTOGRAM_INTS)
 				{
@@ -83,15 +84,16 @@ namespace VivistaServer
 				}
 
 				var transaction = await connection.BeginTransactionAsync();
-				byte[] encodedHistogram = await Database.QuerySingleAsync<byte[]>(connection, "SELECT histogram FROM video_view_data WHERE videoid=@videoId", context, new { videoId }, transaction);
-				int[] histogram = new int[encodedHistogram.Length / sizeof(int)];
+
+				byte[] encodedHistogram = await Database.QuerySingleOrDefaultAsync<byte[]>(connection, "SELECT histogram FROM video_view_data WHERE videoid=@videoId", context, new { videoId }, transaction);
 
 				//NOTE(Simon): Create histogram bytes if it doesn't exist yet or is corrupted
-				if (encodedHistogram.Length != VIDEO_VIEW_HISTOGRAM_BYTES)
+				if (encodedHistogram == null || encodedHistogram.Length != VIDEO_VIEW_HISTOGRAM_BYTES)
 				{
 					encodedHistogram = new byte[VIDEO_VIEW_HISTOGRAM_BYTES];
 				}
 
+				int[] histogram = new int[encodedHistogram.Length / sizeof(int)];
 				Buffer.BlockCopy(encodedHistogram, 0, histogram, 0, encodedHistogram.Length);
 
 				for (int i = 0; i < viewData.Length; i++)
@@ -100,8 +102,23 @@ namespace VivistaServer
 				}
 
 				Buffer.BlockCopy(histogram, 0, encodedHistogram, 0, encodedHistogram.Length);
-			
-				await Database.ExecuteAsync(connection, "UPDATE video_view_data SET histogram=@encodedHistogram WHERE videoid=@videoId", context, encodedHistogram, transaction);
+
+				try
+				{
+					await Database.ExecuteAsync(connection, @"INSERT INTO video_view_data (videoid, histogram)
+																VALUES (@videoId, @encodedHistogram)
+																ON CONFLICT(videoid) DO UPDATE 
+																SET histogram=@encodedHistogram", 
+																context, new { encodedHistogram, videoId }, transaction);
+				}
+				catch (Exception e)
+				{
+					CommonController.LogDebug(e.ToString());
+					await transaction.RollbackAsync();
+					await CommonController.WriteError(context, "Something went wrong while storing view data", StatusCodes.Status500InternalServerError, e);
+					return;
+				}
+
 				await transaction.CommitAsync();
 			}
 		}
