@@ -312,12 +312,12 @@ pre {
 	font-size: 2em;
 	transform: translate(-50%, -50%);
 	border: 5px solid var(--button-download-font);
-	box-shadow: hsla(0, 100%, 100%, .75) 0 0px 20px
+	box-shadow: hsla(0, 100%, 100%, .75) 0 0 20px
 }
 
 .video-info-image .install-message {
 	margin-top: .5em;
-	margin-bottom: 0em;
+	margin-bottom: 0;
 	font-size: .6em;
 }
 
@@ -332,7 +332,7 @@ pre {
 
 .video-info-image .download-button:hover {
 	background-color: var(--button-download-bg-hover);
-	box-shadow: hsla(0, 100%, 100%, .95) 0 0px 20px
+	box-shadow: hsla(0, 100%, 100%, .95) 0 0 20px
 }
 
 .video-info-image .download-button:focus {
@@ -664,12 +664,12 @@ form label {
 		color: var(--button-download-font);
 		font-size: 0.8em;
 		border: 5px solid var(--button-download-font);
-		box-shadow: hsla(0, 100%, 100%, .75) 0 0px 20px
+		box-shadow: hsla(0, 100%, 100%, .75) 0 0 20px
 	}
 
 .video-info-image .install-message {
 	margin-top: .5em;
-	margin-bottom: 0em;
+	margin-bottom: 0;
 	font-size: .6em;
 }
 
@@ -684,7 +684,7 @@ form label {
 
 .video-detail .download-button:hover {
 	background-color: var(--button-download-bg-hover);
-	box-shadow: hsla(0, 100%, 100%, .95) 0 0px 20px
+	box-shadow: hsla(0, 100%, 100%, .95) 0 0 20px
 }
 
 .video-detail .download-button:focus {
