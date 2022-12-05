@@ -1,10 +1,8 @@
 ﻿using System;
 using System.Threading.Tasks;
-using Dapper;
 using Microsoft.AspNetCore.Http;
 using System.Runtime.Caching;
 using Npgsql;
-using System.Collections;
 using System.Collections.Generic;
 
 namespace VivistaServer

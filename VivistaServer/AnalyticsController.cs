@@ -2,7 +2,6 @@
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Utf8Json;
-using Dapper;
 
 namespace VivistaServer
 {
@@ -21,7 +20,7 @@ namespace VivistaServer
 		Chapter
 	}
 
-	public class QuestionResult
+	public class Answer
 	{
 		public InteractionType type;
 		public int interactionId;
@@ -55,7 +54,12 @@ namespace VivistaServer
 
 			if (await VideoController.VideoExists(id, connection, context))
 			{
-				var videoData = JsonSerializer.Deserialize<JsonArrayWrapper<QuestionResult>>(context.Request.Form["0"]).array;
+				var answers = JsonSerializer.Deserialize<JsonArrayWrapper<Answer>>(context.Request.Form["answers"]).array;
+
+				string userIdString = context.Request.Form["userid"].ToString();
+				bool isAnonymous = String.IsNullOrEmpty(userIdString);
+				Int32.TryParse(userIdString, out int userId);
+
 
 			}
 		}

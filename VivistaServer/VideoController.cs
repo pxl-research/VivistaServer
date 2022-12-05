@@ -25,7 +25,7 @@ namespace VivistaServer
 		private static MemoryCache uploadAuthorisationCache = new MemoryCache(UPLOAD_AUTHORISATION_CACHE_NAME);
 		private static MemoryCache viewHistoryCache = new MemoryCache(VIEWHISTORY_CACHE_NAME);
 		private const string VIEWHISTORY_CACHE_NAME = "viewHistoryCache";
-		private const string UPLOAD_AUTHORISATION_CACHE_NAME = "viewHistoryCache";
+		private const string UPLOAD_AUTHORISATION_CACHE_NAME = "uploadAuthorisationCache";
 
 
 		public class Video
@@ -93,6 +93,7 @@ namespace VivistaServer
 			Processing
 		}
 
+		//TODO(Simon): Move playlist stuff to separate controller maybe??
 		public class Playlist
 		{
 			public Guid id { get; set; }
@@ -764,6 +765,7 @@ namespace VivistaServer
 		}
 
 		[Route("POST", "/api/make_playlist")]
+		[Route("POST", "/api/v1/make_playlist")]
 		private static async Task MakePlaylist(HttpContext context)
 		{
 			var userTask = UserSessions.GetLoggedInUser(context);
@@ -772,7 +774,7 @@ namespace VivistaServer
 
 			if (user != null)
 			{
-				string name = context.Request.Query["name"].ToString();
+				string playlistName = context.Request.Query["name"].ToString();
 				VideoPrivacy privacy = VideoPrivacy.Public;
 				if (Int32.TryParse(context.Request.Query["privacy"], out var privacyInt))
 				{
@@ -781,16 +783,16 @@ namespace VivistaServer
 
 				GuidHelpers.TryUrlDecode(context.Request.Query["videoid"].ToString(), out var videoid);
 
-				var existingPlaylist = await GetPlaylistWithNameAndUserid(name, user.userid, connection, context);
+				var existingPlaylist = await GetPlaylistWithNameAndUserid(playlistName, user.userid, connection, context);
 				if (existingPlaylist == null)
 				{
-					bool success = await AddPlaylist(name, privacy, user.userid, connection, context);
+					bool success = await AddPlaylist(playlistName, privacy, user.userid, connection, context);
 					if (success)
 					{
-						var playlist = await GetPlaylistWithNameAndUserid(name, user.userid, connection, context);
+						var playlist = await GetPlaylistWithNameAndUserid(playlistName, user.userid, connection, context);
 						if (await AddVideoToPlaylist(playlist.id, videoid, connection, context))
 						{
-							await context.Response.Body.WriteAsync(Utf8Json.JsonSerializer.SerializeUnsafe($"Video has been added to { name }"));
+							await context.Response.Body.WriteAsync(Utf8Json.JsonSerializer.SerializeUnsafe($"Video has been added to { playlistName }"));
 						}
 						else
 						{
@@ -805,7 +807,7 @@ namespace VivistaServer
 				else
 				{
 
-					await CommonController.WriteError(context, $"Playlist {name} allready exist", StatusCodes.Status500InternalServerError);
+					await CommonController.WriteError(context, $"Playlist {playlistName} allready exist", StatusCodes.Status500InternalServerError);
 
 				}
 			}
@@ -816,6 +818,7 @@ namespace VivistaServer
 		}
 
 		[Route("GET", "/api/delete_video_from_playlist")]
+		[Route("GET", "/api/v1/delete_video_from_playlist")]
 		private static async Task DeleteVideoFromPlaylist(HttpContext context)
 		{
 			var userTask = UserSessions.GetLoggedInUser(context);
@@ -848,6 +851,7 @@ namespace VivistaServer
 		}
 
 		[Route("POST", "/api/add_video_to_playlist")]
+		[Route("POST", "/api/v1/add_video_to_playlist")]
 		private static async Task AddVideoToPlaylist(HttpContext context)
 		{
 			var userTask = UserSessions.GetLoggedInUser(context);
@@ -901,6 +905,7 @@ namespace VivistaServer
 			if (user != null)
 			{
 				var playlists = await GetPlaylistsOfUser(user.userid, connection, context);
+				//TODO(Simon): Refactor so videos get included in GetPlaylistsOfUser with a JOIN??
 				foreach (var playlist in playlists)
 				{
 					playlist.videos = await GetVideosOfPlaylist(playlist.id, connection, context);
@@ -975,6 +980,7 @@ namespace VivistaServer
 		}
 
 		[Route("GET", "/api/get_playlists_with_video_check")]
+		[Route("GET", "/api/v1/get_playlists_with_video_check")]
 		private static async Task GetPlaylistsWithVideoCheck(HttpContext context)
 		{
 			var userTask = UserSessions.GetLoggedInUser(context);
@@ -1030,6 +1036,7 @@ namespace VivistaServer
 			{
 				var playlist = await GetPlaylistWithId(playlistid, connection, context);
 				playlist.idBase64 = context.Request.Query["id"];
+				//TODO(Simon): Refactor so there's less duplicated code??
 				if (user != null && await UserOwnsPlaylist(playlistid, user.userid, connection, context))
 				{
 					playlist.videos = await GetVideosOfPlaylist(playlist.id, connection, context);
@@ -1054,6 +1061,7 @@ namespace VivistaServer
 		}
 
 		[Route("POST", "/api/edit_playlist_order")]
+		[Route("POST", "/api/v1/edit_playlist_order")]
 		private static async Task EditPlaylistOrder(HttpContext context)
 		{
 			var userTask = UserSessions.GetLoggedInUser(context);
@@ -1133,6 +1141,7 @@ namespace VivistaServer
 				return false;
 			}
 		}
+		
 		public static async Task<bool> UserOwnsPlaylist(Guid playlistid, int userid, NpgsqlConnection connection, HttpContext context)
 		{
 			try
@@ -1153,6 +1162,7 @@ namespace VivistaServer
 		{
 			try
 			{
+				//TODO(Simon): Refactor to Max() query??
 				var indexes = await Database.QueryAsync<int>(connection, @"SELECT index FROM playlist_videos WHERE playlistid = @playlistid::uuid", context, new { playlistid });
 				var index = 0;
 				if (indexes.Any())
@@ -1161,6 +1171,7 @@ namespace VivistaServer
 				}
 
 				index++;
+
 				await Database.ExecuteAsync(connection,
 										@"INSERT INTO playlist_videos (playlistid, videoid, index)
 												VALUES (@playlistid::uuid, @videoid, @index)",
@@ -1181,14 +1192,14 @@ namespace VivistaServer
 			}
 		}
 
-		public static async Task<Playlist> GetPlaylistWithNameAndUserid(string name, int userid, NpgsqlConnection connection, HttpContext context)
+		public static async Task<Playlist> GetPlaylistWithNameAndUserid(string playlistName, int userid, NpgsqlConnection connection, HttpContext context)
 		{
 			try
 			{
 				var playlist = await Database.QuerySingleAsync<Playlist>(connection,
 											@"SELECT * FROM playlists WHERE userid = @userid AND name = @name;",
 												context,
-												new { userid, name });
+												new { userid, name = playlistName });
 				return playlist;
 			}
 			catch (Exception e)
@@ -1215,6 +1226,7 @@ namespace VivistaServer
 
 		public static async Task<bool> IsVideoInPlaylist(Guid playlistid, Guid videoid, NpgsqlConnection connection, HttpContext context)
 		{
+			//TODO(Simon): Refactor so exception does not mean "not in playlist"
 			try
 			{
 				var playlist_video = await Database.QuerySingleAsync<Playlist>(connection,
