@@ -1,6 +1,9 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
+using Npgsql;
 using Utf8Json;
 
 namespace VivistaServer
@@ -20,14 +23,28 @@ namespace VivistaServer
 		Chapter
 	}
 
-	public class Answer
+	public class Question
 	{
 		public InteractionType type;
 		public int interactionId;
-		public int answerChosen;
 		public int correctAnswer;
 		//NOTE(Simon): In case of Find Area
-		public int wrongAnswersTried;
+	}
+
+	public class UserAnswer
+	{
+		DateTime timestamp;
+		Guid questionId;
+		int userId;
+		int totalScore;
+	}
+
+	public class Answer
+	{
+		public Guid questionId;
+		public int userAnswerId;
+		public int answerData;
+		public int score;
 	}
 
 	public class JsonArrayWrapper<T>
@@ -54,13 +71,20 @@ namespace VivistaServer
 
 			if (await VideoController.VideoExists(id, connection, context))
 			{
+				var questions = GetQuestionsForVideo(id);
+				if (questions == null)
+				{
+					questions = ExtractQuestionsFromVideo(id);
+					WriteQuestions(id, questions);
+				}
+
 				var answers = JsonSerializer.Deserialize<JsonArrayWrapper<Answer>>(context.Request.Form["answers"]).array;
 
 				string userIdString = context.Request.Form["userid"].ToString();
 				bool isAnonymous = String.IsNullOrEmpty(userIdString);
 				Int32.TryParse(userIdString, out int userId);
 
-
+				await Database.ExecuteAsync(connection, "INSERT INTO user_answers VALUES (@timestamp, @questionId, @userId, @total_score)", context, new UserAnswer())
 			}
 		}
 
@@ -125,6 +149,26 @@ namespace VivistaServer
 
 				await transaction.CommitAsync();
 			}
+		}
+
+
+
+		private static List<Question> GetQuestionsForVideo(Guid videoid, NpgsqlConnection connection, HttpContext context)
+		{
+			return Database.QueryAsync(connection, "SELECT * FROM ... WHERE video_id = @videoid", context, new { videoid });
+		}
+
+		private static List<Question> ExtractQuestionsFromVideo(Guid videoid)
+		{
+			string metaPath = Path.Combine(VideoController.baseFilePath, videoid.ToString(), "meta.json");
+
+			//TODO(Simon): Add interactionpoint parsing to this function.
+			var meta = VideoController.ReadMetaFile(metaPath);
+		}
+
+		private static bool WriteQuestions(Guid videoid, List<Question> questions, NpgsqlConnection connection, HttpContext context)
+		{
+			Database.ExecuteAsync(connection, "", context, new {});
 		}
 	}
 }

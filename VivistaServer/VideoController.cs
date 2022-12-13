@@ -60,6 +60,7 @@ namespace VivistaServer
 
 		public class Meta
 		{
+			public string version;
 			public Guid guid;
 			public string title;
 			public string description;
@@ -1892,14 +1893,14 @@ namespace VivistaServer
 			}
 		}
 
-		private static Meta ReadMetaFile(string path)
+		public static Meta ReadMetaFile(string path)
 		{
 			var raw = File.ReadAllText(path).AsSpan();
 			var meta = new Meta();
 
 			try
 			{
-				_ = GetNextMetaValue(ref raw);
+				meta.version = GetNextMetaValue(ref raw).ToString();
 				meta.guid = Guid.Parse(GetNextMetaValue(ref raw));
 				meta.title = GetNextMetaValue(ref raw).ToString();
 				meta.description = GetNextMetaValue(ref raw).ToString();
