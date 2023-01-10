@@ -1895,7 +1895,7 @@ namespace VivistaServer
 
 		public static Meta ReadMetaFile(string path)
 		{
-			var raw = File.ReadAllText(path).AsSpan();
+			var raw = File.ReadAllText(path).AsMemory();
 			var meta = new Meta();
 
 			try
@@ -1905,6 +1905,13 @@ namespace VivistaServer
 				meta.title = GetNextMetaValue(ref raw).ToString();
 				meta.description = GetNextMetaValue(ref raw).ToString();
 				meta.length = (int)float.Parse(GetNextMetaValue(ref raw));
+
+				var interactionPointsRaw = ParseInteractionPoints(ref raw);
+
+				foreach (var point in interactionPointsRaw)
+				{
+					meta.interactionPoints.Add()
+				}
 
 				return meta;
 			}
@@ -1924,6 +1931,48 @@ namespace VivistaServer
 			text = text.Slice(end + 1);
 
 			return line;
+		}
+
+		private static List<string> ParseInteractionPoints(ref ReadOnlySpan<char> raw)
+		{
+			var stringObjects = new List<string>();
+			int level = 0;
+			int start = 0;
+			int count = 0;
+			bool rising = true;
+
+			for (int i = 0; i < raw.Length; i++)
+			{
+				if (raw[i] == '{')
+				{
+					if (level == 0)
+					{
+						start = i;
+					}
+					rising = true;
+					level++;
+				}
+				if (raw[i] == '}')
+				{
+					level--;
+					rising = false;
+				}
+
+				count++;
+
+				if (level == 0 && !rising)
+				{
+					stringObjects.Add(raw.Slice(start, count - 1).ToString());
+					count = 0;
+					rising = true;
+				}
+				if (level < 0)
+				{
+					return null;
+				}
+			}
+
+			return stringObjects;
 		}
 
 		private static long GetDirectorySize(DirectoryInfo d)

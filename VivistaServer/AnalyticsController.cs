@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Npgsql;
@@ -67,15 +68,16 @@ namespace VivistaServer
 				return;
 			}
 
-			var connection = Database.OpenNewConnection();
+			using var connection = Database.OpenNewConnection();
+			using var transaction = connection.BeginTransaction();
 
 			if (await VideoController.VideoExists(id, connection, context))
 			{
-				var questions = GetQuestionsForVideo(id);
-				if (questions == null)
+				var questions = await GetQuestionsForVideo(id, connection, context, transaction);
+				if (questions.Count == 0)
 				{
 					questions = ExtractQuestionsFromVideo(id);
-					WriteQuestions(id, questions);
+					await WriteQuestions(id, questions, connection, context, transaction);
 				}
 
 				var answers = JsonSerializer.Deserialize<JsonArrayWrapper<Answer>>(context.Request.Form["answers"]).array;
@@ -98,7 +100,7 @@ namespace VivistaServer
 				return;
 			}
 
-			var connection = Database.OpenNewConnection();
+			using var connection = Database.OpenNewConnection();
 
 			if (await VideoController.VideoExists(videoId, connection, context))
 			{
@@ -153,9 +155,10 @@ namespace VivistaServer
 
 
 
-		private static List<Question> GetQuestionsForVideo(Guid videoid, NpgsqlConnection connection, HttpContext context)
+		private static async Task<List<Question>> GetQuestionsForVideo(Guid videoid, NpgsqlConnection connection, HttpContext context, NpgsqlTransaction transaction = null)
 		{
-			return Database.QueryAsync(connection, "SELECT * FROM ... WHERE video_id = @videoid", context, new { videoid });
+			var questions = await Database.QueryAsync<Question>(connection, "SELECT * FROM questions WHERE video_id = @videoid", context, new { videoid });
+			return questions.ToList();
 		}
 
 		private static List<Question> ExtractQuestionsFromVideo(Guid videoid)
@@ -164,11 +167,28 @@ namespace VivistaServer
 
 			//TODO(Simon): Add interactionpoint parsing to this function.
 			var meta = VideoController.ReadMetaFile(metaPath);
+
+			return meta.questions;
 		}
 
-		private static bool WriteQuestions(Guid videoid, List<Question> questions, NpgsqlConnection connection, HttpContext context)
+		private static async Task<bool> WriteQuestions(Guid videoid, List<Question> questions, NpgsqlConnection connection, HttpContext context, NpgsqlTransaction transaction = null)
 		{
-			Database.ExecuteAsync(connection, "", context, new {});
+			try
+			{
+				int result = await Database.ExecuteAsync(connection,
+						@"INSERT INTO questions (id, videoid, question, questiontype, potential_answers, correct_answer)
+						VALUES (@id, @videoid, @question, @questiontype, @potential_Answers, correct_answer)
+						ON CONFLICT(id) DO UPDATE
+						SET id=@id, videoid=@videoid, question=@question, questiontype=@questiontype, potentialanswers=@potentialanswers, correct_answer=@correct_answer",
+						context, questions, transaction);
+
+				return result > 0;
+			}
+			catch (Exception e)
+			{
+				CommonController.LogDebug(e.ToString());
+				return false;
+			}
 		}
 	}
 }
