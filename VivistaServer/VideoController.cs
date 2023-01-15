@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Numerics;
 using System.Runtime.Caching;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
@@ -14,6 +15,7 @@ using Microsoft.Net.Http.Headers;
 using Npgsql;
 using tusdotnet.Interfaces;
 using tusdotnet.Models.Configuration;
+using Utf8Json;
 
 namespace VivistaServer
 {
@@ -65,6 +67,23 @@ namespace VivistaServer
 			public string title;
 			public string description;
 			public int length;
+
+			public List<InteractionPoint> interactionPoints;
+		}
+
+		public class InteractionPoint
+		{
+			int id;
+			InteractionType type;
+			string title;
+			string body;
+			string filename;
+			float startTime;
+			float endTime;
+			int tagId;
+			bool mandatory;
+			Vector3 returnRayOrigin;
+
 		}
 
 		public enum UploadFileType
@@ -1895,7 +1914,7 @@ namespace VivistaServer
 
 		public static Meta ReadMetaFile(string path)
 		{
-			var raw = File.ReadAllText(path).AsMemory();
+			var raw = File.ReadAllText(path).AsSpan();
 			var meta = new Meta();
 
 			try
@@ -1908,9 +1927,9 @@ namespace VivistaServer
 
 				var interactionPointsRaw = ParseInteractionPoints(ref raw);
 
-				foreach (var point in interactionPointsRaw)
+				foreach (string point in interactionPointsRaw)
 				{
-					meta.interactionPoints.Add()
+					meta.interactionPoints.Add(JsonSerializer.Deserialize<InteractionPoint>(point));
 				}
 
 				return meta;
@@ -1933,9 +1952,9 @@ namespace VivistaServer
 			return line;
 		}
 
-		private static List<string> ParseInteractionPoints(ref ReadOnlySpan<char> raw)
+		private static List<InteractionPoint> ParseInteractionPoints(ref ReadOnlySpan<char> raw)
 		{
-			var stringObjects = new List<string>();
+			var stringObjects = new List<InteractionPoint>();
 			int level = 0;
 			int start = 0;
 			int count = 0;
@@ -1962,7 +1981,7 @@ namespace VivistaServer
 
 				if (level == 0 && !rising)
 				{
-					stringObjects.Add(raw.Slice(start, count - 1).ToString());
+					stringObjects.Add(JsonSerializer.Deserialize(raw.Slice(start, count - 1).));
 					count = 0;
 					rising = true;
 				}
